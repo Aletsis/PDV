@@ -19,13 +19,13 @@ graph TD
     subgraph Estacion_de_Caja_1
         Browser_1[Navegador Web / UI POS]
         DB_SQLite_1[(SQLite Local - pdv.db)]
-        HardwareAgent_1[PDV.HardwareAgent - Servicio de Windows]
+        HardwareAgent_1[PDV.HardwareAgent - Servicio de Sistema OS]
         Printer_1[Impresora de Tickets]
         Scale_1[Báscula de Peso]
 
         Browser_1 -->|Lee/Escribe Venta| DB_SQLite_1
         Browser_1 -->|Solicita Hardware| HardwareAgent_1
-        HardwareAgent_1 -->|Puerto Serial COM/USB| Printer_1
+        HardwareAgent_1 -->|Puerto Serial/USB/Directo| Printer_1
         HardwareAgent_1 -->|Puerto Serial COM| Scale_1
     end
 
@@ -278,30 +278,107 @@ Compila el proyecto web en modo de liberación (`Release`) optimizando el rendim
 
 ## 🔌 3. Configuración y Despliegue del Agente de Hardware (`PDV.HardwareAgent`)
 
-El **Agente de Hardware** es una aplicación de consola/servicio C# liviana que se instala en el equipo físico de la caja (donde están conectadas la impresora de tickets y la báscula por puerto USB/Serial). Su función es levantar un puerto de escucha HTTP/WebSocket local para recibir solicitudes de impresión o pesaje directas del navegador de Blazor.
+El **Agente de Hardware** es una aplicación de consola/servicio C# liviana y **completamente multiplataforma** (compatible con **Windows, Linux y macOS**) que se instala en el equipo físico de la caja. Su función es levantar un puerto de escucha HTTP/WebSocket local para recibir solicitudes de impresión o pesaje directas del navegador web o la PWA del PDV.
 
-### Instrucciones de Instalación
-1. Compila el agente para el sistema operativo de la máquina de caja (usualmente Windows de 64 bits):
+### A. Despliegue en Windows
+
+#### 1. Compilación e Instalación
+1. Compila el agente para Windows de 64 bits:
    ```powershell
    dotnet publish src/PDV.HardwareAgent/PDV.HardwareAgent.csproj -c Release -r win-x64 --self-contained true -o ./publish-agent
    ```
 2. Copia la carpeta `publish-agent` en la computadora de la caja (ej. `C:\PDVHardwareAgent`).
-3. Modifica el archivo `appsettings.json` local en la caja para mapear los puertos físicos:
+3. Modifica el archivo `appsettings.json` local en la caja para mapear los puertos físicos y controladores:
    ```json
    {
      "HardwareSettings": {
-       "TicketPrinterName": "EPSON TM-T88VI",
+       "TicketPrinterName": "EPSON TM-T88VI", // Nombre del Driver de Windows
        "ScalePort": "COM3",
        "ScaleBaudRate": 9600,
        "WebSocketPort": 8181
      }
    }
    ```
-4. **Ejecutar como Servicio de Windows (Altamente Recomendado)**:
+4. **Ejecutar como Servicio de Windows (Recomendado)**:
    Puedes registrar el agente para que se ejecute en segundo plano sin mostrar ventanas y arranque con el equipo:
    ```powershell
    sc.exe create "PDVHardwareAgent" binPath= "C:\PDVHardwareAgent\PDV.HardwareAgent.exe --service" start= auto
    sc.exe start "PDVHardwareAgent"
+   ```
+
+---
+
+### B. Despliegue en Linux / macOS
+
+Dado que .NET 9.0 es nativo y multiplataforma, puedes ejecutar el Agente de Hardware directamente en sistemas basados en Linux (como Ubuntu, Debian, Raspberry Pi OS) para controlar dispositivos USB o seriales.
+
+#### 1. Compilación
+Compila el agente de forma autocontenida para la arquitectura de destino (ej. x64 o ARM64 si usas una Raspberry Pi):
+- **Linux x64**:
+  ```bash
+  dotnet publish src/PDV.HardwareAgent/PDV.HardwareAgent.csproj -c Release -r linux-x64 --self-contained true -o ./publish-agent-linux
+  ```
+- **Linux ARM64 (Raspberry Pi)**:
+  ```bash
+  dotnet publish src/PDV.HardwareAgent/PDV.HardwareAgent.csproj -c Release -r linux-arm64 --self-contained true -o ./publish-agent-arm
+  ```
+
+#### 2. Permisos de Puertos Físicos y Dispositivos (Crítico en Linux)
+En Linux, los dispositivos USB y seriales son representados como archivos de caracteres en `/dev/`. El usuario que ejecuta el agente debe tener permisos de escritura sobre ellos.
+
+1. **Impresoras USB**: Típicamente mapeadas en `/dev/usb/lp0` o `/dev/usb/lp1`.
+2. **Puertos Seriales / Básculas**: Típicamente mapeados en `/dev/ttyS0` o `/dev/ttyUSB0`.
+
+Para otorgar los permisos adecuados al usuario actual sin requerir `sudo`:
+```bash
+# Agregar el usuario al grupo lp (impresoras) y dialout (puertos seriales)
+sudo usermod -a -G lp,dialout $USER
+```
+> [!IMPORTANT]
+> Debes cerrar sesión y volver a ingresar para que los cambios de grupos surtan efecto en tu usuario.
+
+#### 3. Configuración en Linux
+Modifica el archivo `appsettings.json` local en el directorio de ejecución de Linux. Nota cómo la ruta del dispositivo se especifica de forma directa:
+```json
+{
+  "HardwareSettings": {
+    "TicketPrinterName": "/dev/usb/lp0", // Ruta del dispositivo de la impresora USB
+    "ScalePort": "/dev/ttyUSB0",         // Ruta de la báscula por convertidor USB-Serial
+    "ScaleBaudRate": 9600,
+    "WebSocketPort": 8181
+  }
+}
+```
+
+#### 4. Ejecutar como Servicio Systemd en Linux
+Para mantener el agente corriendo en segundo plano:
+1. Copia los archivos a `/var/www/pdv-agent`.
+2. Crea el archivo del servicio:
+   ```bash
+   sudo nano /etc/systemd/system/pdv-hardware-agent.service
+   ```
+3. Agrega la configuración del servicio:
+   ```ini
+   [Unit]
+   Description=PDV Hardware Agent Service
+   After=network.target
+
+   [Service]
+   WorkingDirectory=/var/www/pdv-agent
+   ExecStart=/var/www/pdv-agent/PDV.HardwareAgent
+   Restart=always
+   RestartSec=5
+   User=www-data
+   # Asegurar que el usuario tenga acceso a lp y dialout si corre bajo otro usuario
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+4. Habilita e inicia el servicio:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable pdv-hardware-agent.service
+   sudo systemctl start pdv-hardware-agent.service
    ```
 
 ---

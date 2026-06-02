@@ -80,8 +80,8 @@ docker-compose up -d
 ```
 
 Para obtener detalles específicos sobre arquitecturas de red, proxies, certificados SSL y balanceo de carga, consulte la documentación interna de DevOps:
-* **[Guía de DevOps y Monitoreo](file:///c:/Users/B10%20Caja%202/source/repos/PDV/DEVOPS.md)**
-* **[Guía de Despliegue y Arquitectura](file:///c:/Users/B10%20Caja%202/source/repos/PDV/DEPLOYMENT.md)**
+* **[Guía de DevOps y Monitoreo](DEVOPS.md)**
+* **[Guía de Despliegue y Arquitectura](DEPLOYMENT.md)**
 
 ---
 

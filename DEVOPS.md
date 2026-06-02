@@ -17,10 +17,10 @@ graph TD
         DB_Master -->|Replicación Streaming| DB_Replica[(PostgreSQL Read-Replica)]
     end
 
-    subgraph Red Local Sucursal (Edge)
+    subgraph Red Local Sucursal 
         Browser[POS Web UI] -->|Sincronización HTTPS| LB
-        Browser -->|WebSockets Local| HardwareAgent[PDV.HardwareAgent - Windows Service]
-        HardwareAgent -->|Puertos COM/USB| TicketPrinter[Impresora Térmica]
+        Browser -->|WebSockets Local| HardwareAgent[PDV.HardwareAgent - Servicio de Sistema OS]
+        HardwareAgent -->|Puertos COM/USB/Directo| TicketPrinter[Impresora Térmica]
         HardwareAgent -->|Puerto Serial| Scale[Báscula de Peso]
         Browser -->|Lecturas offline| SQLite[(SQLite Local - pdv.db)]
     end
@@ -341,6 +341,6 @@ Siga este checklist interactivo antes del lanzamiento oficial:
   - [ ] Cabeceras de seguridad (`X-Frame-Options`, `Content-Security-Policy`, `X-Content-Type-Options`) habilitadas.
   - [ ] El cortafuegos bloquea el puerto público de PostgreSQL.
 - [ ] **Edge (Terminales Físicas)**:
-  - [ ] `PDV.HardwareAgent` configurado como Servicio de Windows con inicio automático.
+  - [ ] `PDV.HardwareAgent` configurado como Servicio del Sistema (Servicio de Windows o demonio de Systemd en Linux) con inicio automático.
   - [ ] Copias transaccionales diarias de `pdv.db` programadas mediante `VACUUM INTO`.
   - [ ] Latencia y sincronización offline-online probadas con éxito.
