@@ -1,0 +1,281 @@
+@using PDV.Domain.Entities
+@using MudBlazor 
+@using FluentValidation
+@using MediatR
+@using PDV.Application.Features.Categories.Queries.GetCategories
+@using PDV.Application.Features.Categories.Dtos
+@using PDV.Application.Features.Departments.Queries.GetDepartments
+@using PDV.Application.Features.Departments.Dtos
+@using PDV.Application.Features.UnidadesMedida
+@inject IMediator Mediator
+
+<MudDialog Class="premium-product-dialog">
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form" Validation="@(productValidator.ValidateValue)">
+            <MudTabs Elevation="0" Outlined="false" Color="Color.Primary" Class="premium-tabs" Rounded="true" ApplyEffectsToInnerViews="true">
+                
+                <!-- Tab 1: Datos Generales -->
+                <MudTabPanel Text="Información Básica" Icon="@Icons.Material.Filled.Info">
+                    <MudGrid Class="pt-4">
+                        <MudItem xs="12">
+                            <MudTextField Label="Nombre del Producto" @bind-Value="Model.Name" For="@(() => Model.Name)" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Código Interno" @bind-Value="Model.Code" For="@(() => Model.Code)" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Código de Barras / Código Alterno" @bind-Value="Model.Barcode" For="@(() => Model.Barcode)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" HelperText="Mapeado como código alterno en CONTPAQi" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="4">
+                            <MudTextField Label="PLU" @bind-Value="Model.Plu" For="@(() => Model.Plu)" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Código rápido de balanza" Class="premium-input" />
+                        </MudItem>
+                        
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" Label="Categoría" @bind-Value="Model.Category" For="@(() => Model.Category)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem Value="@(string.Empty)">-- Sin Categoría --</MudSelectItem>
+                                @foreach (var cat in categories)
+                                {
+                                    <MudSelectItem Value="@cat.Name">@cat.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" Label="Departamento" @bind-Value="Model.Department" For="@(() => Model.Department)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem Value="@(string.Empty)">-- Sin Departamento --</MudSelectItem>
+                                @foreach (var dep in departments)
+                                {
+                                    <MudSelectItem Value="@dep.Name">@dep.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField Label="Descripción" @bind-Value="Model.Description" For="@(() => Model.Description)" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                        </MudItem>
+                    </MudGrid>
+                </MudTabPanel>
+
+                <!-- Tab 2: Precios e Inventario -->
+                <MudTabPanel Text="Precios e Inventario" Icon="@Icons.Material.Filled.AttachMoney">
+                    <MudGrid Class="pt-4">
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudNumericField Label="Precio Venta" @bind-Value="Model.Price" For="@(() => Model.Price)" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudNumericField Label="Costo Adquisición" @bind-Value="Model.Cost" For="@(() => Model.Cost)" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudNumericField Label="Stock Actual" @bind-Value="Model.Stock" For="@(() => Model.Stock)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudNumericField Label="Stock Mínimo" @bind-Value="Model.MinStock" For="@(() => Model.MinStock)" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Alerta de reorden" Class="premium-input" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudNumericField Label="Precio Mayoreo" @bind-Value="Model.WholesalePrice" For="@(() => Model.WholesalePrice)" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Opcional" Class="premium-input" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudNumericField Label="Cant. Mínima Mayoreo" @bind-Value="Model.WholesaleMinQuantity" For="@(() => Model.WholesaleMinQuantity)" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Opcional" Class="premium-input" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudSelect T="string" Label="Tipo de Venta" @bind-Value="Model.SaleType" For="@(() => Model.SaleType)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem Value="@("Piece")">Por Pieza</MudSelectItem>
+                                <MudSelectItem Value="@("Bulk")">A Granel (Peso/Volumen)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudSelect T="int" Label="Control Existencias" @bind-Value="Model.ControlExistencia" For="@(() => Model.ControlExistencia)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" HelperText="CONTPAQi existencias">
+                                <MudSelectItem Value="@(1)">Sin Control (1)</MudSelectItem>
+                                <MudSelectItem Value="@(2)">Con Control Estándar (2)</MudSelectItem>
+                                <MudSelectItem Value="@(3)">Unidades Medida/Peso (3)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                    </MudGrid>
+                </MudTabPanel>
+
+                <!-- Tab 3: Datos de Facturación / SAT -->
+                <MudTabPanel Text="Facturación y SAT" Icon="@Icons.Material.Filled.ReceiptLong">
+                    <MudGrid Class="pt-4">
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Label="Código SAT" @bind-Value="Model.SatCode" For="@(() => Model.SatCode)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" Placeholder="Ej. 50192100" HelperText="Clave de producto/servicio SAT" />
+                        </MudItem>
+                        
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudSelect T="int" Label="Tipo Producto (CONTPAQi)" @bind-Value="Model.Type" For="@(() => Model.Type)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem Value="@(1)">Producto (1)</MudSelectItem>
+                                <MudSelectItem Value="@(2)">Paquete (2)</MudSelectItem>
+                                <MudSelectItem Value="@(3)">Servicio (3)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudSelect T="string" Label="Tasa de Impuesto (IVA)" @bind-Value="Model.TaxRate" For="@(() => Model.TaxRate)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem Value="@("Rate16")">16% Tasa General</MudSelectItem>
+                                <MudSelectItem Value="@("Rate8")">8% Zona Fronteriza</MudSelectItem>
+                                <MudSelectItem Value="@("ZeroRate")">0%</MudSelectItem>
+                                <MudSelectItem Value="@("Exempt")">Exento</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudSelect T="int?" Label="Unidad de Venta" Value="Model.SaleUnitId" ValueChanged="OnSaleUnitChanged" For="@(() => Model.SaleUnitId)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem T="int?" Value="null">-- Seleccionar Unidad --</MudSelectItem>
+                                @foreach (var unit in unidadesMedida)
+                                {
+                                    <MudSelectItem T="int?" Value="@unit.ExternalId">@unit.NombreUnidad (@unit.Abreviatura)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudSelect T="int?" Label="Unidad XML SAT" @bind-Value="Model.XmlUnitId" For="@(() => Model.XmlUnitId)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                <MudSelectItem T="int?" Value="null">-- Seleccionar Unidad --</MudSelectItem>
+                                @foreach (var unit in unidadesMedida)
+                                {
+                                    <MudSelectItem T="int?" Value="@unit.ExternalId">@unit.NombreUnidad (@unit.ClaveSat)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                            <!-- Datos informativos -->
+                            <div class="px-3 py-2 border rounded border-solid mud-border-secondary w-100" style="background: rgba(255,255,255,0.02);">
+                                <span style="font-size: 0.72rem; color: rgba(255,255,255,0.5); text-transform: uppercase;">SAT México</span>
+                                <div style="font-size: 0.8rem; font-weight: bold;">Compatible CFDI v4.0</div>
+                            </div>
+                        </MudItem>
+                    </MudGrid>
+                </MudTabPanel>
+            </MudTabs>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none; font-weight: bold; border-radius: 8px;">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Style="border-radius: 10px; text-transform: none; font-weight: 600; padding: 8px 24px;">Guardar Producto</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .premium-product-dialog {
+        background: rgba(30, 30, 30, 0.96) !important;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px !important;
+    }
+    
+    .premium-tabs {
+        background: transparent !important;
+    }
+    
+    .premium-tabs .mud-tabs-toolbar {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border-radius: 10px !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        padding: 4px !important;
+    }
+    
+    .premium-tabs .mud-tab {
+        border-radius: 8px !important;
+        text-transform: none !important;
+        font-weight: 600 !important;
+        min-height: 44px !important;
+    }
+</style>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public ProductViewModel Model { get; set; } = new();
+
+    private MudForm form = default!;
+    private ProductViewModelValidator productValidator = new();
+    
+    private List<CategoryDto> categories = new();
+    private List<DepartmentDto> departments = new();
+    private List<UnidadMedidaDto> unidadesMedida = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            categories = await Mediator.Send(new GetCategoriesQuery(IncludeInactive: false));
+            departments = await Mediator.Send(new GetDepartmentsQuery(IncludeInactive: false));
+            unidadesMedida = await Mediator.Send(new GetUnidadesMedidaQuery());
+        }
+        catch (Exception)
+        {
+            // Fail silent or fallback
+        }
+    }
+
+    private void OnSaleUnitChanged(int? newId)
+    {
+        Model.SaleUnitId = newId;
+        var selectedUnit = unidadesMedida.FirstOrDefault(u => u.ExternalId == newId);
+        Model.SaleUnitName = selectedUnit?.NombreUnidad ?? "Pieza";
+    }
+
+    void Cancel() => MudDialog.Cancel();
+
+    async Task Submit()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            MudDialog.Close(DialogResult.Ok(Model));
+        }
+    }
+
+    public class ProductViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string? Plu { get; set; }
+        public string? Barcode { get; set; }
+        public string? Description { get; set; }
+        public decimal Price { get; set; }
+        public decimal? WholesalePrice { get; set; }
+        public decimal? WholesaleMinQuantity { get; set; }
+        public decimal Cost { get; set; }
+        public decimal Stock { get; set; }
+        public decimal MinStock { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string SaleType { get; set; } = "Piece";
+        public string TaxRate { get; set; } = "Rate16";
+
+        public string SatCode { get; set; } = string.Empty;
+        public int Type { get; set; } = 1; // 1 = Producto
+        public int ControlExistencia { get; set; } = 2; // 2 = ConControl
+        public int? SaleUnitId { get; set; } = 0;
+        public string SaleUnitName { get; set; } = "Pieza";
+        public int? XmlUnitId { get; set; } = 0;
+        public string Department { get; set; } = string.Empty;
+        public int? Clasificacion1Id { get; set; }
+        public int? Clasificacion5Id { get; set; }
+    }
+
+    public class ProductViewModelValidator : AbstractValidator<ProductViewModel>
+    {
+        public ProductViewModelValidator()
+        {
+            RuleFor(x => x.Name).NotEmpty().Length(1, 100);
+            RuleFor(x => x.Code).NotEmpty().Length(1, 50);
+            RuleFor(x => x.Price).GreaterThanOrEqualTo(0);
+            RuleFor(x => x.Cost).GreaterThanOrEqualTo(0);
+            RuleFor(x => x.MinStock).GreaterThanOrEqualTo(0);
+            RuleFor(x => x.WholesalePrice).GreaterThanOrEqualTo(0).When(x => x.WholesalePrice.HasValue);
+            RuleFor(x => x.WholesaleMinQuantity).GreaterThan(0).When(x => x.WholesaleMinQuantity.HasValue);
+        }
+        
+        public Func<object, string, Task<IEnumerable<string>>> ValidateValue => async (model, propertyName) =>
+        {
+            var result = await ValidateAsync(ValidationContext<ProductViewModel>.CreateWithOptions((ProductViewModel)model, x => x.IncludeProperties(propertyName)));
+            if (result.IsValid)
+                return Array.Empty<string>();
+            return result.Errors.Select(e => e.ErrorMessage);
+        };
+    }
+}

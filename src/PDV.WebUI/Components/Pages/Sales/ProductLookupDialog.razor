@@ -1,0 +1,149 @@
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Products.Queries.GetProducts
+@using PDV.Application.Features.Products.Queries.GetProductByCode
+@using PDV.Application.Features.Products.Dtos
+@using MediatR
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="d-flex align-center gap-2 font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Search" Color="Color.Primary" />
+            Catálogo y Consulta de Productos (F2)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4">
+            <MudTextField @bind-Value="searchQuery"
+                          Placeholder="Buscar por nombre, código interno, SKU o categoría..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Immediate="true"
+                          Clearable="true"
+                          Class="flex-grow-1" />
+
+            <div style="max-height: 400px; overflow-y: auto;">
+                <MudTable Items="@FilteredProducts" Hover="true" Dense="true" Elevation="0" Bordered="false" Striped="true">
+                    <HeaderContent>
+                        <MudTh>Código</MudTh>
+                        <MudTh>Nombre</MudTh>
+                        <MudTh>Categoría</MudTh>
+                        <MudTh Style="text-align: right;">Stock</MudTh>
+                        <MudTh Style="text-align: right;">Precio Menudeo</MudTh>
+                        <MudTh Style="text-align: right;">Precio Mayoreo</MudTh>
+                        <MudTh Style="width: 220px;"></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Code</MudTd>
+                        <MudTd>
+                            <span class="font-weight-bold">@context.Name</span>
+                            @if (context.SaleType == "Bulk")
+                            {
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Class="ml-2">Granel</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd>@context.Category</MudTd>
+                        <MudTd Style="text-align: right;">
+                            <span style="font-weight: bold; color: @(context.Stock > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
+                                @context.Stock.ToString(context.SaleType == "Bulk" ? "N3" : "N0")
+                            </span>
+                        </MudTd>
+                        <MudTd Style="text-align: right;" Class="font-weight-bold">$@context.Price.ToString("F2")</MudTd>
+                        <MudTd Style="text-align: right;" Class="mud-text-secondary">
+                            @(context.WholesalePrice.HasValue ? $"${context.WholesalePrice.Value.ToString("F2")}" : "-")
+                        </MudTd>
+                        <MudTd>
+                            <div class="d-flex align-center gap-2 justify-end">
+                                @if (context.SaleType == "Bulk")
+                                {
+                                    <MudNumericField @bind-Value="weights[context.Id]"
+                                                     Min="0.001m"
+                                                     Format="N3"
+                                                     Variant="Variant.Outlined"
+                                                     Margin="Margin.Dense"
+                                                     Style="width: 90px; text-align: center;"
+                                                     HideSpinButtons="true" />
+                                    <span class="mud-text-secondary text-sm mr-1">kg</span>
+                                }
+                                else
+                                {
+                                    <MudNumericField @bind-Value="quantities[context.Id]"
+                                                     Min="1"
+                                                     Variant="Variant.Outlined"
+                                                     Margin="Margin.Dense"
+                                                     Style="width: 70px; text-align: center;"
+                                                     HideSpinButtons="true" />
+                                }
+                                <MudButton Variant="Variant.Filled" 
+                                           Color="Color.Primary" 
+                                           Size="Size.Small" 
+                                           OnClick="@(() => SelectProduct(context))">
+                                    Añadir
+                                </MudButton>
+                            </div>
+                        </MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText Align="Align.Center" Class="pa-4">No se encontraron productos coincidentes.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Color="Color.Secondary" Variant="Variant.Outlined">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string searchQuery = "";
+    private List<ProductDto> allProducts = new();
+    private Dictionary<Guid, int> quantities = new();
+    private Dictionary<Guid, decimal> weights = new();
+
+    private IEnumerable<ProductDto> FilteredProducts =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? allProducts.Where(p => p.IsActive)
+            : allProducts.Where(p => p.IsActive && 
+                (p.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                 p.Code.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                 (p.Category != null && p.Category.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                 (p.Plu != null && p.Plu.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))));
+
+    protected override async Task OnInitializedAsync()
+    {
+        allProducts = await Mediator.Send(new GetProductsQuery());
+        
+        foreach (var p in allProducts)
+        {
+            quantities[p.Id] = 1;
+            weights[p.Id] = 1.0m;
+        }
+    }
+
+    private async Task SelectProduct(ProductDto productDto)
+    {
+        var product = await Mediator.Send(new GetProductByCodeQuery(productDto.Code));
+        if (product != null)
+        {
+            decimal qty = product.SaleType == SaleType.Bulk 
+                ? weights[productDto.Id] 
+                : (decimal)quantities[productDto.Id];
+
+            MudDialog.Close(DialogResult.Ok(new ProductLookupResult(product, qty)));
+        }
+        else
+        {
+            Snackbar.Add("Error al cargar la información del producto.", Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Cancel();
+
+    public record ProductLookupResult(Product Product, decimal QuantityOrWeight);
+}

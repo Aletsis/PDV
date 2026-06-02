@@ -1,0 +1,231 @@
+@using MediatR
+@using PDV.Application.Features.TicketSequences.Dtos
+@using PDV.Application.Features.TicketSequences.Queries.GetTicketSequencesByCashRegister
+@using PDV.Application.Features.TicketSequences.Commands.UpsertTicketSequences
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.FormatListNumbered" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6">Series y Folios de Caja — @CashRegisterName</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!sequences.Any())"
+                            EmptyTitle="Sin folios"
+                            EmptyMessage="No se han cargado secuencias de folios para esta caja registradora."
+                            EmptyIcon="@Icons.Material.Filled.FormatListNumbered"
+                            SkeletonRows="3"
+                            SkeletonColumns="4">
+            <MudTable Items="@sequences" Dense="false" Hover="true" Bordered="false" Striped="false"
+                      Elevation="0" Style="background: transparent; border-radius: 12px; overflow: hidden;">
+                <HeaderContent>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600;">Tipo de Documento</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600;">Serie / Prefijo</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600;">Último Folio Emitido</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600; text-align: center;">Reinicio por Turno</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Tipo">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                            <div style="@($"background: {GetBgColorForType(context.SequenceType)}; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")">
+                                <MudIcon Icon="@GetIconForType(context.SequenceType)" Style="@($"color: {GetColorForType(context.SequenceType)}; font-size: 20px;")" />
+                            </div>
+                            <div>
+                                <MudText Typo="Typo.body2" Style="font-weight: 600; color: #ffffff; line-height: 1.2;">@GetLabelForType(context.SequenceType)</MudText>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-size: 0.72rem;">@GetDescriptionForType(context.SequenceType)</MudText>
+                            </div>
+                        </MudStack>
+                    </MudTd>
+                    <MudTd DataLabel="Serie">
+                        <MudTextField @bind-Value="context.Series"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      MaxLength="10"
+                                      Placeholder="Sin serie"
+                                      Style="max-width: 100px; font-weight: 600; font-family: 'Roboto Mono', monospace; text-transform: uppercase;"
+                                      Clearable="true" />
+                    </MudTd>
+                    <MudTd DataLabel="Folio">
+                        <MudNumericField T="int"
+                                         @bind-Value="context.LastTicketNumber"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Min="0"
+                                         Style="max-width: 120px; font-weight: 600; font-family: 'Roboto Mono', monospace;" />
+                    </MudTd>
+                    <MudTd DataLabel="Reinicio" Style="text-align: center;">
+                        @if (context.ResetOnNewShift)
+                        {
+                            <span style="background: rgba(255, 183, 77, 0.12); color: #ffb74d; border: 1px solid rgba(255, 183, 77, 0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.73rem; font-weight: 500;">
+                                Sí (Por Turno)
+                            </span>
+                        }
+                        else
+                        {
+                            <span style="background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.08); padding: 4px 10px; border-radius: 20px; font-size: 0.73rem; font-weight: 500;">
+                                No (Perpetuo)
+                            </span>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </PdvStateContainer>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Secondary"
+                              StartIcon="@Icons.Material.Filled.Save"
+                              OnClick="Save"
+                              IsLoading="@isSaving">
+            Guardar Cambios
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public Guid CashRegisterId { get; set; }
+    [Parameter] public string CashRegisterName { get; set; } = string.Empty;
+
+    private List<TicketSequenceDto> sequences = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSequences();
+    }
+
+    private async Task LoadSequences()
+    {
+        isLoading = true;
+        try
+        {
+            sequences = await Mediator.Send(new GetTicketSequencesByCashRegisterQuery(CashRegisterId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar folios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        // Validar que no haya folios negativos (aunque el input ya tiene Min="0")
+        if (sequences.Any(s => s.LastTicketNumber < 0))
+        {
+            Snackbar.Add("El último folio no puede ser negativo.", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var upsertDtos = sequences.Select(s => new TicketSequenceUpsertDto(
+                SequenceType: s.SequenceType,
+                Series: s.Series,
+                LastTicketNumber: s.LastTicketNumber
+            )).ToList();
+
+            await Mediator.Send(new UpsertTicketSequencesCommand(CashRegisterId, upsertDtos));
+
+            Snackbar.Add("Folios y series actualizados correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar cambios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    // ── Helpers Visuales ────────────────────────────────────────────────────
+
+    private string GetLabelForType(TicketSequenceType type)
+    {
+        return type switch
+        {
+            TicketSequenceType.Sale => "Ticket de Venta",
+            TicketSequenceType.Return => "Nota de Devolución",
+            TicketSequenceType.Cancellation => "Cancelación de Venta",
+            TicketSequenceType.CashCollection => "Retiro de Efectivo",
+            TicketSequenceType.CashCut => "Corte de Caja (Z-Report)",
+            TicketSequenceType.Order => "Pedido Especial",
+            _ => type.ToString()
+        };
+    }
+
+    private string GetDescriptionForType(TicketSequenceType type)
+    {
+        return type switch
+        {
+            TicketSequenceType.Sale => "Ventas normales en el piso de venta",
+            TicketSequenceType.Return => "Devoluciones de mercancía",
+            TicketSequenceType.Cancellation => "Cancelación total o parcial de tickets",
+            TicketSequenceType.CashCollection => "Retiros o arqueos parciales de efectivo",
+            TicketSequenceType.CashCut => "Reporte de corte diario de caja",
+            TicketSequenceType.Order => "Pedidos especiales o entregas a domicilio",
+            _ => "Secuencia genérica del sistema"
+        };
+    }
+
+    private string GetIconForType(TicketSequenceType type)
+    {
+        return type switch
+        {
+            TicketSequenceType.Sale => Icons.Material.Filled.Receipt,
+            TicketSequenceType.Return => Icons.Material.Filled.KeyboardReturn,
+            TicketSequenceType.Cancellation => Icons.Material.Filled.Cancel,
+            TicketSequenceType.CashCollection => Icons.Material.Filled.RemoveCircleOutline,
+            TicketSequenceType.CashCut => Icons.Material.Filled.Lock,
+            TicketSequenceType.Order => Icons.Material.Filled.LocalShipping,
+            _ => Icons.Material.Filled.ConfirmationNumber
+        };
+    }
+
+    private string GetColorForType(TicketSequenceType type)
+    {
+        return type switch
+        {
+            TicketSequenceType.Sale => "#64b5f6",        // Azul
+            TicketSequenceType.Return => "#ef5350",      // Rojo
+            TicketSequenceType.Cancellation => "#e57373",// Rojo claro
+            TicketSequenceType.CashCollection => "#ffb74d",// Naranja
+            TicketSequenceType.CashCut => "#b388ff",     // Morado
+            TicketSequenceType.Order => "#81c784",       // Verde
+            _ => "#ffffff"
+        };
+    }
+
+    private string GetBgColorForType(TicketSequenceType type)
+    {
+        return type switch
+        {
+            TicketSequenceType.Sale => "rgba(100, 181, 246, 0.12)",
+            TicketSequenceType.Return => "rgba(239, 83, 80, 0.12)",
+            TicketSequenceType.Cancellation => "rgba(229, 115, 115, 0.12)",
+            TicketSequenceType.CashCollection => "rgba(255, 183, 77, 0.12)",
+            TicketSequenceType.CashCut => "rgba(179, 136, 255, 0.12)",
+            TicketSequenceType.Order => "rgba(129, 199, 132, 0.12)",
+            _ => "rgba(255, 255, 255, 0.05)"
+        };
+    }
+}

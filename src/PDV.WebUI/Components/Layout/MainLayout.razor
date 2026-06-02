@@ -1,0 +1,144 @@
+@inherits LayoutComponentBase
+@using PDV.WebUI.Theme
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+
+<MudThemeProvider Theme="PremiumTheme.Theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3">CARNICERIA LA BLANQUITA</MudText>
+        <MudSpacer />
+        @if (!ConnectionMonitor.IsLocalMode)
+        {
+            <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CloudDone" Class="mr-4 text-white">
+                Nube (Online)
+            </MudChip>
+        }
+        else if (ConnectionMonitor.IsConnected)
+        {
+            <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Wifi" Class="mr-4 px-3" Style="border-radius: 20px;">
+                Caja (Sincronizada)
+            </MudChip>
+        }
+        else
+        {
+            <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.WifiOff" Class="mr-4 px-3 pulse-warning" Style="border-radius: 20px;">
+                Caja (Offline)
+            </MudChip>
+        }
+        <AuthorizeView>
+            <Authorized>
+                @if (ShiftSession.HasActiveShift)
+                {
+                    <MudChip T="string" Color="Color.Success" Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.LockOpen" Class="mr-2 px-3"
+                             Style="border-radius: 20px; font-size: 0.78rem;">
+                        @ShiftSession.CashRegisterName
+                    </MudChip>
+                }
+                <MudText Class="mr-4">Hola, @context.User.Identity?.Name</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/Account/Logout">Salir</MudButton>
+            </Authorized>
+            <NotAuthorized>
+                <MudLink Href="login" Color="Color.Inherit">Login</MudLink>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <MudNavMenu>
+            <AuthorizeView Roles="Admin,Manager">
+                <MudNavLink Href="dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin,Manager,Cashier">
+                <MudNavLink Href="pos" Icon="@Icons.Material.Filled.PointOfSale">Punto de Venta</MudNavLink>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin,Manager">
+                <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>
+                <MudNavLink Href="products" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
+                <MudNavLink Href="clients" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
+                <MudNavLink Href="invoices" Icon="@Icons.Material.Filled.Description">Facturas</MudNavLink>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin">
+                <MudDivider />
+                <MudNavGroup Title="Administración" Icon="@Icons.Material.Filled.Settings" Expanded="false">
+                    <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store">Sucursales</MudNavLink>
+                    <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Usuarios</MudNavLink>
+                    <MudNavLink Href="admin/cash-registers" Icon="@Icons.Material.Filled.PointOfSale">Cajas</MudNavLink>
+                    <MudNavLink Href="admin/printers" Icon="@Icons.Material.Filled.Print">Impresoras</MudNavLink>
+                    <MudNavLink Href="admin/settings" Icon="@Icons.Material.Filled.SettingsApplications">Configuración</MudNavLink>
+                </MudNavGroup>
+            </AuthorizeView>
+        </MudNavMenu>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4 pt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+    private string? _lastErrorShown;
+
+    protected override void OnInitialized()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        CheckForErrors();
+    }
+
+    private void CheckForErrors()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("error", out var errorVal))
+        {
+            var error = errorVal.ToString();
+            if (error != _lastErrorShown)
+            {
+                _lastErrorShown = error;
+                if (error == "NotACashRegisterTerminal")
+                {
+                    Snackbar.Configuration.PositionClass = Defaults.Classes.Position.TopCenter;
+                    Snackbar.Add("Acceso Denegado: Esta terminal no está autorizada para operaciones de caja.", Severity.Error, config => {
+                        config.VisibleStateDuration = 10000;
+                        config.HideTransitionDuration = 500;
+                        config.ShowTransitionDuration = 500;
+                        config.ShowCloseIcon = true;
+                    });
+                }
+            }
+        }
+        else
+        {
+            _lastErrorShown = null;
+        }
+    }
+
+    private void OnConnectionStatusChanged(bool isConnected)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    public void Dispose()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+}

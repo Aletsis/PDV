@@ -1,0 +1,442 @@
+@page "/shift/open"
+@page "/open-shift"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using MediatR
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegister
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Shifts.Commands.OpenShift
+@using PDV.Application.Features.Shifts.Queries.GetActiveShift
+@using PDV.Application.Features.Cashiers.Queries.ListCashiers
+@using PDV.Domain.Enums
+@using PDV.Application.Common.Helpers
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+
+<PageTitle>Apertura de Caja — PDV</PageTitle>
+
+<style>
+    .os-container {
+        min-height: 85vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 10% 20%, rgba(26, 31, 58, 1) 0%, rgba(13, 16, 32, 1) 90%);
+        padding: 24px;
+        border-radius: 20px;
+    }
+    .os-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        padding: 40px;
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+        color: #ffffff;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .os-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 48px 0 rgba(124, 77, 255, 0.15);
+    }
+    .os-gradient-text {
+        background: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #6366f1 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+    }
+    .os-register-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(124, 77, 255, 0.12);
+        color: #b794f4;
+        border: 1px solid rgba(124, 77, 255, 0.25);
+        padding: 6px 14px;
+        border-radius: 30px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .os-info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .os-info-label {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.9rem;
+    }
+    .os-info-value {
+        color: #ffffff;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+    .os-submit-btn {
+        background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.5px !important;
+        text-transform: uppercase !important;
+        border-radius: 12px !important;
+        padding: 14px 28px !important;
+        box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3) !important;
+        transition: all 0.2s ease !important;
+    }
+    .os-submit-btn:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 20px rgba(124, 77, 255, 0.5) !important;
+    }
+    .os-submit-btn:disabled {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: rgba(255, 255, 255, 0.3) !important;
+        box-shadow: none !important;
+    }
+    .pulse-glow {
+        animation: pulseGlow 3s infinite alternate;
+    }
+    @@keyframes pulseGlow {
+        0% { box-shadow: 0 0 20px rgba(124, 77, 255, 0.1); }
+        100% { box-shadow: 0 0 35px rgba(124, 77, 255, 0.25); }
+    }
+</style>
+
+<div class="os-container">
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12" sm="10" md="8" lg="5">
+            @if (isLoading)
+            {
+                <MudPaper Class="os-card text-center d-flex flex-column align-center justify-center py-12">
+                    <MudProgressCircular Color="Color.Secondary" Size="Size.Large" Indeterminate="true" Class="mb-4" />
+                    <MudText Typo="Typo.h6" Class="text-white-50">Identificando terminal y cargando información...</MudText>
+                </MudPaper>
+            }
+            else if (!isRoleAuthorized)
+            {
+                <MudPaper Class="os-card pulse-glow">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 64px;" />
+                        <MudText Typo="Typo.h4" Class="text-white font-weight-bold">Rol No Autorizado</MudText>
+                        <MudText Typo="Typo.body1" Class="text-white-50 px-4">
+                            Tu cuenta de usuario (<strong>@currentUserName</strong>) no tiene un rol autorizado para abrir turnos u operar cajas registradoras.
+                        </MudText>
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-2 text-left" Style="border-radius: 12px; width: 100%;">
+                            Se requiere contar con el rol de <strong>Cajero (Cashier), Manager o Administrador (Admin)</strong>. Solicita a un administrador la asignación de este rol.
+                        </MudAlert>
+                        <MudStack Row="true" Spacing="2" Class="mt-4" Style="width: 100%;">
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/" Class="flex-grow-1 py-3" Style="border-radius: 8px;">
+                                Ir al Dashboard
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Href="/Account/Logout" Class="flex-grow-1 py-3" Style="border-radius: 8px;">
+                                Cerrar Sesión
+                            </MudButton>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+            }
+            else if (cashRegister == null)
+            {
+                <MudPaper Class="os-card pulse-glow">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="text-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Router" Color="Color.Error" Style="font-size: 64px;" />
+                        <MudText Typo="Typo.h4" Class="text-white font-weight-bold">Terminal / Usuario No Vinculados</MudText>
+                        <MudText Typo="Typo.body1" Class="text-white-50 px-4">
+                            Ni esta terminal de red (IP: <strong style="font-family: monospace;">@clientIp</strong>) ni tu usuario (<strong>@currentUserName</strong>) están asignados a una caja registradora activa.
+                        </MudText>
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-2 text-left" Style="border-radius: 12px; width: 100%;">
+                            Pide a un administrador que asigne este equipo en la administración de cajas registrándole su dirección IP, o asigne tu cuenta a un registro de caja específico.
+                        </MudAlert>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/" Class="mt-4 px-6" Style="border-radius: 8px;">
+                            Ir al Dashboard Administrativo
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else if (hasForeignOpenShift)
+            {
+                <MudPaper Class="os-card text-center pulse-glow">
+                    <MudStack Spacing="3" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Style="font-size: 64px;" />
+                        <MudText Typo="Typo.h4" Class="text-white font-weight-bold">Turno Ocupado</MudText>
+                        <MudText Typo="Typo.body1" Class="text-white-50 px-4">
+                            La caja <strong>@cashRegister.Name</strong> cuenta actualmente con un turno abierto por: <strong class="mud-text-primary">@shiftOwnerName</strong>.
+                        </MudText>
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-2 text-left" Style="border-radius: 12px; width: 100%;">
+                            No puedes abrir un turno en esta terminal porque ya pertenece a otro cajero. Si necesitas usar esta caja, el cajero activo debe realizar su <strong>Corte de Caja</strong> antes.
+                        </MudAlert>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/" Class="mt-4 py-3 px-6" Style="border-radius: 12px; font-weight: 600;">
+                            Regresar al Dashboard
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else if (hasAlreadyOpenShift)
+            {
+                <MudPaper Class="os-card text-center pulse-glow">
+                    <MudStack Spacing="3">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Style="font-size: 64px; align-self: center;" />
+                        <MudText Typo="Typo.h4" Class="text-white font-weight-bold">Caja Abierta</MudText>
+                        <MudText Typo="Typo.body1" Class="text-white-50">
+                            La caja <strong>@cashRegister.Name</strong> ya cuenta con un turno abierto y está lista para operar.
+                        </MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Href="/pos" Class="mt-4 py-3" Style="border-radius: 12px; font-weight: 600;">
+                            Ir al Punto de Venta
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else
+            {
+                <MudPaper Class="os-card pulse-glow">
+                    <MudForm @ref="form" @bind-IsValid="@isValid">
+                        <MudStack Spacing="4">
+                            <div class="text-center">
+                                <MudText Typo="Typo.h4" Class="os-gradient-text">Apertura de Caja</MudText>
+                                <MudText Typo="Typo.subtitle1" Class="text-white-50 mt-1">Registra el fondo inicial para iniciar actividades</MudText>
+                            </div>
+
+                            <div class="d-flex justify-center my-2">
+                                <span class="os-register-badge">
+                                    <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Size="Size.Small" />
+                                    Terminal: @cashRegister.Name
+                                </span>
+                            </div>
+
+                            <div class="my-2" style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.04);">
+                                <div class="os-info-row">
+                                    <span class="os-info-label">Sucursal</span>
+                                    <span class="os-info-value">@cashRegister.BranchName</span>
+                                </div>
+                                <div class="os-info-row">
+                                    <span class="os-info-label">Ubicación</span>
+                                    <span class="os-info-value">@(string.IsNullOrEmpty(cashRegister.Location) ? "Piso de Ventas" : cashRegister.Location)</span>
+                                </div>
+                                <div class="os-info-row" style="border-bottom: none;">
+                                    <span class="os-info-label">Cajero</span>
+                                    <span class="os-info-value">@currentUserName</span>
+                                </div>
+                            </div>
+
+                            <MudNumericField @bind-Value="initialCash"
+                                             Label="Fondo Inicial de Caja (Efectivo)"
+                                             Variant="Variant.Outlined"
+                                             Required="true"
+                                             Min="0.00m"
+                                             Format="C2"
+                                             Adornment="Adornment.Start"
+                                             AdornmentIcon="@Icons.Material.Filled.AttachMoney"
+                                             HideSpinButtons="true"
+                                             Class="mt-2 text-white"
+                                             Style="font-size: 1.5rem; font-weight: 700; color: #ffffff;"
+                                             Placeholder="0.00" />
+
+                            <MudButton Variant="Variant.Filled"
+                                       ButtonType="ButtonType.Button"
+                                       OnClick="HandleOpenShift"
+                                       Disabled="@(isSaving || !isValid)"
+                                       Class="os-submit-btn py-4 mt-2">
+                                @if (isSaving)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Iniciando Turno...</span>
+                                }
+                                else
+                                {
+                                    <span>Confirmar Apertura de Caja</span>
+                                }
+                            </MudButton>
+
+                            <MudButton Variant="Variant.Text" Color="Color.Default" Href="/" Class="text-white-50">
+                                Regresar al Dashboard
+                            </MudButton>
+                        </MudStack>
+                    </MudForm>
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public Guid? CashRegisterId { get; set; }
+
+    private CashRegisterDto? cashRegister;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool hasAlreadyOpenShift = false;
+    private bool isRoleAuthorized = true;
+    private bool hasForeignOpenShift = false;
+    private string shiftOwnerName = string.Empty;
+    private string clientIp = string.Empty;
+    private string currentUserName = string.Empty;
+    private string currentUserId = string.Empty;
+
+    private MudForm? form;
+    private bool isValid = false;
+    private decimal initialCash = 0.00m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            // Obtener usuario actual y estado de autenticación
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            currentUserName = user.Identity?.Name ?? "Desconocido";
+            currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            // 1. Validar Rol de Usuario
+            isRoleAuthorized = user.IsInRole("Admin") || user.IsInRole("Manager") || user.IsInRole("Cashier");
+            if (!isRoleAuthorized)
+            {
+                isLoading = false;
+                return;
+            }
+
+            // 2. Obtener la IP remota del cliente
+            var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+            clientIp = IpAddressHelper.ResolveClientIp(rawIp);
+
+            // 3. Buscar cajas asignadas por IP o por usuario
+            CashRegisterDto? registerByIp = null;
+            if (!string.IsNullOrEmpty(clientIp))
+            {
+                registerByIp = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+            }
+
+            CashRegisterDto? registerByUser = null;
+            var cashiers = await Mediator.Send(new ListCashiersQuery());
+            var currentEmployee = cashiers.FirstOrDefault(c => c.UserId == currentUserId);
+            if (currentEmployee != null)
+            {
+                var registers = await Mediator.Send(new ListCashRegistersQuery());
+                registerByUser = registers.FirstOrDefault(r => r.AssignedEmployeeId == currentEmployee.Id);
+            }
+
+            // Seleccionar caja
+            if (CashRegisterId.HasValue && CashRegisterId.Value != Guid.Empty)
+            {
+                cashRegister = await Mediator.Send(new GetCashRegisterQuery(CashRegisterId.Value));
+            }
+            else
+            {
+                cashRegister = registerByIp ?? registerByUser;
+            }
+
+            // Fallback inteligente para Modo Local si no se encontró caja
+            if (cashRegister == null)
+            {
+                var runMode = Configuration["RunMode"] ?? "Server";
+                if (runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
+                {
+                    var cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
+                    cashRegister = cashRegisters.FirstOrDefault(c => c.IsActive);
+                }
+            }
+
+            // 4. Validar Turnos Activos
+            if (cashRegister != null)
+            {
+                var activeShift = await Mediator.Send(new GetActiveShiftByCashRegisterQuery(cashRegister.Id));
+                if (activeShift != null)
+                {
+                    // Validar si pertenece al usuario que intenta entrar
+                    if (activeShift.UserId == currentUserId)
+                    {
+                        // Cargar en sesión
+                        ShiftSession.SetActive(
+                            activeShift.Id,
+                            activeShift.CashRegisterId,
+                            activeShift.CashRegisterName,
+                            activeShift.InitialCash,
+                            activeShift.StartTime);
+                        
+                        hasAlreadyOpenShift = true;
+                        
+                        if (!CashRegisterId.HasValue)
+                        {
+                            Navigation.NavigateTo("/pos", replace: true);
+                        }
+                    }
+                    else
+                    {
+                        // Pertenece a otro usuario
+                        var owner = cashiers.FirstOrDefault(c => c.UserId == activeShift.UserId);
+                        shiftOwnerName = owner != null ? owner.Name : activeShift.UserId;
+                        hasForeignOpenShift = true;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar configuración: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleOpenShift()
+    {
+        if (cashRegister == null || isSaving) return;
+
+        if (initialCash < 0)
+        {
+            Snackbar.Add("El fondo inicial no puede ser negativo.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            Snackbar.Add("No se pudo obtener la identidad del usuario para abrir el turno.", Severity.Error);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var command = new OpenShiftCommand(
+                CashRegisterId: cashRegister.Id,
+                UserId: currentUserId,
+                InitialCash: initialCash
+            );
+
+            var shiftId = await Mediator.Send(command);
+            
+            // Establecer en el ShiftSessionService
+            ShiftSession.SetActive(
+                shiftId,
+                cashRegister.Id,
+                cashRegister.Name,
+                initialCash,
+                DateTime.UtcNow
+            );
+
+            Snackbar.Add($"¡Turno abierto en {cashRegister.Name}! Fondo: ${initialCash:F2}", Severity.Success);
+
+            // Redirigir al POS
+            Navigation.NavigateTo("/pos", replace: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al abrir la caja: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

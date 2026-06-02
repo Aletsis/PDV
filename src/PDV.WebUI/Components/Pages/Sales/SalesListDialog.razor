@@ -1,0 +1,432 @@
+@using MediatR
+@using PDV.Application.Features.Sales.Queries.ListSales
+@using PDV.Application.Features.Sales.Queries.GetSale
+@using PDV.Application.Features.Sales.Commands.CancelSale
+@using PDV.Application.Features.Sales.Commands.ReturnSale
+@using PDV.Application.Features.Sales.Commands.CreateInvoice
+@using PDV.Application.Features.Sales.Commands.PrintSaleTicket
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.CashRegisters.Dtos
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject IHttpContextAccessor HttpContextAccessor
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@implements IDisposable
+
+<MudDialog MaxWidth="MaxWidth.Large" FullWidth="true">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.History" Color="Color.Primary" />
+            Historial de Notas y Devoluciones (POS)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4 py-2">
+            <!-- Connection Monitor Alert -->
+            <div>
+                @if (ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected)
+                {
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Dense="true" Icon="@Icons.Material.Filled.WifiOff" Style="border-radius: 8px;">
+                        Modo Local (SQLite) — Mostrando solo ventas de esta Caja: <strong>@(currentCashRegister?.Name ?? "Local")</strong>
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Dense="true" Icon="@Icons.Material.Filled.CloudDone" Style="border-radius: 8px;">
+                        Modo Online (Sincronizado) — Visualizando ventas globales del sistema
+                    </MudAlert>
+                }
+            </div>
+
+            <!-- Filtering Panel -->
+            <MudPaper Class="pa-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.01);">
+                <MudGrid AlignItems="Center">
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="startDate" Label="Fecha de Inicio" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="endDate" Label="Fecha de Fin" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="bool?" @bind-Value="filterPaid" Label="Estado de Pago" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="@((bool?)null)">Todos los Estados</MudSelectItem>
+                            <MudSelectItem Value="@((bool?)true)">Solo Pagadas</MudSelectItem>
+                            <MudSelectItem Value="@((bool?)false)">Solo Pendientes</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="3" Class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled" 
+                                   Color="Color.Primary" 
+                                   StartIcon="@Icons.Material.Filled.FilterAlt"
+                                   OnClick="LoadData" 
+                                   FullWidth="true" 
+                                   Style="height: 40px; text-transform: none; font-weight: bold; border-radius: 8px;">
+                            Filtrar Historial
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Data Table Grid -->
+            <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden;">
+                <MudDataGrid Items="@sales" Filterable="true" Sortable="true" Dense="true" Elevation="0" Striped="true" Style="max-height: 400px; overflow-y: auto;">
+                    <Columns>
+                        <PropertyColumn Property="x => x.SaleNumber" Title="Ticket / Folio" />
+                        <PropertyColumn Property="x => x.Date" Title="Fecha y Hora" Format="dd/MM/yyyy HH:mm" />
+                        <PropertyColumn Property="x => x.ClientName" Title="Cliente" />
+                        <PropertyColumn Property="x => x.PaymentMethod" Title="Método Pago" />
+                        <PropertyColumn Property="x => x.TotalAmount" Title="Total Venta" Format="C2" CellStyle="font-weight: bold; color: var(--mud-palette-primary);" />
+                        <PropertyColumn Property="x => x.ItemCount" Title="Cant. Artículos" Style="text-align: center;" />
+                        <TemplateColumn Title="Estado de Nota">
+                            <CellTemplate>
+                                @if (context.Item.IsCancelled)
+                                {
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Cancelada</MudChip>
+                                }
+                                else if (context.Item.IsPaid)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Pagada</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Pendiente</MudChip>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Acciones POS" Style="width: 240px;">
+                            <CellTemplate>
+                                <div class="d-flex align-center gap-1">
+                                    <!-- View Detail -->
+                                    <MudTooltip Text="Ver Detalle Ticket">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small" OnClick="@(() => ViewSale(context.Item))" />
+                                    </MudTooltip>
+
+                                    <!-- Reprint Ticket -->
+                                    @if (context.Item.IsPaid && !context.Item.IsCancelled)
+                                    {
+                                        <MudTooltip Text="Reimprimir Nota">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Info" Size="Size.Small" OnClick="@(() => ReprintTicket(context.Item))" />
+                                        </MudTooltip>
+                                    }
+
+                                    <!-- Cancel Note -->
+                                    @if (!context.Item.IsPaid && !context.Item.IsCancelled)
+                                    {
+                                        <MudTooltip Text="Cancelar Venta">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" OnClick="@(() => CancelSale(context.Item))" />
+                                        </MudTooltip>
+                                    }
+
+                                    <!-- Actions for paid active sales -->
+                                    @if (context.Item.IsPaid && !context.Item.IsCancelled)
+                                    {
+                                        <!-- Partial / Itemized Refund (Devolución) -->
+                                        <MudTooltip Text="Hacer Devolución (Parcial/Total)">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Warning" Size="Size.Small" OnClick="@(() => OpenReturnItemsDialog(context.Item))" />
+                                        </MudTooltip>
+
+                                        <!-- Generate Invoice -->
+                                        <MudTooltip Text="Facturar Ticket">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" Size="Size.Small" OnClick="@(() => CreateInvoice(context.Item))" />
+                                        </MudTooltip>
+                                    }
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                    <PagerContent>
+                        <MudDataGridPager T="SaleDto" />
+                    </PagerContent>
+                </MudDataGrid>
+            </MudPaper>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Color="Color.Secondary" Variant="Variant.Outlined" Style="text-transform: none; border-radius: 8px; font-weight: bold;">Cerrar Historial</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Ticket Detail Dialog Modal -->
+<MudDialog @bind-IsVisible="isDetailDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" />
+            Detalle de Nota de Venta: @selectedSale?.SaleNumber
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (selectedSaleDetail != null)
+        {
+            <MudPaper Outlined="true" Class="pa-4 mb-4 bg-light" Style="border-radius: 8px;">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText Class="mb-1"><strong>Fecha de Emisión:</strong> @selectedSaleDetail.Date.ToString("dd/MM/yyyy HH:mm")</MudText>
+                        <MudText Class="mb-1"><strong>Cliente Asociado:</strong> @selectedSaleDetail.ClientName</MudText>
+                        <MudText Class="mb-1"><strong>Forma de Pago:</strong> @selectedSaleDetail.PaymentMethod</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Class="d-flex flex-column align-sm-end justify-center">
+                        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2">
+                            <strong>Estado:</strong> 
+                            @if (selectedSaleDetail.IsCancelled)
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small">Cancelada</MudChip>
+                            }
+                            else if (selectedSaleDetail.IsPaid)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">Pagada</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Pendiente</MudChip>
+                            }
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+            
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Artículos del Ticket:</MudText>
+            <MudTable Items="@selectedSaleDetail.Items" Dense="true" Class="border-solid border mud-border-secondary" Style="border-radius: 8px; overflow: hidden;">
+                <HeaderContent>
+                    <MudTh>Producto</MudTh>
+                    <MudTh Style="text-align: right;">Precio Unit.</MudTh>
+                    <MudTh Style="text-align: center;">Cantidad / Peso</MudTh>
+                    <MudTh Style="text-align: right;">Total Importe</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.ProductName</MudTd>
+                    <MudTd Style="text-align: right;">@context.UnitPrice.ToString("C2")</MudTd>
+                    <MudTd Style="text-align: center;">@context.Quantity</MudTd>
+                    <MudTd Style="text-align: right;" Class="font-weight-bold">@context.TotalPrice.ToString("C2")</MudTd>
+                </RowTemplate>
+            </MudTable>
+            
+            <div class="d-flex justify-end mt-4">
+                <div class="text-right">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">TOTAL FINAL DEL TICKET</MudText>
+                    <MudText Typo="Typo.h4" Class="font-weight-bold mud-text-primary">@selectedSaleDetail.TotalAmount.ToString("C2")</MudText>
+                </div>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (selectedSaleDetail != null && selectedSaleDetail.IsPaid && !selectedSaleDetail.IsCancelled)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Print" OnClick="@(() => ReprintFromDetails())" Color="Color.Info" Variant="Variant.Filled" Style="text-transform: none; border-radius: 8px;">Reimprimir Ticket</MudButton>
+        }
+        <MudButton OnClick="CloseDetailDialog" Color="Color.Secondary" Variant="Variant.Outlined" Style="text-transform: none; border-radius: 8px;">Cerrar Detalle</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private List<SaleDto> sales = new();
+    private DateTime? startDate = DateTime.Today;
+    private DateTime? endDate = DateTime.Today.AddDays(1);
+    private bool? filterPaid = null;
+
+    private bool isDetailDialogVisible = false;
+    private SaleDto? selectedSale;
+    private SaleDetailDto? selectedSaleDetail;
+    private CashRegisterDto? currentCashRegister;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
+        
+        if (!string.IsNullOrEmpty(clientIp))
+        {
+            currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+        }
+
+        if (currentCashRegister == null)
+        {
+            var runMode = Configuration["RunMode"] ?? "Server";
+            if (runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
+            {
+                var cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
+                currentCashRegister = cashRegisters.FirstOrDefault(c => c.IsActive);
+            }
+        }
+
+        ConnectionMonitor.OnConnectionStatusChanged += OnConnectionChanged;
+        await LoadData();
+    }
+
+    private async void OnConnectionChanged(bool isConnected)
+    {
+        await InvokeAsync(async () => {
+            await LoadData();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadData()
+    {
+        Guid? cashRegisterFilter = null;
+        bool isOffline = ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected;
+
+        if (isOffline && currentCashRegister != null)
+        {
+            cashRegisterFilter = currentCashRegister.Id;
+        }
+
+        sales = await Mediator.Send(new ListSalesQuery(
+            StartDate: startDate,
+            EndDate: endDate,
+            IsPaid: filterPaid,
+            CashRegisterId: cashRegisterFilter));
+    }
+
+    private async Task<bool> RequestAuthorizationAsync(string actionName)
+    {
+        var parameters = new DialogParameters { ["ActionName"] = actionName };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
+        var dialog = DialogService.Show<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var result = await dialog.Result;
+        return result != null && !result.Canceled && result.Data is bool authorized && authorized;
+    }
+
+    private void ViewSale(SaleDto sale)
+    {
+        MudDialog.Close(DialogResult.Ok(sale));
+    }
+
+    private void CloseDetailDialog()
+    {
+        isDetailDialogVisible = false;
+        selectedSale = null;
+        selectedSaleDetail = null;
+    }
+
+    private async Task ReprintTicket(SaleDto sale)
+    {
+        var authorized = await RequestAuthorizationAsync("Reimprimir ticket anterior");
+        if (!authorized) return;
+
+        try
+        {
+            var registerId = ShiftSession.ActiveCashRegisterId ?? Guid.Empty;
+            await Mediator.Send(new PrintSaleTicketCommand(sale.Id, CashRegisterId: registerId));
+            Snackbar.Add("Comando de reimpresión enviado a la impresora", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al imprimir: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ReprintFromDetails()
+    {
+        if (selectedSale != null)
+        {
+            await ReprintTicket(selectedSale);
+        }
+    }
+
+    private async Task CancelSale(SaleDto sale)
+    {
+        var authorized = await RequestAuthorizationAsync("Cancelar venta activa o emitida");
+        if (!authorized) return;
+
+        bool? result = await DialogService.ShowMessageBox(
+            "Cancelar Venta",
+            $"¿Estás seguro que deseas cancelar la venta {sale.SaleNumber}?",
+            yesText: "Cancelar Venta", cancelText: "No");
+
+        if (result == true)
+        {
+            var parameters = new DialogParameters { ["Title"] = "Razón de cancelación", ["Message"] = "Ingrese la razón de la cancelación:" };
+            var dialog = DialogService.Show<InputDialog>("Razón de cancelación", parameters);
+            var dialogResult = await dialog.Result;
+            if (dialogResult != null && !dialogResult.Canceled && dialogResult.Data is string reason && !string.IsNullOrWhiteSpace(reason))
+            {
+                try
+                {
+                    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                    var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+                    await Mediator.Send(new CancelSaleCommand(sale.Id, reason, userId));
+                    Snackbar.Add("Venta cancelada exitosamente", Severity.Success);
+                    await LoadData();
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Snackbar.Add(ex.Message, Severity.Error);
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+                }
+            }
+        }
+    }
+
+    private async Task OpenReturnItemsDialog(SaleDto sale)
+    {
+        var authorized = await RequestAuthorizationAsync("Procesar devolución de mercancía");
+        if (!authorized) return;
+
+        var detail = await Mediator.Send(new GetSaleQuery(sale.Id));
+        if (detail == null)
+        {
+            Snackbar.Add("No se pudo cargar la información de la venta.", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters { ["SaleDetail"] = detail };
+        var dialog = DialogService.Show<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is bool success && success)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task CreateInvoice(SaleDto sale)
+    {
+        var invoiceType = await DialogService.ShowMessageBox(
+            "Tipo de Factura",
+            "¿Qué tipo de factura desea crear?",
+            yesText: "Por Cliente", cancelText: "Global", noText: "Cancelar");
+
+        if (invoiceType == null) return;
+
+        bool isGlobal = invoiceType == false;
+
+        try
+        {
+            var command = new CreateInvoiceCommand
+            {
+                SaleId = sale.Id,
+                IsGlobal = isGlobal,
+                TaxRate = 0.16m
+            };
+            var invoiceId = await Mediator.Send(command);
+            Snackbar.Add($"Factura creada exitosamente. ID: {invoiceId}", Severity.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+
+    public void Dispose()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionChanged;
+    }
+}

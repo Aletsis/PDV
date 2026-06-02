@@ -1,0 +1,377 @@
+@page "/admin/cash-registers"
+@rendermode InteractiveServer
+@using MediatR
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.CashRegisters.Commands.CreateCashRegister
+@using PDV.Application.Features.CashRegisters.Commands.UpdateCashRegister
+@using PDV.Application.Features.CashRegisters.Commands.DeleteCashRegister
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Cashiers.Queries.ListCashiers
+@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Printers.Queries.ListPrinters
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Domain.Enums
+@using PDV.Application.Common.Helpers
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Cajas Registradoras — Administración</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Page Header & Mode Monitor -->
+    <PdvHeader Title="Cajas Registradoras"
+               Subtitle="Gestiona y vincula las cajas a sus terminales por dirección IP"
+               Icon="@Icons.Material.Filled.PointOfSale"
+               IconColor="Color.Primary">
+        <Actions>
+            <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="OpenCreateDialog">
+                Nueva Caja
+            </PdvInteractiveButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid>
+        <MudItem xs="12" sm="3">
+            <PdvKpiCard Title="Total"
+                       Value="@cashRegisters.Count.ToString()"
+                       Icon="@Icons.Material.Filled.PointOfSale"
+                       IconColor="Color.Primary"
+                       IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <PdvKpiCard Title="Activas"
+                       Value="@cashRegisters.Count(c => c.IsActive).ToString()"
+                       Icon="@Icons.Material.Filled.CheckCircle"
+                       IconColor="Color.Success"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <PdvKpiCard Title="Con IP"
+                       Value="@cashRegisters.Count(c => !string.IsNullOrEmpty(c.IpAddress)).ToString()"
+                       Icon="@Icons.Material.Filled.Router"
+                       IconColor="Color.Info"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Info" />
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <PdvKpiCard Title="Sin IP"
+                       Value="@cashRegisters.Count(c => string.IsNullOrEmpty(c.IpAddress)).ToString()"
+                       Icon="@Icons.Material.Filled.LinkOff"
+                       IconColor="Color.Warning"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Main Data Section -->
+    <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!cashRegisters.Any())"
+                            EmptyTitle="Sin cajas registradas"
+                            EmptyMessage="No se han configurado cajas registradoras en el sistema."
+                            EmptyIcon="@Icons.Material.Filled.PointOfSale"
+                            SkeletonRows="5"
+                            SkeletonColumns="8">
+            <MudDataGrid T="CashRegisterDto"
+                         Items="@cashRegisters"
+                         Filterable="true"
+                         Sortable="true"
+                         Dense="false"
+                         Hover="true"
+                         RowClass="cr-table-row"
+                         Style="border-radius: 12px; overflow: hidden;"
+                         Elevation="0">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <PropertyColumn Property="x => x.Location" Title="Ubicación" />
+                    <PropertyColumn Property="x => x.BranchName" Title="Sucursal" />
+
+                    <TemplateColumn Title="Modo">
+                        <CellTemplate>
+                            @if (context.Item.Mode == CashRegisterMode.SalesFloor)
+                            {
+                                <span class="cr-mode-chip cr-mode-sales">
+                                    <MudIcon Icon="@Icons.Material.Filled.Storefront" Style="font-size:13px;" />
+                                    Piso de Ventas
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="cr-mode-chip cr-mode-orders">
+                                    <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="font-size:13px;" />
+                                    Pedidos
+                                </span>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="IP Asignada" SortBy="x => x.IpAddress ?? string.Empty">
+                        <CellTemplate>
+                            @if (!string.IsNullOrEmpty(context.Item.IpAddress))
+                            {
+                                <span class="cr-ip-badge assigned">
+                                    <MudIcon Icon="@Icons.Material.Filled.Router" Style="font-size: 12px;" />
+                                    @context.Item.IpAddress
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="cr-ip-badge unassigned">
+                                    <MudIcon Icon="@Icons.Material.Filled.LinkOff" Style="font-size: 12px;" />
+                                    Sin vincular
+                                </span>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Empleado">
+                        <CellTemplate>
+                            @if (!string.IsNullOrEmpty(context.Item.AssignedEmployeeName))
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Person" Size="Size.Small"
+                                         Color="Color.Default" Variant="Variant.Outlined">
+                                    @context.Item.AssignedEmployeeName
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <span style="color: rgba(255,255,255,0.3); font-size: 0.82rem;">—</span>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Impresora">
+                        <CellTemplate>
+                            @if (!string.IsNullOrEmpty(context.Item.AssignedPrinterName))
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Print" Size="Size.Small"
+                                         Color="Color.Default" Variant="Variant.Outlined">
+                                    @context.Item.AssignedPrinterName
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <span style="color: rgba(255,255,255,0.3); font-size: 0.82rem;">—</span>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Estado" SortBy="x => x.IsActive">
+                        <CellTemplate>
+                            @if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text"
+                                         Icon="@Icons.Material.Filled.FiberManualRecord" Class="font-weight-medium">
+                                    Activa
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Text"
+                                         Icon="@Icons.Material.Filled.FiberManualRecord" Class="font-weight-medium">
+                                    Inactiva
+                                </MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Acciones" Sortable="false" Filterable="false" CellClass="d-flex justify-end gap-1">
+                        <CellTemplate>
+                            <MudTooltip Text="Gestionar Series y Folios">
+                                <MudIconButton Class="cr-action-btn"
+                                               Icon="@Icons.Material.Filled.FormatListNumbered"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenSequencesDialog(context.Item))"
+                                               Style="background-color: rgba(255, 183, 77, 0.05);" />
+                            </MudTooltip>
+                            <MudTooltip Text="Editar">
+                                <MudIconButton Class="cr-action-btn"
+                                               Icon="@Icons.Material.Filled.Edit"
+                                               Color="Color.Info"
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenEditDialog(context.Item))"
+                                               Style="background-color: rgba(3, 169, 244, 0.05);" />
+                            </MudTooltip>
+                            <MudTooltip Text="Eliminar">
+                                <MudIconButton Class="cr-action-btn"
+                                               Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               OnClick="@(() => DeleteCashRegister(context.Item))"
+                                               Style="background-color: rgba(244, 67, 54, 0.05);" />
+                            </MudTooltip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="CashRegisterDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+@code {
+    // ── Estado de la página ─────────────────────────────────────────────────
+    private List<CashRegisterDto> cashRegisters = new();
+    private List<CashierDto>      cashiers       = new();
+    private List<BranchDto>       branches       = new();
+    private List<PrinterDto>      printers       = new();
+
+    private bool isLoading       = true;
+    private string? serverIp;
+
+    // ── Ciclo de vida ───────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Capturar IP del request actual (solo disponible en contexto server-side)
+        var rawIp = HttpContextAccessor.HttpContext?
+            .Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        serverIp = IpAddressHelper.ResolveClientIp(rawIp);
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var (cr, ca, br, pr) = (
+                await Mediator.Send(new ListCashRegistersQuery()),
+                await Mediator.Send(new ListCashiersQuery()),
+                await Mediator.Send(new GetBranchesQuery(IncludeInactive: false)),
+                await Mediator.Send(new ListPrintersQuery())
+            );
+            cashRegisters = cr;
+            cashiers      = ca;
+            branches      = br;
+            printers      = pr;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos de cajas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // ── Diálogo ─────────────────────────────────────────────────────────────
+
+    private async Task OpenCreateDialog()
+    {
+        var model = new CashRegisterDialog.CashRegisterFormModel
+        {
+            IsActive = true,
+            BranchId = branches.FirstOrDefault()?.Id ?? Guid.Empty,
+            Mode     = CashRegisterMode.SalesFloor,
+        };
+
+        var parameters = new DialogParameters<CashRegisterDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.Model, model },
+            { x => x.Branches, branches },
+            { x => x.Cashiers, cashiers },
+            { x => x.Printers, printers },
+            { x => x.ServerIp, serverIp }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<CashRegisterDialog>("Nueva Caja", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Caja creada exitosamente.", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task OpenEditDialog(CashRegisterDto cr)
+    {
+        var model = new CashRegisterDialog.CashRegisterFormModel
+        {
+            Id                 = cr.Id,
+            Name               = cr.Name,
+            Location           = cr.Location,
+            BranchId           = cr.BranchId,
+            Mode               = cr.Mode,
+            IpAddress          = cr.IpAddress,
+            AssignedEmployeeId = cr.AssignedEmployeeId,
+            AssignedPrinterId  = cr.AssignedPrinterId,
+            IsActive           = cr.IsActive,
+        };
+
+        var parameters = new DialogParameters<CashRegisterDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.Model, model },
+            { x => x.Branches, branches },
+            { x => x.Cashiers, cashiers },
+            { x => x.Printers, printers },
+            { x => x.ServerIp, serverIp }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<CashRegisterDialog>("Editar Caja", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Caja actualizada exitosamente.", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task OpenSequencesDialog(CashRegisterDto cr)
+    {
+        var parameters = new DialogParameters<TicketSequencesDialog>
+        {
+            { x => x.CashRegisterId, cr.Id },
+            { x => x.CashRegisterName, cr.Name }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<TicketSequencesDialog>("Series y Folios de Caja", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task DeleteCashRegister(CashRegisterDto cr)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Eliminar Caja Registradora",
+            $"¿Estás seguro que deseas eliminar '{cr.Name}'? Esta acción no se puede deshacer.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteCashRegisterCommand(cr.Id));
+                Snackbar.Add("Caja eliminada exitosamente.", Severity.Success);
+                await LoadData();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

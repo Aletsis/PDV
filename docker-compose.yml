@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # ───────────────────────────────────────────────────────────
+  # Base de Datos: PostgreSQL
+  # ───────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: pdv-postgres-db
+    restart: always
+    environment:
+      POSTGRES_DB: pdv_db
+      POSTGRES_USER: pdv_user
+      POSTGRES_PASSWORD: TuContrasenaAltamenteSegura123! # Reemplazar con clave fuerte en producción real
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - pdv-network
+    # Exponer puerto solo de forma local si se requiere depuración externa (descomentar si es necesario)
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pdv_user -d pdv_db -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ───────────────────────────────────────────────────────────
+  # Aplicación Web: PDV Blazor WebUI Server
+  # ───────────────────────────────────────────────────────────
+  webui:
+    image: pdv-webui:latest
+    container_name: pdv-web-app
+    build:
+      context: .
+      dockerfile: src/PDV.WebUI/Dockerfile
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - RunMode=Server
+      - ConnectionStrings__DefaultConnection=Host=db;Database=pdv_db;Username=pdv_user;Password=TuContrasenaAltamenteSegura123!
+      - APPLY_MIGRATIONS=true # Aplica migraciones pendientes al iniciar automáticamente
+      - REQUIRE_NO_PENDING_MIGRATIONS=false
+    volumes:
+      - webui-logs:/app/Logs
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pdv-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  pdv-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
+  webui-logs:
+    driver: local

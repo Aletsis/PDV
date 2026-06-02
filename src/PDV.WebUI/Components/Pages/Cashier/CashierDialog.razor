@@ -1,0 +1,85 @@
+@using MediatR
+@using PDV.Application.Features.Cashiers.Commands.CreateCashier
+@using PDV.Application.Features.Cashiers.Commands.UpdateCashier
+@using PDV.Application.Features.Cashiers.Dtos
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Color="Color.Primary" Size="Size.Medium" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold">@(IsEdit ? "Editar Cajera" : "Registrar Nueva Cajera")</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="cashierForm">
+            <MudTextField @bind-Value="Model.Name" Label="Nombre" Variant="Variant.Outlined" Required="true" RequiredError="El nombre es obligatorio" />
+            <MudTextField @bind-Value="Model.EmployeeId" Label="ID Empleado" Variant="Variant.Outlined" Required="true" RequiredError="El ID de empleado es obligatorio" Class="mt-3" />
+            @if (IsEdit)
+            {
+                <MudSwitch @bind-Value="Model.IsActive" Label="Activa" Color="Color.Success" Class="mt-3" />
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none; font-weight: 500;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="Save" IsLoading="@_saving">
+            Guardar
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public bool IsEdit { get; set; }
+
+    [Parameter]
+    public CashierDto Model { get; set; } = new();
+
+    private MudForm cashierForm = null!;
+    private bool _saving = false;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        await cashierForm.Validate();
+        if (!cashierForm.IsValid) return;
+
+        _saving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                var command = new UpdateCashierCommand(
+                    Id: Model.Id,
+                    Name: Model.Name,
+                    EmployeeId: Model.EmployeeId,
+                    UserId: Model.UserId,
+                    IsActive: Model.IsActive);
+                await Mediator.Send(command);
+            }
+            else
+            {
+                var command = new CreateCashierCommand(
+                    Name: Model.Name,
+                    EmployeeId: Model.EmployeeId,
+                    UserId: null);
+                await Mediator.Send(command);
+            }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

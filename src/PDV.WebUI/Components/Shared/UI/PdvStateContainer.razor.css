@@ -1,0 +1,83 @@
+.pdv-state-container {
+    position: relative;
+    width: 100%;
+}
+
+/* Loader Styles */
+.pdv-state-loader-text {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Error Panel Styles */
+.pdv-state-error-panel {
+    background: rgba(244, 67, 54, 0.04) !important;
+    border: 1px dashed rgba(244, 67, 54, 0.25) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    width: 100%;
+}
+
+.pdv-state-error-icon-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(244, 67, 54, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pdv-state-error-title {
+    font-size: 1.1rem;
+    color: #ff5252;
+    margin: 0 0 4px 0;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.pdv-state-error-msg {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Empty State Styles */
+.pdv-state-empty {
+    background: rgba(255, 255, 255, 0.01) !important;
+    border: 1px dashed rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    width: 100%;
+}
+
+.pdv-state-empty-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pdv-state-empty-title {
+    font-size: 1.25rem;
+    color: #ffffff;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.pdv-state-empty-msg {
+    font-size: 0.875rem;
+    max-width: 400px;
+    margin: 0 auto;
+    color: rgba(255, 255, 255, 0.5) !important;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    line-height: 1.5;
+}
+
+.pdv-state-content-wrapper {
+    width: 100%;
+}

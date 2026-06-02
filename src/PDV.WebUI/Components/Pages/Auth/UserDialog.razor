@@ -1,0 +1,216 @@
+@using Microsoft.AspNetCore.Identity
+@using PDV.Infrastructure.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Color="Color.Primary" Size="Size.Medium" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold">@(IsEdit ? "Editar Usuario" : "Nuevo Usuario")</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="userForm" ValidationDelay="300">
+            <MudStack Spacing="3" Class="pt-1">
+                <MudTextField @bind-Value="Model.FullName" Label="Nombre Completo"
+                              Variant="Variant.Outlined" Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Badge" />
+
+                <MudTextField @bind-Value="Model.UserName" Label="Nombre de Usuario *"
+                              Variant="Variant.Outlined" Required="true" RequiredError="El nombre de usuario es obligatorio"
+                              Disabled="@IsEdit"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountCircle" />
+
+                <MudTextField @bind-Value="Model.Email" Label="Email"
+                              Variant="Variant.Outlined" InputType="InputType.Email"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
+
+                @if (!IsEdit)
+                {
+                    <MudTextField @bind-Value="Model.Password" Label="Contraseña *"
+                                  Variant="Variant.Outlined" InputType="InputType.Password"
+                                  Required="true" RequiredError="La contraseña es obligatoria"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Lock" />
+                }
+                else
+                {
+                    <MudTextField @bind-Value="Model.NewPassword" Label="Nueva Contraseña"
+                                  Placeholder="Dejar vacío para no cambiar"
+                                  Variant="Variant.Outlined" InputType="InputType.Password"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.LockReset" />
+                }
+
+                @if (AvailableRoles.Count > 0)
+                {
+                    <MudSelect T="string" @bind-Value="Model.SelectedRole" Label="Rol"
+                               Variant="Variant.Outlined" Clearable="true"
+                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Security">
+                        @foreach (var role in AvailableRoles)
+                        {
+                            <MudSelectItem Value="@role">@role</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+
+                @if (IsEdit)
+                {
+                    <MudSwitch @bind-Value="Model.IsActive" Color="Color.Success"
+                               Label="@(Model.IsActive ? "Usuario Activo" : "Usuario Inactivo")" />
+                }
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none; font-weight: bold; border-radius: 8px;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="Save" IsLoading="@isSaving">
+            Guardar
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public bool IsEdit { get; set; }
+
+    [Parameter]
+    public string EditUserId { get; set; } = string.Empty;
+
+    [Parameter]
+    public UserFormModel Model { get; set; } = new();
+
+    [Parameter]
+    public List<string> AvailableRoles { get; set; } = new();
+
+    private MudForm userForm = null!;
+    private bool isSaving = false;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        await userForm.Validate();
+        if (!userForm.IsValid) return;
+
+        if (string.IsNullOrWhiteSpace(Model.UserName))
+        {
+            Snackbar.Add("El nombre de usuario es obligatorio.", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                await EditUser();
+            }
+            else
+            {
+                await CreateUser();
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CreateUser()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Password))
+        {
+            Snackbar.Add("La contraseña es obligatoria.", Severity.Warning);
+            return;
+        }
+
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserName = Model.UserName.Trim(),
+            Email = string.IsNullOrWhiteSpace(Model.Email) ? null : Model.Email.Trim(),
+            FullName = Model.FullName.Trim(),
+            IsActive = true
+        };
+
+        var result = await UserManager.CreateAsync(user, Model.Password);
+        if (!result.Succeeded)
+        {
+            foreach (var err in result.Errors)
+                Snackbar.Add(err.Description, Severity.Error);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Model.SelectedRole))
+        {
+            await UserManager.AddToRoleAsync(user, Model.SelectedRole);
+        }
+
+        Snackbar.Add($"Usuario '{user.UserName}' creado exitosamente.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task EditUser()
+    {
+        var user = await UserManager.FindByIdAsync(EditUserId);
+        if (user is null)
+        {
+            Snackbar.Add("Usuario no encontrado.", Severity.Error);
+            return;
+        }
+
+        user.UserName = Model.UserName.Trim();
+        user.Email = string.IsNullOrWhiteSpace(Model.Email) ? null : Model.Email.Trim();
+        user.FullName = Model.FullName.Trim();
+        user.IsActive = Model.IsActive;
+
+        var updateResult = await UserManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            foreach (var err in updateResult.Errors)
+                Snackbar.Add(err.Description, Severity.Error);
+            return;
+        }
+
+        // Role management: remove all existing, assign new one if selected
+        var currentRoles = await UserManager.GetRolesAsync(user);
+        await UserManager.RemoveFromRolesAsync(user, currentRoles);
+        if (!string.IsNullOrWhiteSpace(Model.SelectedRole))
+        {
+            await UserManager.AddToRoleAsync(user, Model.SelectedRole);
+        }
+
+        // Password reset (optional)
+        if (!string.IsNullOrWhiteSpace(Model.NewPassword))
+        {
+            var token = await UserManager.GeneratePasswordResetTokenAsync(user);
+            var pwResult = await UserManager.ResetPasswordAsync(user, token, Model.NewPassword);
+            if (!pwResult.Succeeded)
+            {
+                foreach (var err in pwResult.Errors)
+                    Snackbar.Add($"Contraseña: {err.Description}", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Contraseña actualizada.", Severity.Info);
+        }
+
+        Snackbar.Add($"Usuario '{user.UserName}' actualizado exitosamente.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    public class UserFormModel
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+        public string SelectedRole { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+    }
+}

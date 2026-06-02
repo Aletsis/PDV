@@ -1,0 +1,955 @@
+@page "/pos"
+@layout PDV.WebUI.Components.Layout.LoginLayout
+@attribute [Authorize]
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using PDV.Infrastructure.Identity
+@inject UserManager<ApplicationUser> UserManager
+@using PDV.Application.Features.Products.Queries.GetProductByCode
+@using PDV.Application.Features.Sales.Commands.CreateSale
+@using PDV.Application.Features.Sales.Commands.PrintSaleTicket
+@using PDV.Application.Features.Sales.Queries.GetNextFolio
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Clients.Queries.ListClients
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Cashiers.Queries.ListCashiers
+@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject IHttpContextAccessor HttpContextAccessor
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Shifts.Dtos
+@using PDV.Application.Features.Sales.Commands.UpdateSale
+@using PDV.Application.Features.Sales.Commands.FinalizeSale
+@using PDV.Application.Features.Sales.Queries.GetDraftSale
+@using PDV.Application.Features.Sales.Queries.GetUnpaidSales
+@using PDV.Application.Features.Sales.Commands.CancelSale
+@using PDV.Application.Features.Sales.Commands.UpdateSaleItemPrice
+@using PDV.Application.Features.Shifts.Queries.GetActiveShift
+@using PDV.Application.Features.Products.Queries.GetProductById
+@using PDV.Application.Features.Sales.Queries.GetSale
+
+<PageTitle>Punto de Venta</PageTitle>
+
+@if (!ShiftSession.HasActiveShift)
+{
+    <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 4rem; color: var(--mud-palette-warning);" />
+        <MudText Typo="Typo.h5" Class="mt-4 font-weight-bold">Sin turno activo</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Debes abrir un turno de caja antes de registrar ventas.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/shift/open"))">
+            <MudIcon Icon="@Icons.Material.Filled.LockOpen" Class="mr-2" /> Abrir Turno
+        </MudButton>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column gap-3" style="outline: none; height: 100vh; max-height: 100vh; overflow: hidden; padding: 12px; box-sizing: border-box;" tabindex="0" @onkeydown="HandleKeyDown">
+        
+        <!-- Sección 1: Datos del Ticket (Header) -->
+        <SalesTicketHeader CurrentCashRegister="@currentCashRegister"
+                           CurrentCashierName="@currentUserName"
+                           ActiveSeries="@activeSeries"
+                           ProjectedFolio="@projectedFolio"
+                           SelectedClientName="@SelectedClientName"
+                           SelectedClientId="@selectedClientId"
+                           SuspendedSales="@suspendedSales"
+                           HasActiveSale="@activeSaleId.HasValue"
+                           OnCatalogClicked="OpenProductLookup"
+                           OnClientSearchClicked="OpenClientSearchDialog"
+                           OnResumeSale="ResumeSale"
+                           OnOpenCashAction="OpenCashAction"
+                           OnOpenCashCut="OpenCashCut"
+                           OnOpenNotesHistory="OpenNotesHistory" />
+
+        <!-- Main Grid: Scanner vs Cart/Totals -->
+        <MudGrid Spacing="3" Class="flex-grow-1" Style="height: calc(100vh - 120px); max-height: calc(100vh - 120px); min-height: 0; overflow: hidden; margin-top: 0;">            <!-- Sección 2: Escaneo / Detalles de Ticket Histórico -->
+            <MudItem xs="12" md="4" Class="d-flex" Style="height: 100%; max-height: 100%;">
+                @if (isHistoricalView && historicalSaleDetail != null)
+                {
+                    <MudPaper Elevation="3" Class="pa-5 flex-grow-1 d-flex flex-column" Style="overflow: hidden; border-left: 4px solid var(--mud-palette-info); background: rgba(255,255,255,0.02); border-radius: 12px;">
+                        <MudText Typo="Typo.h5" Class="font-weight-bold mb-4 d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Info" />
+                            Detalles del Ticket
+                        </MudText>
+
+                        <div class="d-flex flex-column gap-4 flex-grow-1" style="overflow-y: auto; min-height: 0;">
+                            <div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="text-transform: uppercase; font-weight: 600;">Folio / Serie</MudText>
+                                <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-primary">@historicalSaleDetail.Series-@historicalSaleDetail.Folio</MudText>
+                            </div>
+
+                            <div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="text-transform: uppercase; font-weight: 600;">Fecha y Hora</MudText>
+                                <MudText Typo="Typo.body1">@historicalSaleDetail.Date.ToString("dd/MM/yyyy HH:mm")</MudText>
+                            </div>
+
+                            <div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="text-transform: uppercase; font-weight: 600;">Cliente</MudText>
+                                <MudText Typo="Typo.body1" Class="font-weight-bold">@historicalSaleDetail.ClientName</MudText>
+                            </div>
+
+                            <div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="text-transform: uppercase; font-weight: 600;">Método de Pago</MudText>
+                                <div class="mt-1">
+                                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text" Style="font-weight: bold;">@historicalSaleDetail.PaymentMethod</MudChip>
+                                </div>
+                            </div>
+
+                            <div>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="text-transform: uppercase; font-weight: 600;">Estado</MudText>
+                                <div class="mt-1">
+                                    @if (historicalSaleDetail.IsCancelled)
+                                    {
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Cancelada</MudChip>
+                                    }
+                                    else if (historicalSaleDetail.IsPaid)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Pagada</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Pendiente</MudChip>
+                                    }
+                                </div>
+                            </div>
+
+                            @if (historicalSaleDetail.IsReturned)
+                            {
+                                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2" Style="border-radius: 8px; font-size: 0.85rem;">
+                                    Esta nota cuenta con devoluciones registradas.
+                                </MudAlert>
+                            }
+                        </div>
+
+                        <MudButton Variant="Variant.Filled" 
+                                   Color="Color.Secondary" 
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   Class="mt-4 font-weight-bold py-3"
+                                   OnClick="CloseHistoricalView"
+                                   Style="text-transform: none; border-radius: 8px;">
+                            Volver a Venta Activa
+                        </MudButton>
+                    </MudPaper>
+                }
+                else
+                {
+                    <SalesScanner @ref="scannerComponent"
+                                  ActiveSaleId="@activeSaleId"
+                                  SelectedClientId="@selectedClientId"
+                                  Clients="@clients"
+                                  CashRegisterId="@ShiftSession.ActiveCashRegisterId"
+                                  UserId="@currentUserId"
+                                  PaymentMethod="@paymentMethod"
+                                  OnSaleCreated="OnSaleCreated"
+                                  OnCartUpdated="OnCartUpdated" />
+                }
+            </MudItem>
+
+            <!-- Sección 3 y 4: Carrito -->
+            <MudItem xs="12" md="8" Class="d-flex flex-column gap-3" Style="height: 100%; max-height: 100%; overflow: hidden;">
+                <!-- Tarjeta Carrito -->
+                <MudPaper Elevation="3" Class="pa-4 flex-grow-1 d-flex flex-column" Style="overflow: hidden; min-height: 0; display: flex; flex-direction: column;">
+                    <MudText Typo="Typo.h5" Class="font-weight-bold mb-3 d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Primary" />
+                        Carrito de Ventas
+                    </MudText>
+                    
+                    <div class="flex-grow-1" style="overflow-y: auto; min-height: 0;">
+                        <SalesCart IsReadOnly="@isHistoricalView"
+                                   ActiveSaleId="@activeSaleId"
+                                   Items="@cart"
+                                   OnCartUpdated="OnCartUpdated" />
+                    </div>
+                </MudPaper>
+
+                <!-- Tarjeta Totales -->
+                <MudPaper Elevation="3" Class="pa-4 flex-shrink-0">
+                    <SalesTotals ActiveSaleId="@activeSaleId"
+                                 Subtotal="@subtotal"
+                                 TotalTax="@totalTax"
+                                 TotalAmount="@totalAmount"
+                                 HasItems="@cart.Any()"
+                                 IsHistoricalView="@isHistoricalView"
+                                 IsReturnable="@IsHistoricalSaleReturnable"
+                                 OnCheckoutClicked="OpenSplitPayment"
+                                 OnCancelClicked="ClearCart"
+                                 OnSuspendClicked="SuspendCart"
+                                 OnCloseViewClicked="CloseHistoricalView"
+                                 OnReturnClicked="OpenHistoricalReturn"
+                                 OnReprintClicked="ReprintHistorical" />
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </div>
+}
+
+@code {
+    private SalesScanner scannerComponent = null!;
+
+    private List<CartItemDto> cart = new();
+    private string paymentMethod = "Cash";
+    private decimal receivedAmount = 0;
+    private Guid? selectedClientId = null;
+
+    private List<ClientDto> clients = new();
+    private CashRegisterDto? currentCashRegister;
+    private ShiftDto? currentShift;
+    private CashierDto? currentCashier;
+    private string currentUserId = "Anonymous";
+    private string currentUserName = "Empleado General";
+    private string? redirectPath = null;
+
+    // Historical View state
+    private bool isHistoricalView = false;
+    private Guid? historicalSaleId = null;
+    private string historicalSaleNumber = string.Empty;
+    private SaleDetailDto? historicalSaleDetail;
+
+    private bool IsHistoricalSaleReturnable => isHistoricalView && historicalSaleDetail is { IsPaid: true, IsCancelled: false };
+
+    private string activeSeries = "V";
+    private int projectedFolio = 1;
+
+    // Draft Sale management in database
+    private Guid? activeSaleId;
+    private List<UnpaidSaleDto> suspendedSales = new();
+
+    // Totals state calculated by coordinator from DB
+    private decimal subtotal = 0;
+    private decimal totalTax = 0;
+    private decimal totalAmount = 0;
+
+    // Concurrency control
+    private readonly System.Threading.SemaphoreSlim _persistSemaphore = new(1, 1);
+
+    private string SelectedClientName => clients.FirstOrDefault(c => c.Id == selectedClientId)?.Name ?? "Público General (Menudeo)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user == null || user.Identity?.IsAuthenticated != true)
+        {
+            redirectPath = $"/login?returnUrl={System.Uri.EscapeDataString(Navigation.Uri)}";
+            return;
+        }
+
+        currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
+        
+        // Obtener nombre completo del usuario usando UserManager
+        var appUser = await UserManager.FindByIdAsync(currentUserId);
+        currentUserName = appUser?.FullName ?? user.Identity?.Name ?? "Empleado General";
+
+        var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
+        if (!string.IsNullOrEmpty(clientIp))
+        {
+            currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+        }
+
+        if (currentCashRegister == null)
+        {
+            var runMode = Configuration["RunMode"] ?? "Server";
+            if (runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
+            {
+                var cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
+                currentCashRegister = cashRegisters.FirstOrDefault(c => c.IsActive);
+            }
+        }
+
+        if (currentCashRegister == null)
+        {
+            redirectPath = "/?error=NotACashRegisterTerminal";
+            return;
+        }
+
+        currentShift = await Mediator.Send(new GetActiveShiftByCashRegisterQuery(currentCashRegister.Id));
+        if (currentShift == null || currentShift.UserId != currentUserId)
+        {
+            ShiftSession.Clear();
+            redirectPath = $"/open-shift?cashRegisterId={currentCashRegister.Id}";
+            return;
+        }
+
+        if (!ShiftSession.HasActiveShift || ShiftSession.ActiveShiftId != currentShift.Id)
+        {
+            redirectPath = $"/open-shift?cashRegisterId={currentCashRegister.Id}";
+            return;
+        }
+
+        await LoadFolioProjection();
+        await LoadClients();
+
+        var cashiers = await Mediator.Send(new ListCashiersQuery());
+        currentCashier = cashiers.FirstOrDefault(c => c.UserId == currentUserId);
+
+        await RefreshSuspendedSales();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (!string.IsNullOrEmpty(redirectPath))
+            {
+                Navigation.NavigateTo(redirectPath, forceLoad: redirectPath.Contains("/login"));
+                return;
+            }
+
+            await LoadPersistedCarts();
+        }
+    }
+
+    private async Task LoadFolioProjection()
+    {
+        if (currentCashRegister != null)
+        {
+            var (series, nextFolio) = await Mediator.Send(new GetNextFolioQuery(currentCashRegister.Id));
+            activeSeries = series;
+            projectedFolio = nextFolio;
+        }
+    }
+
+    private async Task LoadClients()
+    {
+        clients = await Mediator.Send(new ListClientsQuery(IncludeInactive: false));
+    }
+
+    private async Task RefreshSuspendedSales()
+    {
+        if (currentShift != null)
+        {
+            var allUnpaid = await Mediator.Send(new GetUnpaidSalesQuery(currentShift.Id));
+            if (activeSaleId.HasValue)
+            {
+                suspendedSales = allUnpaid.Where(s => s.SaleId != activeSaleId.Value).ToList();
+            }
+            else
+            {
+                suspendedSales = allUnpaid;
+            }
+        }
+    }
+
+    private async Task LoadPersistedCarts()
+    {
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            var activeSaleIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_active_sale_id");
+            if (Guid.TryParse(activeSaleIdStr, out var saleId))
+            {
+                activeSaleId = saleId;
+                await RefreshActiveSaleFromDb();
+            }
+            await RefreshSuspendedSales();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar desde base de datos: {ex.Message}");
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+    }
+
+    private async Task RefreshActiveSaleFromDb()
+    {
+        if (activeSaleId.HasValue)
+        {
+            var draft = await Mediator.Send(new GetDraftSaleQuery(activeSaleId.Value));
+            if (draft != null)
+            {
+                cart = draft.Items;
+                selectedClientId = draft.ClientId;
+                
+                // Recalcular subtotales, IVA e importes a partir de la fotografía de base de datos
+                subtotal = cart.Sum(i => i.Total);
+                
+                totalAmount = subtotal; // EF Core recalculates automatically
+                
+                // Para obtener impuestos exactos, sumamos el desglose correspondiente
+                totalTax = cart.Sum(i => {
+                    decimal taxRate = 0m;
+                    switch (i.Product.TaxRate)
+                    {
+                        case TaxRateType.Rate16: taxRate = 0.16m; break;
+                        case TaxRateType.Rate8: taxRate = 0.08m; break;
+                    }
+                    decimal price = i.PriceOverride ?? i.Product.Price;
+                    decimal qty = i.Product.SaleType == SaleType.Bulk ? i.Weight : i.Quantity;
+                    return i.Product.TaxRate == TaxRateType.Exempt ? 0m : (price * qty) * taxRate;
+                });
+                
+                subtotal = totalAmount - totalTax;
+            }
+            else
+            {
+                activeSaleId = null;
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
+                cart.Clear();
+                subtotal = 0;
+                totalTax = 0;
+                totalAmount = 0;
+            }
+        }
+        else
+        {
+            cart.Clear();
+            subtotal = 0;
+            totalTax = 0;
+            totalAmount = 0;
+        }
+    }
+
+    private async Task OnSaleCreated(Guid newSaleId)
+    {
+        activeSaleId = newSaleId;
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            await RefreshActiveSaleFromDb();
+            await RefreshSuspendedSales();
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnCartUpdated()
+    {
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            await RefreshActiveSaleFromDb();
+            await RefreshSuspendedSales();
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task ResumeSale(UnpaidSaleDto saleDto)
+    {
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            activeSaleId = saleDto.SaleId;
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_active_sale_id", activeSaleId.Value.ToString());
+
+            await RefreshActiveSaleFromDb();
+            Snackbar.Add($"Nota #{saleDto.Series}-{saleDto.Folio} restaurada", Severity.Success);
+            await RefreshSuspendedSales();
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "F2")
+        {
+            await OpenProductLookup();
+        }
+        else if (e.Key == "F8")
+        {
+            await OpenSplitPayment();
+        }
+    }
+
+    private async Task OpenProductLookup()
+    {
+        var dialog = DialogService.Show<ProductLookupDialog>("Buscar Producto", new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is ProductLookupDialog.ProductLookupResult lookupResult)
+        {
+            var product = lookupResult.Product;
+            var qty = lookupResult.QuantityOrWeight;
+
+            // Invocamos directamente el escáner modular
+            if (scannerComponent != null)
+            {
+                await scannerComponent.AddProductDirectly(product, qty);
+            }
+        }
+    }
+
+    private async Task OpenClientSearchDialog()
+    {
+        var parameters = new DialogParameters { ["Clients"] = clients };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<ClientSearchDialog>("Buscar Cliente", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result != null && !result.Canceled)
+        {
+            var client = result.Data as ClientDto;
+            await HandleClientSelection(client?.Id);
+        }
+    }
+
+    private async Task HandleClientSelection(Guid? clientId)
+    {
+        selectedClientId = clientId;
+        
+        if (!clientId.HasValue)
+        {
+            foreach (var item in cart)
+            {
+                item.PriceOverride = null;
+            }
+            Snackbar.Add("Precios restablecidos a Menudeo (Público General)", Severity.Info);
+        }
+        else
+        {
+            var client = clients.FirstOrDefault(c => c.Id == clientId.Value);
+            if (client != null)
+            {
+                if (client.ClientType == ClientType.Wholesale)
+                {
+                    int modifiedCount = 0;
+                    foreach (var item in cart)
+                    {
+                        if (item.Product.WholesalePrice.HasValue)
+                        {
+                            item.PriceOverride = item.Product.WholesalePrice.Value;
+                            modifiedCount++;
+                        }
+                    }
+                    Snackbar.Add($"Precios de Mayoreo aplicados a {modifiedCount} artículos ({client.Name})", Severity.Success);
+                }
+                else
+                {
+                    foreach (var item in cart)
+                    {
+                        item.PriceOverride = null;
+                    }
+                    Snackbar.Add($"Precios de Menudeo aplicados ({client.Name})", Severity.Info);
+                }
+            }
+        }
+
+        // Persistir overrides granulares en la BD SQLite
+        if (activeSaleId.HasValue)
+        {
+            await _persistSemaphore.WaitAsync();
+            try
+            {
+                foreach (var item in cart)
+                {
+                    var command = new UpdateSaleItemPriceCommand(activeSaleId.Value, item.SaleItemId, item.PriceOverride);
+                    await Mediator.Send(command);
+                }
+                await RefreshActiveSaleFromDb();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al actualizar precios en base de datos: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _persistSemaphore.Release();
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ClearCart()
+    {
+        var authorized = await RequestAuthorizationAsync("Cancelar venta completa activa");
+        if (!authorized) return;
+
+        bool? confirm = await DialogService.ShowMessageBox(
+            "Confirmar",
+            "¿Está seguro de cancelar toda la venta?",
+            yesText: "Sí, cancelar",
+            cancelText: "No");
+
+        if (confirm == true)
+        {
+            await _persistSemaphore.WaitAsync();
+            try
+            {
+                if (activeSaleId.HasValue)
+                {
+                    await Mediator.Send(new CancelSaleCommand(activeSaleId.Value, "Cancelada por cajera desde POS", currentUserId));
+                }
+
+                cart.Clear();
+                activeSaleId = null;
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
+                selectedClientId = null;
+                subtotal = 0;
+                totalTax = 0;
+                totalAmount = 0;
+                
+                await RefreshSuspendedSales();
+                Snackbar.Add("Venta cancelada", Severity.Info);
+            }
+            finally
+            {
+                _persistSemaphore.Release();
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task SuspendCart()
+    {
+        if (cart.Count == 0)
+        {
+            Snackbar.Add("No hay artículos en el carrito para abrir una nota.", Severity.Warning);
+            return;
+        }
+
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            activeSaleId = null;
+            await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
+            
+            cart.Clear();
+            selectedClientId = null;
+            paymentMethod = "Cash";
+            receivedAmount = 0;
+            subtotal = 0;
+            totalTax = 0;
+            totalAmount = 0;
+
+            await RefreshSuspendedSales();
+            Snackbar.Add("Nota abierta en espera guardada con éxito", Severity.Info);
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task OpenSplitPayment()
+    {
+        if (cart.Count == 0) return;
+
+        var parameters = new DialogParameters { ["TotalAmount"] = totalAmount };
+        var dialog = DialogService.Show<SplitPaymentDialog>("Cobrar Cuenta", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        
+        if (result != null && !result.Canceled && result.Data is SplitPaymentDialog.SplitPaymentResult splitResult)
+        {
+            paymentMethod = splitResult.PrimaryMethod;
+            receivedAmount = splitResult.CashAmount;
+            
+            await ProcessSale(isSplitPayment: true, splitResult: splitResult);
+        }
+    }
+
+    private async Task OpenCashAction(bool isInflow)
+    {
+        if (currentCashRegister == null)
+        {
+            Snackbar.Add("No hay caja activa asignada.", Severity.Error);
+            return;
+        }
+
+        var actionName = isInflow ? "Entrega Morralla (Entrada Morralla)" : "Recolección de Efectivo (Salida)";
+        var authorized = await RequestAuthorizationAsync(actionName);
+        if (!authorized) return;
+
+        var parameters = new DialogParameters 
+        { 
+            ["CashRegisterId"] = currentCashRegister.Id,
+            ["CashierId"] = currentCashier?.Id ?? Guid.Empty,
+            ["IsInflow"] = isInflow
+        };
+
+        DialogService.Show<CashActionDialog>(
+            isInflow ? "Registrar Morralla" : "Registrar Recolección", 
+            parameters, 
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true }
+        );
+    }
+
+    private async Task OpenCashCut()
+    {
+        if (currentCashRegister == null || currentShift == null)
+        {
+            Snackbar.Add("No hay un turno o caja activos asignados.", Severity.Error);
+            return;
+        }
+
+        var authorized = await RequestAuthorizationAsync("Corte de Caja (Cierre de Turno)");
+        if (!authorized) return;
+
+        var parameters = new DialogParameters
+        {
+            ["ShiftId"] = currentShift.Id,
+            ["CashRegisterId"] = currentCashRegister.Id,
+            ["CashierId"] = currentCashier?.Id ?? Guid.Empty
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<CashCutDialog>("Corte de Caja", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is bool success && success)
+        {
+            ShiftSession.Clear();
+            
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_cart");
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_client_id");
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_suspended_carts");
+                await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
+            }
+            catch {}
+
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
+    }
+
+    private async Task ProcessSale(bool isSplitPayment = false, SplitPaymentDialog.SplitPaymentResult? splitResult = null)
+    {
+        if (cart.Count == 0) return;
+
+        bool? requiresInvoice = await DialogService.ShowMessageBox(
+            "Facturación",
+            "¿Esta venta requiere factura?",
+            yesText: "Sí",
+            noText: "No");
+
+        Guid? clientIdForInvoice = null;
+
+        if (requiresInvoice == true)
+        {
+            if (!selectedClientId.HasValue)
+            {
+                Snackbar.Add("Para facturar debe seleccionar un cliente con datos fiscales completos.", Severity.Warning);
+                return;
+            }
+
+            var selectedClient = clients.FirstOrDefault(c => c.Id == selectedClientId.Value);
+            if (selectedClient == null || string.IsNullOrWhiteSpace(selectedClient.TaxId))
+            {
+                Snackbar.Add("El cliente seleccionado no tiene datos fiscales completos. Por favor, actualice la información del cliente.", Severity.Warning);
+                return;
+            }
+
+            clientIdForInvoice = selectedClientId.Value;
+        }
+
+        await _persistSemaphore.WaitAsync();
+        try 
+        {
+            Guid saleId;
+            if (activeSaleId.HasValue)
+            {
+                var command = new FinalizeSaleCommand
+                {
+                    SaleId = activeSaleId.Value,
+                    PaymentMethod = paymentMethod,
+                    ClientId = clientIdForInvoice ?? selectedClientId,
+                    RequiresInvoice = requiresInvoice == true
+                };
+                saleId = await Mediator.Send(command);
+            }
+            else
+            {
+                var command = new CreateSaleCommand
+                {
+                    Items = cart.ToList(),
+                    PaymentMethod = paymentMethod,
+                    UserId = currentUserId,
+                    ClientId = clientIdForInvoice ?? selectedClientId,
+                    CashRegisterId = ShiftSession.ActiveCashRegisterId,
+                    IsPaid = true,
+                    RequiresInvoice = requiresInvoice == true
+                };
+                saleId = await Mediator.Send(command);
+            }
+            
+            if (isSplitPayment && splitResult != null)
+            {
+                Snackbar.Add($"Venta registrada #{saleId} (Multipago) - Cambio: ${splitResult.Change:F2}", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Venta registrada #{saleId}" + (requiresInvoice == true ? " (Con factura)" : ""), Severity.Success);
+            }
+            
+            try
+            {
+                await Mediator.Send(new PrintSaleTicketCommand(saleId, CashRegisterId: ShiftSession.ActiveCashRegisterId ?? Guid.Empty));
+            }
+            catch (Exception printEx)
+            {
+                Snackbar.Add($"Venta exitosa pero no se pudo imprimir: {printEx.Message}", Severity.Warning);
+            }
+            
+            cart.Clear();
+            activeSaleId = null;
+            await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
+            selectedClientId = null;
+            subtotal = 0;
+            totalTax = 0;
+            totalAmount = 0;
+            
+            await LoadFolioProjection();
+            await RefreshSuspendedSales();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar venta: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task<bool> RequestAuthorizationAsync(string actionName)
+    {
+        var parameters = new DialogParameters { ["ActionName"] = actionName };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
+        var dialog = DialogService.Show<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var result = await dialog.Result;
+        return result != null && !result.Canceled && result.Data is bool authorized && authorized;
+    }
+
+    private async Task OpenNotesHistory()
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<SalesListDialog>("Historial de Notas y Devoluciones", options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is SaleDto selectedSale)
+        {
+            await LoadHistoricalSale(selectedSale.Id);
+        }
+        else
+        {
+            await RefreshSuspendedSales();
+            await RefreshActiveSaleFromDb();
+        }
+        StateHasChanged();
+    }
+
+    private async Task LoadHistoricalSale(Guid saleId)
+    {
+        isHistoricalView = true;
+        historicalSaleId = saleId;
+        historicalSaleDetail = await Mediator.Send(new GetSaleQuery(saleId));
+
+        if (historicalSaleDetail != null)
+        {
+            cart.Clear();
+            foreach (var item in historicalSaleDetail.Items)
+            {
+                var product = await Mediator.Send(new GetProductByIdQuery(item.ProductId));
+                if (product != null)
+                {
+                    var cartItem = new CartItemDto
+                    {
+                        Product = product,
+                        SaleItemId = item.Id,
+                        Quantity = product.SaleType == SaleType.Piece ? (int)item.Quantity : 0,
+                        Weight = product.SaleType == SaleType.Bulk ? item.Quantity : 0m,
+                        PriceOverride = item.PriceOverride
+                    };
+                    cart.Add(cartItem);
+                }
+            }
+
+            // Map totals
+            subtotal = cart.Sum(i => i.Total);
+            totalAmount = subtotal;
+            totalTax = cart.Sum(i => {
+                decimal taxRate = 0m;
+                switch (i.Product.TaxRate)
+                {
+                    case TaxRateType.Rate16: taxRate = 0.16m; break;
+                    case TaxRateType.Rate8: taxRate = 0.08m; break;
+                }
+                decimal price = i.PriceOverride ?? i.Product.Price;
+                decimal qty = i.Product.SaleType == SaleType.Bulk ? i.Weight : i.Quantity;
+                return i.Product.TaxRate == TaxRateType.Exempt ? 0m : (price * qty) * taxRate;
+            });
+            subtotal = totalAmount - totalTax;
+            historicalSaleNumber = historicalSaleDetail.SaleNumber;
+            selectedClientId = historicalSaleDetail.ClientId;
+        }
+    }
+
+    private async Task CloseHistoricalView()
+    {
+        isHistoricalView = false;
+        historicalSaleId = null;
+        historicalSaleDetail = null;
+        historicalSaleNumber = string.Empty;
+        selectedClientId = null;
+        
+        await RefreshActiveSaleFromDb();
+        await RefreshSuspendedSales();
+    }
+
+    private async Task OpenHistoricalReturn()
+    {
+        if (historicalSaleDetail == null) return;
+        
+        var authorized = await RequestAuthorizationAsync("Procesar devolución de mercancía");
+        if (!authorized) return;
+
+        var parameters = new DialogParameters { ["SaleDetail"] = historicalSaleDetail };
+        var dialog = DialogService.Show<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is bool success && success)
+        {
+            if (historicalSaleId.HasValue)
+            {
+                await LoadHistoricalSale(historicalSaleId.Value);
+            }
+        }
+    }
+
+    private async Task ReprintHistorical()
+    {
+        if (historicalSaleId == null) return;
+        
+        var authorized = await RequestAuthorizationAsync("Reimprimir ticket anterior");
+        if (!authorized) return;
+
+        try
+        {
+            var registerId = ShiftSession.ActiveCashRegisterId ?? Guid.Empty;
+            await Mediator.Send(new PrintSaleTicketCommand(historicalSaleId.Value, CashRegisterId: registerId));
+            Snackbar.Add("Comando de reimpresión enviado a la impresora", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al imprimir: {ex.Message}", Severity.Error);
+        }
+    }
+}

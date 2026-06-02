@@ -1,0 +1,244 @@
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Sales.Commands.ReturnItem
+@using MediatR
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using PDV.Application.Common.Interfaces
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IApplicationDbContext Context
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="d-flex align-center gap-2 font-weight-bold mud-text-warning">
+            <MudIcon Icon="@Icons.Material.Filled.Undo" />
+            Devolución Parcial o Total: @SaleDetail.SaleNumber
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4">
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                Selecciona la cantidad de artículos a devolver del ticket. El stock regresará automáticamente al inventario.
+            </MudAlert>
+
+            <MudForm @ref="form" @bind-IsValid="isValid">
+                <!-- Items Table -->
+                <MudTable Items="@returnItems" Hover="true" Dense="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Producto</MudTh>
+                        <MudTh Style="text-align: right;">Precio Unit.</MudTh>
+                        <MudTh Style="text-align: center;">Comprado</MudTh>
+                        <MudTh Style="text-align: center; width: 180px;">Cant. a Devolver</MudTh>
+                        <MudTh Style="text-align: right;">Reembolso</MudTh>
+                    </HeaderContent>
+                     <RowTemplate>
+                         <MudTd>@context.Item.ProductName</MudTd>
+                         <MudTd Style="text-align: right;">@context.Item.UnitPrice.ToString("C2")</MudTd>
+                         <MudTd Style="text-align: center;">
+                             <div>
+                                 @context.Item.Quantity.ToString(context.IsBulk ? "N3" : "N0")
+                                 @(context.IsBulk ? " kg" : " pza")
+                             </div>
+                             @if (context.Item.Quantity - context.MaxReturnable > 0m)
+                             {
+                                 <div class="mud-text-warning text-xs font-weight-bold">
+                                     (Ya devuelto: @((context.Item.Quantity - context.MaxReturnable).ToString(context.IsBulk ? "N3" : "N0")))
+                                 </div>
+                             }
+                         </MudTd>
+                         <MudTd Style="text-align: center;">
+                             @if (context.MaxReturnable <= 0m)
+                             {
+                                 <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined">Devuelto</MudChip>
+                             }
+                             else
+                             {
+                                 <div class="d-flex align-center justify-center gap-1">
+                                     @if (context.IsBulk)
+                                     {
+                                         <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Size="Size.Small" 
+                                                        OnClick="@(() => context.ReturnQuantity = Math.Max(0m, context.ReturnQuantity - 0.1m))" 
+                                                        Disabled="@(context.ReturnQuantity <= 0m)" />
+                                         <MudNumericField T="decimal"
+                                                          Value="context.ReturnQuantity"
+                                                          ValueChanged="@(val => context.ReturnQuantity = val)"
+                                                          Min="0m"
+                                                          Max="@context.MaxReturnable"
+                                                          Format="N3"
+                                                          Step="0.001m"
+                                                          Variant="Variant.Outlined"
+                                                          Margin="Margin.Dense"
+                                                          Style="width: 85px; text-align: center; height: 32px;"
+                                                          HideSpinButtons="true" />
+                                         <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small" 
+                                                        OnClick="@(() => context.ReturnQuantity = Math.Min(context.MaxReturnable, context.ReturnQuantity + 0.1m))" 
+                                                        Disabled="@(context.ReturnQuantity >= context.MaxReturnable)" />
+                                         <span class="mud-text-secondary text-sm ml-1">kg</span>
+                                     }
+                                     else
+                                     {
+                                         <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Size="Size.Small" 
+                                                        OnClick="@(() => context.ReturnQuantity = Math.Max(0m, context.ReturnQuantity - 1m))" 
+                                                        Disabled="@(context.ReturnQuantity <= 0m)" />
+                                         <MudNumericField T="int"
+                                                          Value="@((int)context.ReturnQuantity)"
+                                                          ValueChanged="@(val => context.ReturnQuantity = val)"
+                                                          Min="0"
+                                                          Max="@((int)context.MaxReturnable)"
+                                                          Variant="Variant.Outlined"
+                                                          Margin="Margin.Dense"
+                                                          Style="width: 60px; text-align: center; height: 32px;"
+                                                          HideSpinButtons="true" />
+                                         <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small" 
+                                                        OnClick="@(() => context.ReturnQuantity = Math.Min(context.MaxReturnable, context.ReturnQuantity + 1m))" 
+                                                        Disabled="@(context.ReturnQuantity >= context.MaxReturnable)" />
+                                     }
+                                 </div>
+                             }
+                         </MudTd>
+                         <MudTd Style="text-align: right;" Class="font-weight-bold mud-text-warning">
+                             @((context.Item.UnitPrice * context.ReturnQuantity).ToString("C2"))
+                         </MudTd>
+                     </RowTemplate>
+                </MudTable>
+
+                <MudDivider Class="my-4" />
+
+                <!-- Global Reason -->
+                <MudTextField T="string"
+                              Label="Motivo de la Devolución"
+                              @bind-Value="reason"
+                              Required="true"
+                              Variant="Variant.Outlined"
+                              Lines="2"
+                              Placeholder="Ej. Producto defectuoso, el cliente cambió de opinión, etc." />
+            </MudForm>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined">Cancelar</MudButton>
+        <MudButton OnClick="Submit" 
+                   Color="Color.Warning" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(!isValid || TotalItemsToReturn == 0 || isProcessing)"
+                   Class="px-6 font-weight-bold">
+            @if (isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Procesando...</span>
+            }
+             else
+            {
+                <span>Confirmar Devolución (@TotalItemsToReturn.ToString(returnItems.Any(x => x.IsBulk && x.ReturnQuantity > 0) ? "N3" : "N0"))</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public SaleDetailDto SaleDetail { get; set; } = null!;
+
+    private List<ReturnRowModel> returnItems = new();
+    private string reason = "";
+    private MudForm form = default!;
+    private bool isValid;
+    private bool isProcessing;
+
+    private decimal TotalItemsToReturn => returnItems.Sum(x => x.ReturnQuantity);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SaleDetail?.Items != null)
+        {
+            var rows = new List<ReturnRowModel>();
+            foreach (var item in SaleDetail.Items)
+            {
+                var product = await Context.Products.FindAsync(item.ProductId);
+                var isBulk = product?.SaleType == PDV.Domain.Enums.SaleType.Bulk;
+
+                // Calcular la cantidad ya devuelta dinámicamente sumando los ReturnItems de la base de datos
+                var alreadyReturned = await Context.Returns
+                    .Where(r => r.SaleId == SaleDetail.Id)
+                    .SelectMany(r => r.Items)
+                    .Where(ri => ri.ProductId == item.ProductId)
+                    .SumAsync(ri => ri.Quantity);
+
+                var maxReturnable = Math.Max(0m, item.Quantity - alreadyReturned);
+
+                rows.Add(new ReturnRowModel 
+                { 
+                    Item = item, 
+                    ReturnQuantity = 0m,
+                    IsBulk = isBulk,
+                    MaxReturnable = maxReturnable
+                });
+            }
+            returnItems = rows;
+        }
+    }
+
+    private async Task Submit()
+    {
+        await form.Validate();
+        if (!isValid || TotalItemsToReturn == 0) return;
+
+        isProcessing = true;
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            var cashierUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
+
+            int processedCount = 0;
+            foreach (var row in returnItems)
+            {
+                if (row.ReturnQuantity > 0m)
+                {
+                    var command = new ReturnItemCommand(
+                        SaleItemId: row.Item.Id,
+                        Quantity: row.ReturnQuantity,
+                        Reason: reason.Trim(),
+                        CashierUserId: cashierUserId
+                    );
+
+                    var success = await Mediator.Send(command);
+                    if (success)
+                    {
+                        processedCount++;
+                    }
+                }
+            }
+
+            if (processedCount > 0)
+            {
+                Snackbar.Add($"Se procesó la devolución de {processedCount} artículos exitosamente.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add("No se pudo registrar la devolución de ningún artículo.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la devolución: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class ReturnRowModel
+    {
+        public SaleItemDto Item { get; set; } = null!;
+        public decimal ReturnQuantity { get; set; }
+        public bool IsBulk { get; set; }
+        public decimal MaxReturnable { get; set; }
+    }
+}

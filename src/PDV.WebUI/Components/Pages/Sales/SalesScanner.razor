@@ -1,0 +1,297 @@
+@using MediatR
+@using PDV.Application.Features.Products.Queries.GetProductByCode
+@using PDV.Application.Features.Sales.Commands.CreateSale
+@using PDV.Application.Features.Sales.Commands.AddSaleItem
+@using PDV.Application.Features.Sales.Commands.UpdateSaleItemQuantity
+@using PDV.Application.Features.Sales.Queries.GetDraftSale
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<MudPaper Elevation="3" Class="pa-4 d-flex flex-column gap-4 flex-grow-1" Style="height: 100%;">
+    <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
+        <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" Color="Color.Primary" />
+        Escanear / Buscar
+    </MudText>
+    
+    <MudTextField @ref="barcodeField"
+                  @bind-Value="searchCode" 
+                  Label="Código EAN-13 / SKU / PLU" 
+                  Variant="Variant.Outlined" 
+                  Adornment="Adornment.End" 
+                  AdornmentIcon="@Icons.Material.Filled.Search" 
+                  OnAdornmentClick="SearchProduct"
+                  @onkeydown="KeyPress"
+                  Placeholder="Escribe o escanea código..."
+                  HelperText="Presiona ENTER para buscar"
+                  Class="font-weight-bold"
+                  Immediate="true"
+                  TextUpdateSuppression="false" />
+
+    <MudDivider />
+
+    @if (searchedProduct != null)
+    {
+        <MudCard Elevation="0" Class="border-solid border-2 mud-border-primary pa-2 flex-grow-1 d-flex flex-column justify-space-between" Style="background: rgba(255,255,255,0.01); border-radius: 8px;">
+            <MudCardContent>
+                <div class="d-flex justify-space-between align-center mb-2">
+                    <MudChip T="string" Size="Size.Small" Color="@(searchedProduct.SaleType == SaleType.Bulk ? Color.Info : Color.Default)">
+                        @(searchedProduct.SaleType == SaleType.Bulk ? "A Granel" : "Por Pieza")
+                    </MudChip>
+                    <MudText Color="@(searchedProduct.Stock > 0 ? Color.Success : Color.Error)" Class="font-weight-bold">
+                        Stock: @searchedProduct.Stock.ToString(searchedProduct.SaleType == SaleType.Bulk ? "N3" : "N0")
+                    </MudText>
+                </div>
+                <MudText Typo="Typo.h6" Class="font-weight-bold">@searchedProduct.Name</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Código: @searchedProduct.Code</MudText>
+                
+                <MudText Typo="Typo.h4" Color="Color.Primary" Class="mt-4 font-weight-bold">
+                    $@searchedProduct.Price.ToString("F2") @(searchedProduct.SaleType == SaleType.Bulk ? "/ kg" : "")
+                </MudText>
+            </MudCardContent>
+            <MudCardActions Class="flex-column gap-3 w-100 pa-4">
+                @if (searchedProduct.SaleType == SaleType.Bulk)
+                {
+                    <MudNumericField @bind-Value="weightToAdd" 
+                                   Label="Peso a Agregar (kg)" 
+                                   Variant="Variant.Outlined" 
+                                   Min="0.001m" 
+                                   Step="0.1m"
+                                   Format="N3"
+                                   Class="w-100 font-weight-bold text-lg"
+                                   HideSpinButtons="true" />
+                }
+                else
+                {
+                    <MudNumericField @bind-Value="quantityToAdd" 
+                                   Label="Cantidad a Agregar" 
+                                   Variant="Variant.Outlined" 
+                                   Min="1" 
+                                   Max="100" 
+                                   Class="w-100 font-weight-bold text-lg"
+                                   HideSpinButtons="true" />
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddToCart" FullWidth="true" Size="Size.Large" Class="py-3 font-weight-bold">
+                    Agregar al Carrito
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    }
+    else if (notFound)
+    {
+         <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Style="border-radius: 8px;">Producto no encontrado.</MudAlert>
+    }
+    else
+    {
+        <div class="d-flex flex-column align-center justify-center flex-grow-1 mud-text-secondary pa-6 text-center border-dashed border-2 mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.01);">
+            <MudIcon Icon="@Icons.Material.Filled.Scanner" Size="Size.Large" Class="mb-3" />
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Listo para Escanear</MudText>
+            <MudText Typo="Typo.body2">Escanea el código de barras o escribe el SKU del producto en la caja de búsqueda superior.</MudText>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Guid? ActiveSaleId { get; set; }
+    [Parameter] public Guid? SelectedClientId { get; set; }
+    [Parameter] public List<ClientDto> Clients { get; set; } = new();
+    [Parameter] public Guid? CashRegisterId { get; set; }
+    [Parameter] public string UserId { get; set; } = "Anonymous";
+    [Parameter] public string PaymentMethod { get; set; } = "Cash";
+
+    [Parameter] public EventCallback<Guid> OnSaleCreated { get; set; }
+    [Parameter] public EventCallback OnCartUpdated { get; set; }
+
+    private MudTextField<string>? barcodeField;
+    private string searchCode = "";
+    private Product? searchedProduct;
+    private bool notFound = false;
+    private int quantityToAdd = 1;
+    private decimal weightToAdd = 1.0m;
+
+    // Semáforo local para evitar concurrencia en la base de datos local SQLite
+    private static readonly System.Threading.SemaphoreSlim _scannerSemaphore = new(1, 1);
+
+    public async Task AddProductDirectly(Product product, decimal quantityOrWeight)
+    {
+        await _scannerSemaphore.WaitAsync();
+        try
+        {
+            decimal? priceOverride = null;
+            if (SelectedClientId.HasValue)
+            {
+                var client = Clients.FirstOrDefault(c => c.Id == SelectedClientId.Value);
+                if (client?.ClientType == ClientType.Wholesale && product.WholesalePrice.HasValue)
+                {
+                    priceOverride = product.WholesalePrice.Value;
+                }
+            }
+
+            if (!ActiveSaleId.HasValue)
+            {
+                // Generar la venta borrador en la base de datos (SQLite)
+                var tempCartItem = new CartItemDto
+                {
+                    Product = product,
+                    Quantity = product.SaleType == SaleType.Bulk ? 0 : (int)quantityOrWeight,
+                    Weight = product.SaleType == SaleType.Bulk ? quantityOrWeight : 0m,
+                    PriceOverride = priceOverride
+                };
+
+                var command = new CreateSaleCommand
+                {
+                    Items = new List<CartItemDto> { tempCartItem },
+                    PaymentMethod = PaymentMethod,
+                    UserId = UserId,
+                    ClientId = SelectedClientId,
+                    CashRegisterId = CashRegisterId,
+                    IsPaid = false // Borrador
+                };
+
+                var newSaleId = await Mediator.Send(command);
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_active_sale_id", newSaleId.ToString());
+                ActiveSaleId = newSaleId;
+                
+                Snackbar.Add($"{product.Name} agregado al borrador de venta", Severity.Success);
+                await OnSaleCreated.InvokeAsync(newSaleId);
+            }
+            else
+            {
+                // Cargar borrador para verificar si ya existe el producto en el carrito
+                var draft = await Mediator.Send(new GetDraftSaleQuery(ActiveSaleId.Value));
+                var existingItem = draft?.Items.FirstOrDefault(x => x.Product.Id == product.Id);
+
+                if (existingItem != null)
+                {
+                    // Si ya existe, actualizamos la cantidad atómicamente
+                    decimal currentQty = product.SaleType == SaleType.Bulk ? existingItem.Weight : existingItem.Quantity;
+                    decimal newQty = currentQty + quantityOrWeight;
+
+                    var command = new UpdateSaleItemQuantityCommand(ActiveSaleId.Value, existingItem.SaleItemId, newQty);
+                    await Mediator.Send(command);
+                    Snackbar.Add($"{product.Name} actualizado a {newQty.ToString(product.SaleType == SaleType.Bulk ? "N3" : "N0")}", Severity.Success);
+                }
+                else
+                {
+                    // Si no existe, agregamos un nuevo SaleItem granularmente
+                    var command = new AddSaleItemCommand
+                    {
+                        SaleId = ActiveSaleId.Value,
+                        ProductId = product.Id,
+                        Quantity = quantityOrWeight,
+                        PriceOverride = priceOverride
+                    };
+
+                    await Mediator.Send(command);
+                    Snackbar.Add($"{product.Name} agregado al carrito", Severity.Success);
+                }
+
+                await OnCartUpdated.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al escanear/buscar producto: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _scannerSemaphore.Release();
+        }
+    }
+
+    private async Task KeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchProduct();
+        }
+    }
+
+    private async Task SearchProduct()
+    {
+        if (string.IsNullOrWhiteSpace(searchCode)) return;
+
+        notFound = false;
+        searchedProduct = null;
+        var processedCode = searchCode.Trim();
+        searchCode = ""; // Limpiar inmediatamente para permitir escaneo continuo fluido
+        StateHasChanged();
+
+        // EAN-13 Bulk Barcode Parsing: starts with '2', has 13 numeric digits
+        if (processedCode.Length == 13 && processedCode.StartsWith("2") && processedCode.All(char.IsDigit))
+        {
+            var codePart = processedCode.Substring(1, 6);
+            var weightPart = processedCode.Substring(7, 6);
+
+            if (int.TryParse(weightPart.Substring(0, 2), out int integerPart) && 
+                int.TryParse(weightPart.Substring(2, 4), out int fractionalPart))
+            {
+                decimal weight = integerPart + (decimal)fractionalPart / 10000m;
+
+                var product = await Mediator.Send(new GetProductByCodeQuery(codePart));
+                if (product != null)
+                {
+                    await AddProductDirectly(product, weight);
+                    if (barcodeField != null)
+                    {
+                        await barcodeField.FocusAsync();
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Standard flow
+        var foundProduct = await Mediator.Send(new GetProductByCodeQuery(processedCode));
+
+        if (foundProduct == null)
+        {
+            notFound = true;
+            if (barcodeField != null)
+            {
+                await barcodeField.FocusAsync();
+            }
+        }
+        else
+        {
+            // Auto add Piece products to cart for ultimate speed!
+            if (foundProduct.SaleType == SaleType.Piece)
+            {
+                await AddProductDirectly(foundProduct, 1);
+                if (barcodeField != null)
+                {
+                    await barcodeField.FocusAsync();
+                }
+            }
+            else
+            {
+                searchedProduct = foundProduct;
+                weightToAdd = 1.0m;
+            }
+        }
+    }
+
+    private async Task AddToCart()
+    {
+        if (searchedProduct == null) return;
+        var prod = searchedProduct;
+        decimal amount = prod.SaleType == SaleType.Bulk ? weightToAdd : quantityToAdd;
+
+        searchedProduct = null;
+        searchCode = "";
+        notFound = false;
+        quantityToAdd = 1;
+        weightToAdd = 1.0m;
+
+        await AddProductDirectly(prod, amount);
+
+        if (barcodeField != null)
+        {
+            await barcodeField.FocusAsync();
+        }
+    }
+}

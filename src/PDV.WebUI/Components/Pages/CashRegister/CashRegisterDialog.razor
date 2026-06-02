@@ -1,0 +1,331 @@
+@using MediatR
+@using PDV.Application.Features.CashRegisters.Commands.CreateCashRegister
+@using PDV.Application.Features.CashRegisters.Commands.UpdateCashRegister
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.AddCircle)"
+                     Color="@(IsEdit ? Color.Info : Color.Secondary)" />
+            <MudText Typo="Typo.h6">@(IsEdit ? "Editar Caja Registradora" : "Nueva Caja Registradora")</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudGrid Spacing="3">
+            @* Nombre y Ubicación *@
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Model.Name"
+                              Label="Nombre de la Caja"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="El nombre de la caja es obligatorio"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.PointOfSale"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Model.Location"
+                              Label="Ubicación / Descripción"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.LocationOn"
+                              Immediate="true" />
+            </MudItem>
+
+            @* Sucursal y Modo *@
+            <MudItem xs="12" sm="6">
+                <MudSelect T="Guid"
+                           @bind-Value="Model.BranchId"
+                           Label="Sucursal"
+                           Variant="Variant.Outlined"
+                           Required="true"
+                           RequiredError="Debes seleccionar una sucursal"
+                           AdornmentIcon="@Icons.Material.Filled.Business"
+                           Adornment="Adornment.Start">
+                    @foreach (var branch in Branches)
+                    {
+                        <MudSelectItem Value="@branch.Id">@branch.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="CashRegisterMode"
+                           @bind-Value="Model.Mode"
+                           Label="Modo de Operación"
+                           Variant="Variant.Outlined"
+                           AdornmentIcon="@Icons.Material.Filled.Category"
+                           Adornment="Adornment.Start">
+                    <MudSelectItem Value="CashRegisterMode.SalesFloor">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Storefront" Style="font-size:16px; color:#64b5f6;" />
+                            <span>Piso de Ventas</span>
+                        </MudStack>
+                    </MudSelectItem>
+                    <MudSelectItem Value="CashRegisterMode.Orders">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="font-size:16px; color:#ffb74d;" />
+                            <span>Pedidos</span>
+                        </MudStack>
+                    </MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            @* IP Address *@
+            <MudItem xs="12">
+                <MudDivider />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 mb-1" Style="font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Router" Style="font-size:14px; vertical-align:middle; margin-right:4px;" />
+                    Vinculación de Terminal IP
+                </MudText>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudTextField @bind-Value="Model.IpAddress"
+                                  Label="Dirección IP (opcional)"
+                                  Variant="Variant.Outlined"
+                                  Placeholder="Ej: 192.168.1.10"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.NetworkWifi"
+                                  Immediate="true"
+                                  Style="flex: 1;"
+                                  @oninput="OnIpAddressInput" />
+                    <MudTooltip Text="Autocompletar con la IP del servidor actual">
+                        <MudIconButton Icon="@Icons.Material.Filled.MyLocation"
+                                       Color="Color.Secondary"
+                                       Variant="Variant.Filled"
+                                       Size="Size.Medium"
+                                       OnClick="UseCurrentServerIp" />
+                    </MudTooltip>
+                </MudStack>
+
+                @* Validación visual de IP *@
+                @if (!string.IsNullOrWhiteSpace(Model.IpAddress))
+                {
+                    @if (isIpValid)
+                    {
+                        <div class="ip-validation-hint ip-valid">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="font-size:13px; vertical-align:middle;" />
+                            IP válida — esta caja responderá a terminales conectadas desde @Model.IpAddress
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="ip-validation-hint ip-invalid">
+                            <MudIcon Icon="@Icons.Material.Filled.Error" Style="font-size:13px; vertical-align:middle;" />
+                            Formato inválido. Ingresa una dirección IPv4 (ej. 192.168.1.10) o IPv6 válida.
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="ip-validation-hint ip-neutral">
+                        Sin IP asignada — la caja no se vinculará automáticamente a ningún terminal.
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(ServerIp))
+                {
+                    <div class="cr-server-ip-info">
+                        <MudIcon Icon="@Icons.Material.Filled.Info" Style="font-size: 15px; color: #7c4dff;" />
+                        IP detectada en esta sesión de servidor: <strong style="color: #7c4dff; margin-left: 4px; font-family: monospace;">@ServerIp</strong>
+                    </div>
+                }
+            </MudItem>
+
+            @* Empleado y Impresora *@
+            <MudItem xs="12" sm="6">
+                <MudSelect T="Guid?"
+                           @bind-Value="Model.AssignedEmployeeId"
+                           Label="Cajero Asignado (Opcional)"
+                           Variant="Variant.Outlined"
+                           Clearable="true"
+                           AdornmentIcon="@Icons.Material.Filled.Person"
+                           Adornment="Adornment.Start">
+                    <MudSelectItem Value="@((Guid?)null)">— Ninguno —</MudSelectItem>
+                    @foreach (var cashier in Cashiers)
+                    {
+                        <MudSelectItem Value="@((Guid?)cashier.Id)">@cashier.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="Guid?"
+                           @bind-Value="Model.AssignedPrinterId"
+                           Label="Impresora Asignada (Opcional)"
+                           Variant="Variant.Outlined"
+                           Clearable="true"
+                           AdornmentIcon="@Icons.Material.Filled.Print"
+                           Adornment="Adornment.Start">
+                    <MudSelectItem Value="@((Guid?)null)">— Ninguna —</MudSelectItem>
+                    @foreach (var printer in Printers)
+                    {
+                        <MudSelectItem Value="@((Guid?)printer.Id)">
+                            @printer.Name
+                            @if (!string.IsNullOrEmpty(printer.IpAddress))
+                            {
+                                <span style="color: rgba(255,255,255,0.4); margin-left: 4px; font-size: 0.8rem;">( @printer.IpAddress)</span>
+                            }
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            @* Estado (solo en edición) *@
+            @if (IsEdit)
+            {
+                <MudItem xs="12">
+                    <MudDivider />
+                    <MudSwitch T="bool"
+                               @bind-Value="Model.IsActive"
+                               Label="@(Model.IsActive ? "Caja Activa" : "Caja Inactiva")"
+                               Color="Color.Success"
+                               Class="mt-2" />
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none; font-weight: 500;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Save" OnClick="Save" IsLoading="@_saving">
+            Guardar
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public bool IsEdit { get; set; }
+
+    [Parameter]
+    public CashRegisterFormModel Model { get; set; } = new();
+
+    [Parameter]
+    public List<BranchDto> Branches { get; set; } = new();
+
+    [Parameter]
+    public List<CashierDto> Cashiers { get; set; } = new();
+
+    [Parameter]
+    public List<PrinterDto> Printers { get; set; } = new();
+
+    [Parameter]
+    public string? ServerIp { get; set; }
+
+    private bool isIpValid = true;
+    private bool _saving = false;
+
+    protected override void OnInitialized()
+    {
+        ValidateIp(Model.IpAddress);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void OnIpAddressInput(ChangeEventArgs e)
+    {
+        Model.IpAddress = e.Value?.ToString();
+        ValidateIp(Model.IpAddress);
+    }
+
+    private void ValidateIp(string? ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) { isIpValid = true; return; }
+        isIpValid = System.Net.IPAddress.TryParse(ip.Trim(), out _);
+    }
+
+    private void UseCurrentServerIp()
+    {
+        if (!string.IsNullOrWhiteSpace(ServerIp))
+        {
+            Model.IpAddress = ServerIp;
+            ValidateIp(Model.IpAddress);
+        }
+        else
+        {
+            Snackbar.Add("No se pudo detectar la IP del servidor en esta sesión.", Severity.Warning);
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Snackbar.Add("El nombre de la caja es obligatorio.", Severity.Warning);
+            return;
+        }
+        if (Model.BranchId == Guid.Empty)
+        {
+            Snackbar.Add("Debes seleccionar una sucursal.", Severity.Warning);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(Model.IpAddress) && !isIpValid)
+        {
+            Snackbar.Add("La dirección IP ingresada no es válida.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                var command = new UpdateCashRegisterCommand(
+                    Id:                 Model.Id,
+                    Name:               Model.Name,
+                    Location:           Model.Location ?? string.Empty,
+                    BranchId:           Model.BranchId,
+                    AssignedEmployeeId: Model.AssignedEmployeeId,
+                    AssignedPrinterId:  Model.AssignedPrinterId,
+                    IsActive:           Model.IsActive,
+                    IpAddress:          string.IsNullOrWhiteSpace(Model.IpAddress) ? null : Model.IpAddress.Trim());
+
+                await Mediator.Send(command);
+            }
+            else
+            {
+                var command = new CreateCashRegisterCommand(
+                    Name:               Model.Name,
+                    Location:           Model.Location ?? string.Empty,
+                    BranchId:           Model.BranchId,
+                    Mode:               Model.Mode,
+                    AssignedEmployeeId: Model.AssignedEmployeeId,
+                    AssignedPrinterId:  Model.AssignedPrinterId,
+                    IpAddress:          string.IsNullOrWhiteSpace(Model.IpAddress) ? null : Model.IpAddress.Trim());
+
+                await Mediator.Send(command);
+            }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    public sealed class CashRegisterFormModel
+    {
+        public Guid   Id                 { get; set; }
+        public string Name               { get; set; } = string.Empty;
+        public string? Location          { get; set; }
+        public Guid   BranchId           { get; set; }
+        public CashRegisterMode Mode     { get; set; } = CashRegisterMode.SalesFloor;
+        public string? IpAddress         { get; set; }
+        public Guid?  AssignedEmployeeId { get; set; }
+        public Guid?  AssignedPrinterId  { get; set; }
+        public bool   IsActive           { get; set; } = true;
+    }
+}

@@ -1,0 +1,36 @@
+@page "/"
+@namespace PDV.WebUI.Components.Pages
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthProvider
+
+<PageTitle>PDV — Inicio</PageTitle>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (user.IsInRole("Admin") || user.IsInRole("Manager"))
+        {
+            Navigation.NavigateTo("/dashboard", replace: true);
+            return;
+        }
+
+        if (user.IsInRole("Cashier"))
+        {
+            Navigation.NavigateTo("/shift/open", replace: true);
+            return;
+        }
+
+        // Sin rol asignado → dashboard por defecto
+        Navigation.NavigateTo("/dashboard", replace: true);
+    }
+}

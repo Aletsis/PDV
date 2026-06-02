@@ -1,0 +1,316 @@
+@using MediatR
+@using PDV.Application.Features.Sales.Commands.CreateInvoice
+@using PDV.Application.Features.Sales.Queries.GetSale
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Clients.Queries.ListClients
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog Class="invoice-details-dialog" Style="border-radius: 16px; background: #120E1E; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.08); max-width: 520px; width: 100%;">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="pb-3 border-solid border-b mud-border-secondary">
+            <div style="background: rgba(149, 117, 205, 0.12); border-radius: 10px; padding: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" Size="Size.Medium" />
+            </div>
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6" Class="font-weight-bold" Style="color: #ffffff;">Detalles de Facturación</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="color: rgba(255,255,255,0.5);">CFDI 4.0 — Sello Digital e Impuestos</MudText>
+            </MudStack>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudStack Spacing="4" Class="mt-3">
+            @if (saleDetail == null)
+            {
+                <MudStack AlignItems="AlignItems.Center" Class="py-6">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Medium" />
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Cargando información de venta...</MudText>
+                </MudStack>
+            }
+            else
+            {
+                <!-- Resumen de Venta -->
+                <MudPaper Outlined="false" Class="pa-3 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.015);">
+                    <MudGrid Dense="true" Spacing="1">
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">TICKET / FOLIO</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">@saleDetail.SaleNumber</MudText>
+                        </MudItem>
+                        <MudItem xs="6" Class="text-right">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">TOTAL A FACTURAR</MudText>
+                            <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Primary">@saleDetail.TotalAmount.ToString("C2")</MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <!-- Tarjeta del Cliente Asociado -->
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-sm" Style="color: rgba(255,255,255,0.7);">Cliente Receptor</MudText>
+                    <MudPaper Outlined="false" Class="pa-3 d-flex align-center justify-space-between border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.025);">
+                        <MudStack Spacing="0">
+                            @if (selectedClient != null)
+                            {
+                                <MudText Typo="Typo.body2" Class="font-weight-bold" Style="color: #ffffff;">@selectedClient.Name</MudText>
+                                <MudText Typo="Typo.caption" Style="font-family: 'Roboto Mono', monospace; color: rgba(255,255,255,0.6);">RFC: @selectedClient.TaxId</MudText>
+                                @if (!string.IsNullOrEmpty(selectedClient.Phone))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Tel: @selectedClient.Phone</MudText>
+                                }
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Class="font-weight-bold" Color="Color.Warning">PÚBLICO EN GENERAL</MudText>
+                                <MudText Typo="Typo.caption" Style="font-family: 'Roboto Mono', monospace; color: rgba(255,255,255,0.6);">RFC: XAXX010101000</MudText>
+                            }
+                        </MudStack>
+                        
+                        <MudButton StartIcon="@Icons.Material.Filled.PersonSearch" 
+                                   Variant="Variant.Outlined" 
+                                   Color="Color.Warning" 
+                                   Size="Size.Small"
+                                   OnClick="ChangeClientAsync"
+                                   Style="text-transform: none; border-radius: 8px; font-weight: 600; font-size: 0.75rem;">
+                            Cambiar Cliente
+                        </MudButton>
+                    </MudPaper>
+                </MudStack>
+
+                <!-- Tipo de Facturación (Cliente vs Global) -->
+                <MudRadioGroup T="bool" @bind-Value="isGlobal" Class="d-flex gap-4">
+                    <MudRadio Value="false" Color="Color.Primary">Factura Individual</MudRadio>
+                    <MudRadio Value="true" Color="Color.Info">Factura Global (Público General)</MudRadio>
+                </MudRadioGroup>
+
+                <!-- Campos de Configuración CFDI -->
+                <MudGrid Spacing="2">
+                    <MudItem xs="12">
+                        <MudSelect T="string" @bind-Value="usoCfdi" Label="Uso del CFDI" Variant="Variant.Outlined" Margin="Margin.Dense" Style="color: #ffffff;">
+                            <MudSelectItem Value="@("G03")">G03 - Gastos en general</MudSelectItem>
+                            <MudSelectItem Value="@("G01")">G01 - Adquisición de mercancías</MudSelectItem>
+                            <MudSelectItem Value="@("S01")">S01 - Sin efectos fiscales (Mandatorio para Global)</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="6">
+                        <MudSelect T="string" @bind-Value="formaPago" Label="Forma de Pago" Variant="Variant.Outlined" Margin="Margin.Dense" Style="color: #ffffff;">
+                            <MudSelectItem Value="@("01")">01 - Efectivo</MudSelectItem>
+                            <MudSelectItem Value="@("03")">03 - Transferencia electrónica</MudSelectItem>
+                            <MudSelectItem Value="@("04")">04 - Tarjeta de crédito</MudSelectItem>
+                            <MudSelectItem Value="@("28")">28 - Tarjeta de débito</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="6">
+                        <MudSelect T="string" @bind-Value="metodoPago" Label="Método de Pago" Variant="Variant.Outlined" Margin="Margin.Dense" Style="color: #ffffff;">
+                            <MudSelectItem Value="@("PUE")">PUE - Pago en una sola exhibición</MudSelectItem>
+                            <MudSelectItem Value="@("PPD")">PPD - Pago en parcialidades / diferido</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none; border-radius: 8px; color: rgba(255,255,255,0.7);">
+            Cancelar
+        </MudButton>
+        <MudButton OnClick="ProcessInvoiceAsync" 
+                   Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   Disabled="@(saleDetail == null || isProcessing)"
+                   Style="text-transform: none; border-radius: 8px; font-weight: bold;">
+            Facturar y Timbrar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Overlay de Carga con Animación Modern -->
+<MudOverlay @bind-Visible="isProcessing" DarkBackground="true" Absolute="true" ZIndex="9999" Style="border-radius: 16px;">
+    <MudStack AlignItems="AlignItems.Center" Spacing="3">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" Thickness="5" />
+        <MudText Typo="Typo.h6" Class="font-weight-bold" Style="color: #ffffff;">Sellando Digitalmente...</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary" Style="color: rgba(255,255,255,0.6); text-align: center; max-width: 320px;">
+            Comunicando de forma segura con el PAC y CONTPAQi para el timbrado fiscal. Por favor, espere.
+        </MudText>
+    </MudStack>
+</MudOverlay>
+
+<style>
+    .invoice-details-dialog .mud-dialog-title {
+        background: #191228 !important;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+    }
+    .invoice-details-dialog .mud-dialog-actions {
+        background: #140E20 !important;
+        border-bottom-left-radius: 16px;
+        border-bottom-right-radius: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        padding: 12px 18px !important;
+    }
+    .invoice-details-dialog .mud-input-label {
+        color: rgba(255, 255, 255, 0.5) !important;
+    }
+    .invoice-details-dialog .mud-input-outlined-border {
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+    .invoice-details-dialog .mud-input:hover .mud-input-outlined-border {
+        border-color: rgba(255, 255, 255, 0.25) !important;
+    }
+    .invoice-details-dialog .mud-select-input {
+        color: #ffffff !important;
+    }
+</style>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public Guid SaleId { get; set; }
+
+    private SaleDetailDto? saleDetail;
+    private ClientDto? selectedClient;
+    
+    private bool isGlobal = false;
+    private string usoCfdi = "G03";
+    private string metodoPago = "PUE";
+    private string formaPago = "01";
+    private bool isProcessing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Obtener los detalles de la venta de forma síncrona/segura
+        saleDetail = await Mediator.Send(new GetSaleQuery(SaleId));
+        
+        if (saleDetail != null)
+        {
+            isGlobal = saleDetail.ClientId == null;
+            
+            // Cargar el cliente de la venta por defecto
+            if (saleDetail.ClientId.HasValue)
+            {
+                selectedClient = new ClientDto
+                {
+                    Id = saleDetail.ClientId.Value,
+                    Name = saleDetail.ClientName,
+                    TaxId = "XAXX010101000", // Fallback inicial, se resolverá si se carga de la lista
+                    Phone = string.Empty
+                };
+
+                // Recuperar RFC real desde la consulta de clientes del PDV
+                var clients = await Mediator.Send(new ListClientsQuery());
+                var matched = clients.FirstOrDefault(c => c.Id == saleDetail.ClientId.Value);
+                if (matched != null)
+                {
+                    selectedClient = matched;
+                }
+            }
+
+            // Mapeo inteligente Forma de Pago
+            formaPago = saleDetail.PaymentMethod switch
+            {
+                "Cash" => "01",
+                "Card" => "28",
+                "Transfer" => "03",
+                _ => "01"
+            };
+
+            // Para facturas globales, el SAT obliga a usar el Uso de CFDI "S01 - Sin efectos fiscales"
+            if (isGlobal)
+            {
+                usoCfdi = "S01";
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task ChangeClientAsync()
+    {
+        try
+        {
+            var clients = await Mediator.Send(new ListClientsQuery());
+            var parameters = new DialogParameters { ["Clients"] = clients };
+            var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+            
+            var dialog = DialogService.Show<ClientSearchDialog>("Seleccionar Cliente", parameters, options);
+            var result = await dialog.Result;
+            
+            if (result != null && !result.Canceled)
+            {
+                // Si el diálogo devuelve null en Data, significa público general
+                if (result.Data is ClientDto client)
+                {
+                    selectedClient = client;
+                    isGlobal = false;
+                    
+                    // Si seleccionó cliente, cambiar Uso de CFDI a Gastos en General (G03) si estaba en Sin Efectos Fiscales (S01)
+                    if (usoCfdi == "S01")
+                    {
+                        usoCfdi = "G03";
+                    }
+                }
+                else
+                {
+                    selectedClient = null;
+                    isGlobal = true;
+                    usoCfdi = "S01";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al buscar clientes: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ProcessInvoiceAsync()
+    {
+        if (saleDetail == null) return;
+
+        // Validar reglas fiscales antes de llamar al backend
+        if (!isGlobal && selectedClient == null)
+        {
+            Snackbar.Add("Seleccione un cliente válido para emitir una Factura Individual.", Severity.Warning);
+            return;
+        }
+
+        if (isGlobal && usoCfdi != "S01")
+        {
+            Snackbar.Add("Las Facturas Globales requieren de forma obligatoria el Uso de CFDI 'S01 - Sin efectos fiscales'. Ajustando...", Severity.Info);
+            usoCfdi = "S01";
+        }
+
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var command = new CreateInvoiceCommand
+            {
+                SaleId = SaleId,
+                IsGlobal = isGlobal,
+                ClientId = isGlobal ? null : selectedClient?.Id,
+                UsoCfdi = usoCfdi,
+                MetodoPago = metodoPago,
+                FormaPago = formaPago,
+                TaxRate = 0.16m
+            };
+
+            var invoiceId = await Mediator.Send(command);
+            MudDialog.Close(DialogResult.Ok<Guid>(invoiceId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error de facturación: {ex.Message}", Severity.Error);
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+}

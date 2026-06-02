@@ -1,0 +1,41 @@
+.console-box {
+    background: #0f141c;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    height: 250px;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: 'Consolas', 'Courier New', Courier, monospace;
+    font-size: 0.8rem;
+}
+.console-placeholder {
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+.console-line {
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+.console-timestamp {
+    color: #8f93a2;
+    margin-right: 6px;
+}
+.console-text {
+    word-break: break-all;
+}
+.info {
+    color: #80cbc4;
+}
+.success {
+    color: #c3e88d;
+}
+.warning {
+    color: #ffcb6b;
+}
+.error {
+    color: #f07178;
+}

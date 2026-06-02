@@ -1,0 +1,193 @@
+@using MediatR
+@using PDV.Application.Features.Sales.Commands.CashCollection
+@using MudBlazor
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="@($"d-flex align-center gap-2 font-weight-bold {(IsInflow ? "mud-text-success" : "mud-text-warning")}")">
+            <MudIcon Icon="@(IsInflow ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)" />
+            @(IsInflow ? "Entrega de Morralla (Fondo de Cambio)" : "Recolección de Efectivo (Retiro de Seguridad)")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isValid">
+            <MudGrid Class="pa-2">
+                <MudItem xs="12">
+                    <MudAlert Severity="@(IsInflow ? Severity.Success : Severity.Warning)" Class="mb-2" Variant="Variant.Filled">
+                        @(IsInflow 
+                            ? "Registra el ingreso de monedas o billetes a la caja para mantener fondo para cambio." 
+                            : "Registra el retiro de efectivo de la caja por seguridad al acumular excedentes de efectivo.")
+                    </MudAlert>
+                </MudItem>
+
+                <!-- Secciones de Denominaciones -->
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-primary mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Money" Style="vertical-align: middle; margin-right: 4px; font-size: 18px;" />
+                        Billetes
+                    </MudText>
+                    <MudStack Spacing="2">
+                        <MudNumericField T="int" @bind-Value="bills1000" Label="Billetes de $1,000" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="bills500" Label="Billetes de $500" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="bills200" Label="Billetes de $200" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="bills100" Label="Billetes de $100" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="bills50" Label="Billetes de $50" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="bills20" Label="Billetes de $20" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                    </MudStack>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Circle" Style="vertical-align: middle; margin-right: 4px; font-size: 18px;" />
+                        Monedas
+                    </MudText>
+                    <MudStack Spacing="2">
+                        <MudNumericField T="int" @bind-Value="coins20" Label="Monedas de $20" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="coins10" Label="Monedas de $10" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="coins5" Label="Monedas de $5" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="coins2" Label="Monedas de $2" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="coins1" Label="Monedas de $1" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                        <MudNumericField T="int" @bind-Value="coins50c" Label="Monedas de $0.50 (Centavos)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Immediate="true" />
+                    </MudStack>
+                </MudItem>
+
+                <!-- Resumen y Justificación -->
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudGrid AlignItems="Center">
+                        <MudItem xs="12" sm="4">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">MONTO TOTAL CALCULADO</MudText>
+                            <MudText Typo="Typo.h4" Class="@($"font-weight-bold {(IsInflow ? "mud-text-success" : "mud-text-warning")}")">
+                                $@CalculatedAmount.ToString("N2")
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="8">
+                            <MudTextField T="string"
+                                          Label="Justificación / Motivo"
+                                          @bind-Value="reason"
+                                          Required="true"
+                                          Variant="Variant.Outlined"
+                                          Lines="2"
+                                          Placeholder="@(IsInflow ? "Ej. Entrega de morralla para inicio de turno por supervisor." : "Ej. Recolección de efectivo por excedente en caja.")" />
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined" Class="px-4 py-2">Cancelar</MudButton>
+        <MudButton OnClick="Submit" 
+                   Color="@(IsInflow ? Color.Success : Color.Warning)" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(CalculatedAmount <= 0 || !isValid || isProcessing)"
+                   Class="px-5 py-2 font-weight-bold">
+            @if (isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Registrando...</span>
+            }
+            else
+            {
+                <span>Confirmar Registro</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid CashRegisterId { get; set; }
+    [Parameter] public Guid CashierId { get; set; }
+    [Parameter] public bool IsInflow { get; set; } // True = Morralla (Inflow), False = Recolección (Outflow)
+
+    // Billetes
+    private int bills1000;
+    private int bills500;
+    private int bills200;
+    private int bills100;
+    private int bills50;
+    private int bills20;
+
+    // Monedas
+    private int coins20;
+    private int coins10;
+    private int coins5;
+    private int coins2;
+    private int coins1;
+    private int coins50c;
+
+    private string reason = "";
+    private MudForm form = default!;
+    private bool isValid;
+    private bool isProcessing;
+
+    private decimal CalculatedAmount =>
+        (bills1000 * 1000m) +
+        (bills500 * 500m) +
+        (bills200 * 200m) +
+        (bills100 * 100m) +
+        (bills50 * 50m) +
+        (bills20 * 20m) +
+        (coins20 * 20m) +
+        (coins10 * 10m) +
+        (coins5 * 5m) +
+        (coins2 * 2m) +
+        (coins1 * 1m) +
+        (coins50c * 0.5m);
+
+
+    private async Task Submit()
+    {
+        await form.Validate();
+        if (!isValid || CalculatedAmount <= 0) return;
+
+        isProcessing = true;
+        try
+        {
+            var prefix = IsInflow ? "[INFLOW] Morralla: " : "[OUTFLOW] Recolección: ";
+            
+            // Construir desglose detallado
+            var list = new List<string>();
+            if (bills1000 > 0) list.Add($"$1000x{bills1000}");
+            if (bills500 > 0) list.Add($"$500x{bills500}");
+            if (bills200 > 0) list.Add($"$200x{bills200}");
+            if (bills100 > 0) list.Add($"$100x{bills100}");
+            if (bills50 > 0) list.Add($"$50x{bills50}");
+            if (bills20 > 0) list.Add($"$20x{bills20}");
+            if (coins20 > 0) list.Add($"Moneda$20x{coins20}");
+            if (coins10 > 0) list.Add($"$10x{coins10}");
+            if (coins5 > 0) list.Add($"$5x{coins5}");
+            if (coins2 > 0) list.Add($"$2x{coins2}");
+            if (coins1 > 0) list.Add($"$1x{coins1}");
+            if (coins50c > 0) list.Add($"$0.50x{coins50c}");
+            
+            var breakdown = string.Join(", ", list);
+            var fullReason = $"{prefix}{reason.Trim()} (Desglose: {breakdown})";
+
+            var command = new CashCollectionCommand(
+                CashRegisterId: CashRegisterId,
+                CashierId: CashierId,
+                Amount: CalculatedAmount,
+                Reason: fullReason
+            );
+
+            var resultId = await Mediator.Send(command);
+            Snackbar.Add($"Movimiento registrado con éxito.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(resultId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al registrar movimiento: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+@using PDV.WebUI.Theme
+
+<MudThemeProvider Theme="PremiumTheme.Theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<style>
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 100vh !important;
+        background-color: #080a14 !important;
+    }
+    .mud-main-content {
+        padding: 0 !important;
+        margin: 0 !important;
+        min-height: 100vh !important;
+    }
+</style>
+
+<MudLayout>
+    <MudMainContent Class="pa-0 ma-0">
+        @Body
+    </MudMainContent>
+</MudLayout>

@@ -1,0 +1,331 @@
+@page "/admin/printers"
+@rendermode InteractiveServer
+@using MediatR
+@using PDV.Application.Features.Printers.Queries.ListPrinters
+@using PDV.Application.Features.Printers.Commands.CreatePrinter
+@using PDV.Application.Features.Printers.Commands.UpdatePrinter
+@using PDV.Application.Features.Printers.Commands.DeletePrinter
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Impresoras — Administración</PageTitle>
+
+<!-- Page Header & Actions -->
+<PdvHeader Title="Impresoras"
+           Subtitle="Gestiona las impresoras de tickets asignables a las cajas registradoras"
+           Icon="@Icons.Material.Filled.Print"
+           IconColor="Color.Primary">
+    <Actions>
+        <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="OpenCreateDialog">
+            Nueva Impresora
+        </PdvInteractiveButton>
+    </Actions>
+</PdvHeader>
+
+<!-- Metrics Cards Grid -->
+<MudGrid Spacing="2" Class="mb-4">
+    <MudItem xs="12" sm="3">
+        <PdvKpiCard Title="Total Impresoras"
+                    Value="@_printers.Count.ToString()"
+                    Icon="@Icons.Material.Filled.Print"
+                    IconColor="Color.Primary"
+                    IsLoading="@_isLoading" />
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <PdvKpiCard Title="Activas"
+                    Value="@(_printers.Count(p => p.IsActive).ToString())"
+                    Icon="@Icons.Material.Filled.CheckCircle"
+                    IconColor="Color.Success"
+                    IsLoading="@_isLoading"
+                    GradientType="PdvKpiCard.KpiGradientType.Success" />
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <PdvKpiCard Title="Inactivas"
+                    Value="@(_printers.Count(p => !p.IsActive).ToString())"
+                    Icon="@Icons.Material.Filled.Cancel"
+                    IconColor="Color.Error"
+                    IsLoading="@_isLoading"
+                    GradientType="PdvKpiCard.KpiGradientType.Error" />
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <PdvKpiCard Title="En Red"
+                    Value="@(_printers.Count(p => !string.IsNullOrEmpty(p.IpAddress)).ToString())"
+                    Icon="@Icons.Material.Filled.Wifi"
+                    IconColor="Color.Warning"
+                    IsLoading="@_isLoading"
+                    GradientType="PdvKpiCard.KpiGradientType.Warning" />
+    </MudItem>
+</MudGrid>
+
+<!-- Main Data Section wrapped in State Container -->
+<PdvStateContainer IsLoading="@_isLoading"
+                    IsEmpty="@(!_filtered.Any())"
+                    EmptyTitle="Sin impresoras"
+                    EmptyMessage="No se encontraron impresoras registradas que coincidan con los criterios de búsqueda o filtros."
+                    EmptyIcon="@Icons.Material.Filled.PrintDisabled"
+                    SkeletonRows="5"
+                    SkeletonColumns="5">
+    <MudPaper Class="p-3" Style="border-radius: 14px;">
+        <!-- Search and Filter Toolbar -->
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3" Wrap="Wrap.Wrap">
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Buscar por nombre, IP…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Clearable="true"
+                          Style="max-width: 380px; flex: 1;" />
+            <MudSelect T="bool?"
+                       Value="_filterActive"
+                       ValueChanged="OnFilterActiveChanged"
+                       Label="Estado"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Style="max-width: 180px;">
+                <MudSelectItem T="bool?" Value="@((bool?)null)">Todas</MudSelectItem>
+                <MudSelectItem T="bool?" Value="@(true)">Activas</MudSelectItem>
+                <MudSelectItem T="bool?" Value="@(false)">Inactivas</MudSelectItem>
+            </MudSelect>
+        </MudStack>
+
+        <MudDataGrid T="PrinterDto"
+                     Items="@_filtered"
+                     Filterable="false"
+                     Sortable="true"
+                     Dense="false"
+                     Hover="true"
+                     RowClass="prt-table-row"
+                     Elevation="0">
+            <Columns>
+                <TemplateColumn Title="Nombre" SortBy="x => x.Name">
+                    <CellTemplate>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Print" Style="font-size:18px; color: rgba(255,255,255,0.4);" />
+                            <span style="font-weight: 600;">@context.Item.Name</span>
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn Title="IP / Dispositivo" SortBy="x => x.IpAddress ?? string.Empty">
+                    <CellTemplate>
+                        @if (!string.IsNullOrEmpty(context.Item.IpAddress))
+                        {
+                            <span class="prt-conn-badge prt-conn-network prt-mono">
+                                <MudIcon Icon="@Icons.Material.Filled.Router" Style="font-size: 12px;" />
+                                @context.Item.IpAddress : @context.Item.Port
+                            </span>
+                        }
+                        else
+                        {
+                            <span style="color: rgba(255,255,255,0.3); font-size: 0.82rem;">—</span>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn Title="Encoding / Ancho">
+                    <CellTemplate>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                     Style="font-family: monospace; font-size: 0.78rem;">
+                                CP @context.Item.CodePage
+                            </MudChip>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                     Style="font-family: monospace; font-size: 0.78rem;">
+                                @context.Item.MaxWidth dots
+                            </MudChip>
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn Title="Estado" SortBy="x => x.IsActive">
+                    <CellTemplate>
+                        @if (context.Item.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.FiberManualRecord">
+                                Activa
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.FiberManualRecord">
+                                Inactiva
+                            </MudChip>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn Title="Acciones" Sortable="false" Filterable="false">
+                    <CellTemplate>
+                        <MudTooltip Text="Editar">
+                            <MudIconButton Class="prt-action-btn"
+                                           Icon="@Icons.Material.Filled.Edit"
+                                           Color="Color.Info"
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenEditDialog(context.Item))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Eliminar">
+                            <MudIconButton Class="prt-action-btn"
+                                           Icon="@Icons.Material.Filled.Delete"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           OnClick="@(() => DeletePrinter(context.Item))" />
+                        </MudTooltip>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="PrinterDto" />
+            </PagerContent>
+        </MudDataGrid>
+    </MudPaper>
+</PdvStateContainer>
+
+@code {
+    // ── Estado ─────────────────────────────────────────────────
+    private List<PrinterDto> _printers = new();
+    private List<PrinterDto> _filtered  = new();
+    private bool   _isLoading    = true;
+    private string _search       = string.Empty;
+    private bool?  _filterActive = null;
+
+    // ── Ciclo de vida ──────────────────────────────────────────
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            _printers = await Mediator.Send(new ListPrintersQuery());
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar impresoras: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // ── Filtros ────────────────────────────────────────────────
+    private void ApplyFilters()
+    {
+        var q = _printers.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_search))
+            q = q.Where(p => p.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                              (!string.IsNullOrEmpty(p.IpAddress) &&
+                               p.IpAddress.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+
+        if (_filterActive.HasValue)
+            q = q.Where(p => p.IsActive == _filterActive.Value);
+
+        _filtered = q.ToList();
+    }
+
+    private void OnSearchChanged(string value)        { _search = value;        ApplyFilters(); }
+    private void OnFilterActiveChanged(bool? value)   { _filterActive = value;  ApplyFilters(); }
+
+    // ── Diálogos ───────────────────────────────────────────────
+    private async Task OpenCreateDialog()
+    {
+        var model = new PrinterDialog.PrinterFormModel();
+
+        var parameters = new DialogParameters<PrinterDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.Model,  model }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton       = true,
+            MaxWidth          = MaxWidth.Medium,
+            FullWidth         = true,
+            CloseOnEscapeKey  = true
+        };
+
+        var dialog = await DialogService.ShowAsync<PrinterDialog>("Nueva Impresora", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Impresora creada exitosamente.", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task OpenEditDialog(PrinterDto p)
+    {
+        var model = new PrinterDialog.PrinterFormModel
+        {
+            Id        = p.Id,
+            Name      = p.Name,
+            IpAddress = p.IpAddress,
+            Port      = p.Port ?? 9100,
+            CodePage  = p.CodePage,
+            MaxWidth  = p.MaxWidth,
+            IsActive  = p.IsActive,
+            // El tipo de conexión no está en el DTO actual; se puede ampliar si fuera necesario.
+            // Por defecto se asume Network cuando hay IP.
+            ConnectionType = string.IsNullOrEmpty(p.IpAddress)
+                             ? PrinterConnectionType.Usb
+                             : PrinterConnectionType.Network,
+        };
+
+        var parameters = new DialogParameters<PrinterDialog>
+        {
+            { x => x.IsEdit, true  },
+            { x => x.Model,  model }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton       = true,
+            MaxWidth          = MaxWidth.Medium,
+            FullWidth         = true,
+            CloseOnEscapeKey  = true
+        };
+
+        var dialog = await DialogService.ShowAsync<PrinterDialog>("Editar Impresora", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Impresora actualizada exitosamente.", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task DeletePrinter(PrinterDto p)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Eliminar Impresora",
+            $"¿Estás seguro que deseas eliminar '{p.Name}'? Esta acción no se puede deshacer.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await Mediator.Send(new DeletePrinterCommand(p.Id));
+            Snackbar.Add("Impresora eliminada exitosamente.", Severity.Success);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+}

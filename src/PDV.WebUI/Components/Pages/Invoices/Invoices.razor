@@ -1,0 +1,421 @@
+@page "/invoices"
+@using MediatR
+@using PDV.Application.Features.Sales.Queries.ListInvoices
+@using PDV.Application.Features.Sales.Queries.GetInvoice
+@using PDV.Application.Features.Sales.Queries.GetClosedCuts
+@using PDV.Application.Features.Sales.Commands.CreateGlobalInvoice
+@using PDV.Application.Features.Sales.Commands.CreateCreditNote
+@using PDV.Application.Features.Sales.Dtos
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+
+<PageTitle>Facturas y Facturación Centralizada</PageTitle>
+
+<div class="d-flex flex-column h-100 gap-4">
+    <!-- Header Indicator and Page Title -->
+    <PdvHeader Title="Módulo de Facturación Centralizada"
+               Subtitle="Consulta el historial de CFDI, timbra facturas globales de cortes y emite notas de crédito."
+               Icon="@Icons.Material.Filled.Description"
+               IconColor="Color.Primary" />
+
+    <!-- Pestañas Principales -->
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToInnerViews="true" Class="mud-width-full border-solid border mud-border-secondary" PanelClass="pa-4" Style="border-radius: 12px; background: rgba(25,18,40,0.015);">
+        
+        <!-- PESTAÑA 1: HISTORIAL DE CFDI -->
+        <MudTabPanel Text="Historial de Facturas (Ingresos / Egresos)" Icon="@Icons.Material.Filled.History" ToolTip="Ver todas las facturas y notas de crédito timbradas">
+            <MudPaper Class="pa-4 mb-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.01);">
+                <MudGrid AlignItems="Center">
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="startDate" Label="Fecha Inicio" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="endDate" Label="Fecha Fin" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="bool?" @bind-Value="filterGlobal" Label="Tipo de Factura" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="@((bool?)null)">Todas las Facturas</MudSelectItem>
+                            <MudSelectItem Value="@((bool?)false)">Por Cliente Individual</MudSelectItem>
+                            <MudSelectItem Value="@((bool?)true)">Globales de Turno</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterList" OnClick="LoadInvoices" FullWidth="true" Style="height: 40px; text-transform: none; border-radius: 8px; font-weight: bold;">Filtrar Facturas</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <PdvStateContainer IsLoading="@isLoadingInvoices"
+                                IsEmpty="@(!invoices.Any())"
+                                EmptyTitle="Sin facturas"
+                                EmptyMessage="No se encontraron CFDI timbrados en el rango de fechas seleccionado."
+                                EmptyIcon="@Icons.Material.Filled.Description"
+                                SkeletonRows="6"
+                                SkeletonColumns="8">
+                <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden;">
+                    <MudDataGrid Items="@invoices" Filterable="true" Sortable="true" Dense="true" Elevation="0" Striped="true">
+                        <Columns>
+                            <PropertyColumn Property="x => x.InvoiceNumber" Title="Número / Folio" />
+                            <PropertyColumn Property="x => x.InvoiceDate" Title="Fecha Timbrado" Format="dd/MM/yyyy HH:mm" />
+                            <PropertyColumn Property="x => x.SaleNumber" Title="Ticket Venta" />
+                            <PropertyColumn Property="x => x.ClientName" Title="Receptor / Cliente" />
+                            <PropertyColumn Property="x => x.Subtotal" Title="Subtotal" Format="C2" />
+                            <PropertyColumn Property="x => x.Tax" Title="Impuesto IVA" Format="C2" />
+                            <PropertyColumn Property="x => x.Total" Title="Total CFDI" Format="C2" CellStyle="font-weight: bold; color: var(--mud-palette-primary);" />
+                            <TemplateColumn Title="Tipo CFDI">
+                                <CellTemplate>
+                                    @if (context.Item.IsGlobal)
+                                    {
+                                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled">Factura Global</MudChip>
+                                    }
+                                    else if (context.Item.Total < 0 || (context.Item.SaleId == null && !context.Item.IsGlobal))
+                                    {
+                                        <!-- Si es nota de crédito o egreso -->
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Nota de Crédito</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">Cliente Individual</MudChip>
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Acciones" Style="width: 100px;">
+                                <CellTemplate>
+                                    <div class="d-flex gap-1">
+                                        <MudTooltip Text="Imprimir Factura">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Size="Size.Small" OnClick="@(() => PrintInvoice(context.Item))" />
+                                        </MudTooltip>
+                                    </div>
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="InvoiceDto" />
+                        </PagerContent>
+                    </MudDataGrid>
+                </MudPaper>
+            </PdvStateContainer>
+        </MudTabPanel>
+
+        <!-- PESTAÑA 2: CORTES PARA FACTURACIÓN -->
+        <MudTabPanel Text="Cortes para Facturación (Cajas Cerradas)" Icon="@Icons.Material.Filled.PointOfSale" OnClick="LoadCuts" ToolTip="Ver turnos cerrados listos para emitir factura global y notas de crédito">
+            <MudPaper Class="pa-4 mb-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.01);">
+                <MudGrid AlignItems="Center">
+                    <MudItem xs="12" md="4">
+                        <MudDatePicker @bind-Date="cutsStartDate" Label="Fecha de Cortes (Inicio)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudDatePicker @bind-Date="cutsEndDate" Label="Fecha de Cortes (Fin)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadCuts" FullWidth="true" Style="height: 40px; text-transform: none; border-radius: 8px; font-weight: bold; color: #120E1E;">Actualizar Cortes</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <PdvStateContainer IsLoading="@isLoadingCuts"
+                                IsEmpty="@(!cuts.Any())"
+                                EmptyTitle="Sin cortes"
+                                EmptyMessage="No se encontraron cortes de caja cerrados en el rango de fechas seleccionado."
+                                EmptyIcon="@Icons.Material.Filled.PointOfSale"
+                                SkeletonRows="5"
+                                SkeletonColumns="8">
+                <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden;">
+                    <MudTable Items="@cuts" Dense="true" Elevation="0" Striped="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh></MudTh>
+                            <MudTh>Fecha Cierre</MudTh>
+                            <MudTh>Caja</MudTh>
+                            <MudTh>Cajero</MudTh>
+                            <MudTh Style="text-align: right;">Ventas Totales</MudTh>
+                            <MudTh Style="text-align: right;">Pendiente Facturar</MudTh>
+                            <MudTh Style="text-align: center;">Estado Factura Global</MudTh>
+                            <MudTh Style="text-align: center; width: 220px;">Acciones Centralizadas</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudIconButton Icon="@(context.Returns.Any() ? Icons.Material.Filled.KeyboardArrowDown : Icons.Material.Filled.Remove)" 
+                                               Size="Size.Small" 
+                                               Color="Color.Secondary" 
+                                               Disabled="@(!context.Returns.Any())"
+                                               OnClick="@(() => ToggleRowExpand(context.ShiftId))" />
+                            </MudTd>
+                            <MudTd>@context.EndTime?.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                            <MudTd>@context.CashRegisterName</MudTd>
+                            <MudTd>@context.CashierName</MudTd>
+                            <MudTd Style="text-align: right; font-weight: 500;">@context.TotalSales.ToString("C2")</MudTd>
+                            <MudTd Style="text-align: right; color: var(--mud-palette-warning);">
+                                @if (context.PendingSalesCount > 0)
+                                {
+                                    <span>@context.PendingSalesCount notas (@context.PendingSalesTotal.ToString("C2"))</span>
+                                }
+                                else
+                                {
+                                    <span class="mud-text-secondary" style="font-size: 0.85rem;">Ninguna</span>
+                                }
+                            </MudTd>
+                            <MudTd Style="text-align: center;">
+                                @if (context.IsGlobalInvoiced)
+                                {
+                                    <MudTooltip Text="@($"UUID: {context.GlobalInvoiceUuid}")">
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CloudDone">
+                                            @context.GlobalInvoiceNumber (Facturado)
+                                        </MudChip>
+                                    </MudTooltip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.WatchLater">
+                                        Pendiente Facturar
+                                    </MudChip>
+                                }
+                            </MudTd>
+                            <MudTd Style="text-align: center;">
+                                @if (!context.IsGlobalInvoiced)
+                                {
+                                    <MudButton StartIcon="@Icons.Material.Filled.Receipt" 
+                                               Variant="Variant.Filled" 
+                                               Color="Color.Primary" 
+                                               Size="Size.Small"
+                                               OnClick="@(() => GenerateGlobalInvoiceAsync(context))"
+                                               Disabled="@(context.PendingSalesCount == 0 || isProcessing)"
+                                               Style="text-transform: none; border-radius: 6px; font-weight: bold;">
+                                        Generar Factura Global
+                                    </MudButton>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-style: italic;">Turno Completado y Timbrado</MudText>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                        <ChildRowContent>
+                            @if (expandedRows.Contains(context.ShiftId))
+                            {
+                                <tr style="background: rgba(255, 255, 255, 0.015);">
+                                    <td colspan="8" class="pa-4">
+                                        <MudStack Spacing="3" Class="border-solid border pa-3 mud-border-secondary" Style="border-radius: 8px; background: rgba(0,0,0,0.15);">
+                                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold d-flex align-center gap-2" Color="Color.Warning">
+                                                <MudIcon Icon="@Icons.Material.Filled.Undo" Size="Size.Small" />
+                                                Devoluciones Registradas en el Turno (Notas de Crédito a Emitir)
+                                            </MudText>
+                                            
+                                            <MudTable Items="@context.Returns" Dense="true" Elevation="0" Outlined="true" Class="mud-width-full">
+                                                <HeaderContent>
+                                                    <MudTh>Fecha Devolución</MudTh>
+                                                    <MudTh>Cliente</MudTh>
+                                                    <MudTh Style="text-align: right;">Monto Devuelto</MudTh>
+                                                    <MudTh Style="text-align: center;">Estado CFDI Egreso (Nota de Crédito)</MudTh>
+                                                    <MudTh Style="text-align: center; width: 180px;">Acciones Manuales</MudTh>
+                                                </HeaderContent>
+                                                <RowTemplate Context="retContext">
+                                                    <MudTd>@retContext.ReturnDate.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                                                    <MudTd>@retContext.ClientName</MudTd>
+                                                    <MudTd Style="text-align: right; font-weight: bold; color: var(--mud-palette-warning);">@retContext.TotalRefund.ToString("C2")</MudTd>
+                                                    <MudTd Style="text-align: center;">
+                                                        @if (retContext.HasCreditNote)
+                                                        {
+                                                            <MudTooltip Text="@($"UUID: {retContext.CreditNoteUuid}")">
+                                                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">
+                                                                    @retContext.CreditNoteNumber (Timbrada)
+                                                                </MudChip>
+                                                            </MudTooltip>
+                                                        }
+                                                        else
+                                                        {
+                                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.ErrorOutline">
+                                                                Sin Nota de Crédito
+                                                            </MudChip>
+                                                        }
+                                                    </MudTd>
+                                                    <MudTd Style="text-align: center;">
+                                                        @if (!retContext.HasCreditNote)
+                                                        {
+                                                            <MudButton StartIcon="@Icons.Material.Filled.Assessment" 
+                                                                       Variant="Variant.Outlined" 
+                                                                       Color="Color.Warning" 
+                                                                       Size="Size.Small"
+                                                                       OnClick="@(() => GenerateManualCreditNoteAsync(retContext))"
+                                                                       Disabled="@(!retContext.CanGenerateCreditNote || isProcessing)"
+                                                                       Style="text-transform: none; border-radius: 6px; font-size: 0.75rem;">
+                                                                Emitir Nota de Crédito
+                                                            </MudButton>
+                                                        }
+                                                        else
+                                                        {
+                                                            <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-style: italic;">Comprobado ante SAT</MudText>
+                                                        }
+                                                    </MudTd>
+                                                </RowTemplate>
+                                            </MudTable>
+                                        </MudStack>
+                                    </td>
+                                </tr>
+                            }
+                        </ChildRowContent>
+                    </MudTable>
+                </MudPaper>
+            </PdvStateContainer>
+        </MudTabPanel>
+    </MudTabs>
+</div>
+
+<!-- Overlay de Carga con Animación Modern -->
+<MudOverlay @bind-Visible="isProcessing" DarkBackground="true" Absolute="false" ZIndex="9999" Style="background: rgba(18, 14, 30, 0.88);">
+    <MudStack AlignItems="AlignItems.Center" Spacing="4">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" Thickness="6" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold text-white">Sellando Digitalmente CFDI...</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Style="color: rgba(255,255,255,0.7); text-align: center; max-width: 480px;">
+            El servidor central está comunicándose con el PAC y CONTPAQi Comercial para registrar el timbrado y generar el CFDI 4.0. Por favor, espere.
+        </MudText>
+    </MudStack>
+</MudOverlay>
+
+@code {
+    private List<InvoiceDto> invoices = new();
+    private List<ClosedCutDto> cuts = new();
+    private DateTime? startDate = DateTime.Today;
+    private DateTime? endDate = DateTime.Today.AddDays(1);
+    private bool? filterGlobal = null;
+
+    private DateTime? cutsStartDate = DateTime.Today.AddDays(-7);
+    private DateTime? cutsEndDate = DateTime.Today.AddDays(1);
+
+    private bool isProcessing = false;
+    private bool isLoadingInvoices = false;
+    private bool isLoadingCuts = false;
+    private HashSet<Guid> expandedRows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInvoices();
+    }
+
+    private async Task LoadInvoices()
+    {
+        isLoadingInvoices = true;
+        try
+        {
+            invoices = await Mediator.Send(new ListInvoicesQuery(
+                StartDate: startDate,
+                EndDate: endDate,
+                IsGlobal: filterGlobal));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar facturas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoadingInvoices = false;
+        }
+    }
+
+    private async Task LoadCuts()
+    {
+        isLoadingCuts = true;
+        try
+        {
+            cuts = await Mediator.Send(new GetClosedCutsQuery(
+                StartDate: cutsStartDate,
+                EndDate: cutsEndDate));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar cortes: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoadingCuts = false;
+        }
+    }
+
+    private void ToggleRowExpand(Guid shiftId)
+    {
+        if (expandedRows.Contains(shiftId))
+        {
+            expandedRows.Remove(shiftId);
+        }
+        else
+        {
+            expandedRows.Add(shiftId);
+        }
+    }
+
+    private async Task GenerateGlobalInvoiceAsync(ClosedCutDto cut)
+    {
+        bool? confirm = await DialogService.ShowMessageBox(
+            "Generar Factura Global",
+            $"¿Estás seguro que deseas generar la Factura Global de Público en General para el turno del cajero {cut.CashierName}? Se facturarán automáticamente {cut.PendingSalesCount} notas de venta.",
+            yesText: "Generar y Timbrar", cancelText: "Cancelar");
+
+        if (confirm == true)
+        {
+            isProcessing = true;
+            StateHasChanged();
+
+            try
+            {
+                var codProdGravado = Configuration["Contpaqi:CodigoProductoGravado"] ?? "01010101";
+                var codProdExento = Configuration["Contpaqi:CodigoProductoExento"] ?? "01010101";
+                var command = new CreateGlobalInvoiceCommand(cut.ShiftId, codProdGravado, codProdExento);
+                var invoiceId = await Mediator.Send(command);
+
+                Snackbar.Add("Factura Global timbrada exitosamente. Las Notas de Crédito de devoluciones asociadas se procesaron en segundo plano de forma automática.", Severity.Success);
+                
+                await LoadCuts();
+                await LoadInvoices();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error de facturación global: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                isProcessing = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task GenerateManualCreditNoteAsync(ClosedCutReturnDto retDto)
+    {
+        bool? confirm = await DialogService.ShowMessageBox(
+            "Emitir Nota de Crédito",
+            $"¿Deseas emitir la Nota de Crédito manual para la Devolución del cliente {retDto.ClientName} por un monto de {retDto.TotalRefund.ToString("C2")}?",
+            yesText: "Emitir y Timbrar", cancelText: "Cancelar");
+
+        if (confirm == true)
+        {
+            isProcessing = true;
+            StateHasChanged();
+
+            try
+            {
+                var command = new CreateCreditNoteCommand(retDto.ReturnId);
+                await Mediator.Send(command);
+
+                Snackbar.Add("Nota de Crédito manual timbrada e integrada exitosamente.", Severity.Success);
+                
+                await LoadCuts();
+                await LoadInvoices();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error de nota de crédito: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                isProcessing = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task PrintInvoice(InvoiceDto invoice)
+    {
+        Snackbar.Add($"Imprimiendo factura {invoice.InvoiceNumber}...", Severity.Info);
+        // TODO: Implementar impresión de factura
+    }
+}

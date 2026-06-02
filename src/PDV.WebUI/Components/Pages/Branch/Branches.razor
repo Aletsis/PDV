@@ -1,0 +1,403 @@
+@page "/admin/branches"
+@using MediatR
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Commands.CreateBranch
+@using PDV.Application.Features.Branches.Commands.UpdateBranch
+@using PDV.Application.Features.Branches.Commands.DeleteBranch
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Sync.Queries
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@inject AuthenticationStateProvider AuthProvider
+@implements IDisposable
+
+<PageTitle>Gestión de Sucursales</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Page Header & Mode Monitor -->
+    <PdvHeader Title="Sucursales"
+               Subtitle="Administra las sucursales de la empresa, su configuración de red y la sincronización con terminales."
+               Icon="@Icons.Material.Filled.Store"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            @if (isLocalMode)
+            {
+                <div class="local-mode-monitor d-flex align-center gap-3 px-4 py-2 border-dashed rounded-lg">
+                    <div class="d-flex flex-column">
+                        <span class="monitor-label">Base de Datos</span>
+                        <span class="monitor-val font-weight-medium">Local (SQLite)</span>
+                    </div>
+                    <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+                    <div class="d-flex flex-column align-end">
+                        <span class="monitor-label">Modo Operativo</span>
+                        <div class="d-flex align-center gap-1">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudDone" Size="Size.Small" Color="Color.Success" />
+                            <span class="monitor-val-accent text-success font-weight-bold">Solo Lectura</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </StatusAlert>
+        <Actions>
+            @if (!isLocalMode && isAdmin)
+            {
+                <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="OpenCreateDialog">
+                    Nueva Sucursal
+                </PdvInteractiveButton>
+            }
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Total"
+                       Value="@totalBranchesCount.ToString()"
+                       Icon="@Icons.Material.Filled.Storefront"
+                       IconColor="Color.Primary"
+                       IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Activas"
+                       Value="@activeBranchesCount.ToString()"
+                       Icon="@Icons.Material.Filled.CheckCircle"
+                       IconColor="Color.Success"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Inactivas"
+                       Value="@inactiveBranchesCount.ToString()"
+                       Icon="@Icons.Material.Filled.DomainDisabled"
+                       IconColor="Color.Error"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Matriz"
+                       Value="@mainBranchName"
+                       Icon="@Icons.Material.Filled.Stars"
+                       IconColor="Color.Warning"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Server Only Mode Alert -->
+    @if (isLocalMode)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="border-solid" Style="border-radius: 12px; border-width: 1px; background: rgba(33, 150, 243, 0.05);">
+            La administración de sucursales se realiza únicamente en el servidor central. En esta terminal local, la información se actualiza automáticamente desde el servidor y se encuentra en modo de solo lectura.
+        </MudAlert>
+    }
+
+    <!-- Main Data Section -->
+    <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <!-- Table Toolbar -->
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 600px;">
+                <MudTextField T="string" Value="searchString" ValueChanged="OnSearchStringChanged" Placeholder="Buscar por Nombre, Código, Dirección..." 
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Clearable="true" Class="flex-grow-1" />
+                
+                <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged" Label="Estado" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px;">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">Todos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(true)">Activas</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">Inactivas</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!filteredBranches.Any())"
+                            EmptyTitle="Sin sucursales"
+                            EmptyMessage="No se encontraron sucursales registradas que coincidan con la búsqueda."
+                            EmptyIcon="@Icons.Material.Filled.Storefront"
+                            SkeletonRows="5"
+                            SkeletonColumns="6">
+            <MudDataGrid T="BranchDto" Items="@filteredBranches" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+                         Dense="false" Elevation="0" Class="border border-solid rounded-lg">
+                <Columns>
+                    <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <PropertyColumn Property="x => x.Name" Title="Nombre" />
+                    <TemplateColumn Title="Dirección">
+                        <CellTemplate>
+                            @context.Item.Address?.Street
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.Phone" Title="Teléfono" />
+                    <PropertyColumn Property="x => x.Email" Title="Email" />
+                    <TemplateColumn Title="Estado">
+                        <CellTemplate>
+                            @if (context.Item.IsMainBranch)
+                            {
+                                <MudChip T="string" Color="Color.Primary" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.Stars" Class="font-weight-medium">Casa Matriz</MudChip>
+                            }
+                            else if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="font-weight-medium">Activa</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel" Class="font-weight-medium">Inactiva</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    @if (!isLocalMode && isAdmin)
+                    {
+                        <TemplateColumn Title="Acciones" HeaderStyle="width: 160px;" CellClass="d-flex justify-end gap-1">
+                            <CellTemplate>
+                                <MudTooltip Text="Conceptos de Facturación CONTPAQi">
+                                    <MudIconButton Icon="@Icons.Material.Filled.FormatListNumbered" Color="Color.Warning" Size="Size.Small" 
+                                                   OnClick="@(() => OpenInvoiceSequencesDialog(context.Item))" Style="background-color: rgba(255, 183, 77, 0.05);" />
+                                </MudTooltip>
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                                   OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
+                                </MudTooltip>
+                                @if (!context.Item.IsMainBranch)
+                                {
+                                    <MudTooltip Text="Eliminar">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                                       OnClick="@(() => DeleteBranch(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
+                                    </MudTooltip>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                    }
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="BranchDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+@code {
+    private List<BranchDto> branches = new();
+    private List<BranchDto> filteredBranches = new();
+    
+    private bool isLocalMode = false;
+    private bool isLoading = false;
+    private bool isAdmin = false;
+    
+    private int totalBranchesCount = 0;
+    private int activeBranchesCount = 0;
+    private int inactiveBranchesCount = 0;
+    private string mainBranchName = "Ninguna";
+    
+    private string searchString = "";
+    private bool? filterActive = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
+        await LoadSyncStatus();
+        await LoadBranches();
+        await CheckUserRole();
+    }
+
+    private void OnConnectionStatusChanged(bool isConnected)
+    {
+        InvokeAsync(async () => {
+            await LoadSyncStatus();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadSyncStatus()
+    {
+        try
+        {
+            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+            isLocalMode = syncStatus.IsLocalMode;
+        }
+        catch (Exception)
+        {
+            isLocalMode = false;
+        }
+    }
+
+    private async Task LoadBranches()
+    {
+        isLoading = true;
+        try
+        {
+            branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: true));
+            UpdateMetrics();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar sucursales: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void UpdateMetrics()
+    {
+        totalBranchesCount = branches.Count;
+        activeBranchesCount = branches.Count(b => b.IsActive);
+        inactiveBranchesCount = branches.Count(b => !b.IsActive);
+        
+        var mainBranch = branches.FirstOrDefault(b => b.IsMainBranch);
+        mainBranchName = mainBranch?.Name ?? "Ninguna";
+    }
+
+    private void ApplyFilters()
+    {
+        var query = branches.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchString))
+        {
+            query = query.Where(b => 
+                b.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                b.Code.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                (b.Address?.Street != null && b.Address.Street.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
+                (b.Phone != null && b.Phone.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
+                (b.Email != null && b.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        if (filterActive.HasValue)
+        {
+            query = query.Where(b => b.IsActive == filterActive.Value);
+        }
+
+        filteredBranches = query.ToList();
+    }
+
+    private void OnSearchStringChanged(string value)
+    {
+        searchString = value;
+        ApplyFilters();
+    }
+
+    private void OnFilterActiveChanged(bool? value)
+    {
+        filterActive = value;
+        ApplyFilters();
+    }
+
+    private async Task CheckUserRole()
+    {
+        try
+        {
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            isAdmin = user.IsInRole("Admin");
+        }
+        catch (Exception)
+        {
+            isAdmin = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        if (isLocalMode || !isAdmin) return;
+        
+        var parameters = new DialogParameters<BranchDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.Model, new BranchDialog.BranchFormModel() }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<BranchDialog>("Nueva Sucursal", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Sucursal creada exitosamente", Severity.Success);
+            await LoadBranches();
+        }
+    }
+
+    private async Task OpenEditDialog(BranchDto branch)
+    {
+        if (isLocalMode || !isAdmin) return;
+
+        var model = new BranchDialog.BranchFormModel
+        {
+            Id = branch.Id,
+            Code = branch.Code,
+            Name = branch.Name,
+            Address = branch.Address?.Street ?? string.Empty,
+            Phone = branch.Phone,
+            Email = branch.Email,
+            IsMainBranch = branch.IsMainBranch
+        };
+
+        var parameters = new DialogParameters<BranchDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.Model, model }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<BranchDialog>("Editar Sucursal", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Sucursal actualizada exitosamente", Severity.Success);
+            await LoadBranches();
+        }
+    }
+
+    private async Task OpenInvoiceSequencesDialog(BranchDto branch)
+    {
+        if (isLocalMode || !isAdmin) return;
+
+        var parameters = new DialogParameters<InvoiceConceptSequencesDialog>
+        {
+            { x => x.BranchId, branch.Id },
+            { x => x.BranchName, branch.Name }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<InvoiceConceptSequencesDialog>("Conceptos de Facturación CONTPAQi", parameters, options);
+        await dialog.Result;
+    }
+
+    private async Task DeleteBranch(BranchDto branch)
+    {
+        if (isLocalMode || !isAdmin) return;
+        if (branch.IsMainBranch) return;
+
+        bool? result = await DialogService.ShowMessageBox(
+            "Eliminar Sucursal",
+            $"¿Estás seguro que deseas eliminar {branch.Name}?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteBranchCommand(branch.Id));
+                Snackbar.Add("Sucursal eliminada exitosamente", Severity.Success);
+                await LoadBranches();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+}

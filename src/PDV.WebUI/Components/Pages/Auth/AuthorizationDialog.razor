@@ -1,0 +1,200 @@
+@using Microsoft.AspNetCore.Identity
+@using PDV.Infrastructure.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject ISnackbar Snackbar
+
+<MudDialog MaxWidth="MaxWidth.Small" FullWidth="true" Class="glass-card" Style="background: linear-gradient(135deg, rgba(20, 24, 46, 0.9) 0%, rgba(8, 10, 20, 0.9) 100%) !important; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;">
+    <TitleContent>
+        <div class="d-flex flex-column align-center gap-2 pt-4">
+            <div class="lock-icon-container d-flex align-center justify-center mb-2" style="background: rgba(244, 67, 54, 0.1); width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(244, 67, 54, 0.3);">
+                <MudIcon Icon="@Icons.Material.Filled.Security" Color="Color.Error" Style="font-size: 2.5rem;" class="animate-pulse" />
+            </div>
+            <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-error text-center" Style="letter-spacing: 0.5px;">Autorización Requerida</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary text-center px-4">Se necesitan credenciales de Administrador o Supervisor para la acción: <br/><strong class="mud-text-warning">@ActionName</strong></MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-3 py-3 px-2">
+            <!-- Username Input -->
+            <MudTextField T="string"
+                          @bind-Value="username"
+                          Label="Usuario o Correo"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Person"
+                          Required="true"
+                          RequiredError="Ingrese el usuario de supervisor"
+                          Margin="Margin.Dense"
+                          Style="background: rgba(255,255,255,0.02); border-radius: 8px;"
+                          OnKeyDown="HandleKeyDown" />
+
+            <!-- Password Input -->
+            <MudTextField T="string"
+                          @bind-Value="password"
+                          Label="Contraseña"
+                          Variant="Variant.Outlined"
+                          InputType="@passwordInput"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                          AdornmentIconColor="Color.Secondary"
+                          Required="true"
+                          RequiredError="Ingrese la contraseña"
+                          Margin="Margin.Dense"
+                          Style="background: rgba(255,255,255,0.02); border-radius: 8px;"
+                          OnKeyDown="HandleKeyDown">
+                <AdornmentButton>
+                    <MudIconButton Icon="@passwordIcon" Color="Color.Secondary" OnClick="TogglePasswordVisibility" Edge="Edge.End" Size="Size.Small" />
+                </AdornmentButton>
+            </MudTextField>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2 font-weight-bold" Style="border-radius: 8px;">
+                    @errorMessage
+                </MudAlert>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <div class="d-flex w-100 justify-space-between gap-3 px-4 pb-4">
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Secondary" 
+                       OnClick="Cancel" 
+                       Class="flex-grow-1 py-2 font-weight-bold" 
+                       Style="border-radius: 8px; text-transform: none;">
+                Cancelar
+            </MudButton>
+            
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Error" 
+                       OnClick="Authorize" 
+                       Disabled="isProcessing"
+                       Class="flex-grow-1 py-2 font-weight-bold"
+                       Style="border-radius: 8px; text-transform: none; box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);">
+                @if (isProcessing)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Validando...</span>
+                }
+                else
+                {
+                    <span>Autorizar</span>
+                }
+            </MudButton>
+        </div>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .lock-icon-container {
+        transition: transform 0.3s ease;
+    }
+    .lock-icon-container:hover {
+        transform: rotate(10deg) scale(1.1);
+    }
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+</style>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string ActionName { get; set; } = "Operación de Caja";
+
+    private MudForm form = null!;
+    private string username = "";
+    private string password = "";
+    private string errorMessage = "";
+    private bool isProcessing = false;
+
+    private InputType passwordInput = InputType.Password;
+    private string passwordIcon = Icons.Material.Filled.VisibilityOff;
+    private bool isPasswordVisible = false;
+
+    private void TogglePasswordVisibility()
+    {
+        if (isPasswordVisible)
+        {
+            isPasswordVisible = false;
+            passwordInput = InputType.Password;
+            passwordIcon = Icons.Material.Filled.VisibilityOff;
+        }
+        else
+        {
+            isPasswordVisible = true;
+            passwordInput = InputType.Text;
+            passwordIcon = Icons.Material.Filled.Visibility;
+        }
+    }
+
+    private async Task Authorize()
+    {
+        await form.Validate();
+        if (!form.IsValid) return;
+
+        isProcessing = true;
+        errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            // 1. Buscar el usuario supervisor por nombre de usuario o por email
+            var user = await UserManager.FindByNameAsync(username) ?? await UserManager.FindByEmailAsync(username);
+            if (user == null || !user.IsActive)
+            {
+                errorMessage = "Credenciales incorrectas o usuario inactivo.";
+                isProcessing = false;
+                return;
+            }
+
+            // 2. Validar contraseña
+            var isPasswordValid = await UserManager.CheckPasswordAsync(user, password);
+            if (!isPasswordValid)
+            {
+                errorMessage = "Credenciales incorrectas.";
+                isProcessing = false;
+                return;
+            }
+
+            // 3. Validar si tiene roles autorizados (Admin o Manager/Supervisor)
+            var isAdmin = await UserManager.IsInRoleAsync(user, "Admin");
+            var isManager = await UserManager.IsInRoleAsync(user, "Manager");
+
+            if (isAdmin || isManager)
+            {
+                Snackbar.Add($"Operación '{ActionName}' autorizada por: {user.FullName}", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                errorMessage = "Usuario no autorizado (se requiere Administrador o Supervisor).";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al validar autorización: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Authorize();
+        }
+        else if (e.Key == "Escape")
+        {
+            Cancel();
+        }
+    }
+}

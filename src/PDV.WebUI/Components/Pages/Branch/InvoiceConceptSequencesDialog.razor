@@ -1,0 +1,256 @@
+@using MediatR
+@using PDV.Application.Common.Interfaces
+@using PDV.Application.Features.FolioSequences.Dtos
+@using PDV.Application.Features.FolioSequences.Queries
+@using PDV.Application.Features.FolioSequences.Commands
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IComercialApiSyncService ComercialApiSyncService
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Warning" />
+            <MudText Typo="Typo.h6">Conceptos de Facturación CONTPAQi — @BranchName</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!sequences.Any())"
+                            EmptyTitle="Sin configuraciones"
+                            EmptyMessage="No se encontraron secuencias de folios ni conceptos de facturación registrados para esta sucursal."
+                            EmptyIcon="@Icons.Material.Filled.ReceiptLong"
+                            SkeletonRows="3"
+                            SkeletonColumns="4">
+            <MudTable Items="@sequences" Dense="false" Hover="true" Bordered="false" Striped="false"
+                      Elevation="0" Style="background: transparent; border-radius: 12px; overflow: hidden;">
+                <HeaderContent>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600; width: 30%;">Tipo de Comprobante</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600; width: 40%;">Concepto CONTPAQi</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600; width: 15%;">Serie</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600; width: 15%;">Folio</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Tipo">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                            <div style="@($"background: {GetBgColorForType(context.SeriesType)}; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")">
+                                <MudIcon Icon="@GetIconForType(context.SeriesType)" Style="@($"color: {GetColorForType(context.SeriesType)}; font-size: 20px;")" />
+                            </div>
+                            <div>
+                                <MudText Typo="Typo.body2" Style="font-weight: 600; color: #ffffff; line-height: 1.2;">@GetLabelForType(context.SeriesType)</MudText>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.45); font-size: 0.72rem;">@GetDescriptionForType(context.SeriesType)</MudText>
+                            </div>
+                        </MudStack>
+                    </MudTd>
+                    <MudTd DataLabel="Concepto">
+                        <MudSelect T="string"
+                                   Value="@context.ConceptCode"
+                                   ValueChanged="@((code) => OnConceptChanged(context, code))"
+                                   Placeholder="Seleccionar concepto"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Clearable="true"
+                                   Dense="true"
+                                   Style="font-weight: 600;">
+                            @foreach (var c in GetAvailableConceptsFor(context.SeriesType))
+                            {
+                                <MudSelectItem Value="@c.Codigo">@c.Nombre (@c.Codigo)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd DataLabel="Serie">
+                        <MudTextField @bind-Value="context.Series"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      MaxLength="10"
+                                      Placeholder="Serie"
+                                      Style="max-width: 100px; font-weight: 600; font-family: 'Roboto Mono', monospace; text-transform: uppercase;" />
+                    </MudTd>
+                    <MudTd DataLabel="Folio">
+                        <MudNumericField T="int"
+                                         @bind-Value="context.LastFolio"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Min="0"
+                                         Style="max-width: 120px; font-weight: 600; font-family: 'Roboto Mono', monospace;" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </PdvStateContainer>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Warning"
+                              StartIcon="@Icons.Material.Filled.Save"
+                              OnClick="Save"
+                              IsLoading="@isSaving">
+            Guardar Cambios
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public Guid BranchId { get; set; }
+    [Parameter] public string BranchName { get; set; } = string.Empty;
+
+    private List<FolioSequenceDto> sequences = new();
+    private List<ComercialConceptoDto> conceptsType4 = new();
+    private List<ComercialConceptoDto> conceptsType5 = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            sequences = await Mediator.Send(new GetFolioSequencesByBranchQuery(BranchId));
+            
+            // Cargar de forma secuencial desde la API Comercial para evitar concurrencia en DbContext
+            conceptsType4 = await ComercialApiSyncService.GetConceptosAsync(4, CancellationToken.None);
+            conceptsType5 = await ComercialApiSyncService.GetConceptosAsync(5, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos de facturación: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<ComercialConceptoDto> GetAvailableConceptsFor(InvoiceType type)
+    {
+        return type switch
+        {
+            InvoiceType.Customer or InvoiceType.Global => conceptsType4,
+            InvoiceType.CreditNote => conceptsType5,
+            _ => new List<ComercialConceptoDto>()
+        };
+    }
+
+    private void OnConceptChanged(FolioSequenceDto sequence, string? code)
+    {
+        sequence.ConceptCode = code;
+        
+        if (string.IsNullOrEmpty(code))
+        {
+            return;
+        }
+
+        // Autocompletar la serie y folio desde el concepto de CONTPAQi seleccionado
+        var conceptsList = GetAvailableConceptsFor(sequence.SeriesType);
+        var conceptInfo = conceptsList.FirstOrDefault(c => c.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase));
+        if (conceptInfo != null)
+        {
+            sequence.Series = conceptInfo.Serie ?? string.Empty;
+            // cNoFolio representa el siguiente folio disponible, asignamos el último emitido (folio - 1) o 0
+            sequence.LastFolio = (int)Math.Max(0, conceptInfo.Folio - 1);
+            Snackbar.Add($"Autocompletado con Serie: '{sequence.Series}' y Folio: {sequence.LastFolio} de CONTPAQi.", Severity.Info);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        if (sequences.Any(s => s.LastFolio < 0))
+        {
+            Snackbar.Add("El último folio no puede ser negativo.", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            var upsertDtos = sequences.Select(s => new FolioSequenceUpsertDto(
+                SeriesType: s.SeriesType,
+                ConceptCode: s.ConceptCode,
+                Series: s.Series,
+                LastFolio: s.LastFolio
+            )).ToList();
+
+            await Mediator.Send(new UpsertFolioSequencesCommand(BranchId, upsertDtos));
+
+            Snackbar.Add("Conceptos y secuencias de facturación actualizados correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar cambios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    // ── Helpers Visuales ────────────────────────────────────────────────────
+
+    private string GetLabelForType(InvoiceType type)
+    {
+        return type switch
+        {
+            InvoiceType.Global => "Factura Global",
+            InvoiceType.Customer => "Factura a Cliente",
+            InvoiceType.CreditNote => "Nota de Crédito",
+            _ => type.ToString()
+        };
+    }
+
+    private string GetDescriptionForType(InvoiceType type)
+    {
+        return type switch
+        {
+            InvoiceType.Global => "Factura de público en general",
+            InvoiceType.Customer => "Factura nominativa individual",
+            InvoiceType.CreditNote => "Nota de egreso (devoluciones/descuentos)",
+            _ => "Secuencia de CFDI de la sucursal"
+        };
+    }
+
+    private string GetIconForType(InvoiceType type)
+    {
+        return type switch
+        {
+            InvoiceType.Global => Icons.Material.Filled.Public,
+            InvoiceType.Customer => Icons.Material.Filled.PersonPin,
+            InvoiceType.CreditNote => Icons.Material.Filled.AssignmentReturn,
+            _ => Icons.Material.Filled.Receipt
+        };
+    }
+
+    private string GetColorForType(InvoiceType type)
+    {
+        return type switch
+        {
+            InvoiceType.Global => "#81c784",        // Verde
+            InvoiceType.Customer => "#64b5f6",      // Azul
+            InvoiceType.CreditNote => "#ffb74d",    // Naranja
+            _ => "#ffffff"
+        };
+    }
+
+    private string GetBgColorForType(InvoiceType type)
+    {
+        return type switch
+        {
+            InvoiceType.Global => "rgba(129, 199, 132, 0.12)",
+            InvoiceType.Customer => "rgba(100, 181, 246, 0.12)",
+            InvoiceType.CreditNote => "rgba(255, 183, 77, 0.12)",
+            _ => "rgba(255, 255, 255, 0.05)"
+        };
+    }
+}

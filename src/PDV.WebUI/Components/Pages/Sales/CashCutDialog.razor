@@ -1,0 +1,286 @@
+@using MediatR
+@using PDV.Application.Features.Sales.Commands.CashCut
+@using PDV.Application.Features.Sales.Queries.GetUnpaidSales
+@using PDV.Application.Features.Shifts.Queries.GetShiftTotals
+@using MudBlazor
+@using PDV.Domain.Enums
+@using PDV.Domain.ValueObjects
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-error">Corte de Caja (Cierre de Turno)</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        @if (isLoading)
+        {
+            <MudStack>
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="52px" Style="border-radius: 8px;" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="52px" Style="border-radius: 8px;" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="52px" Style="border-radius: 8px;" />
+            </MudStack>
+        }
+        else
+        {
+            @if (unpaidSales.Any())
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4 text-left" Style="border-radius: 12px; box-shadow: 0 4px 15px rgba(244, 67, 54, 0.2);">
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Acción Requerida: Notas Abiertas Detectadas</MudText>
+                    <MudText Typo="Typo.body2">
+                        No es posible realizar el corte de caja porque existen <strong>@unpaidSales.Count</strong> nota(s) de venta activas o pendientes de cobro en este turno.
+                        Debe cobrarlas o cancelarlas en el Punto de Venta para poder efectuar el arqueo y cierre formal.
+                    </MudText>
+                </MudAlert>
+
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4 mb-5 border-solid border-2 mud-border-error" Style="border-radius: 12px; background: rgba(244, 67, 54, 0.05);">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-error mb-3 d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" />
+                        Notas pendientes de liquidar:
+                    </MudText>
+                    <MudStack Spacing="2" Style="max-height: 180px; overflow-y: auto; padding-right: 4px;">
+                        @foreach (var sale in unpaidSales)
+                        {
+                            <div class="d-flex justify-space-between align-center pa-2 px-3" style="background: rgba(255, 255, 255, 0.03); border-radius: 8px; border: 1px dashed rgba(244, 67, 54, 0.3);">
+                                <div>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold text-white">
+                                        Nota: @sale.Series-@sale.Folio
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        Cliente: @sale.ClientName | @sale.Date.ToLocalTime().ToString("dd/MM/yyyy hh:mm tt")
+                                    </MudText>
+                                </div>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-error">
+                                    @sale.TotalAmount.ToString("C2")
+                                </MudText>
+                            </div>
+                        }
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <MudGrid Spacing="3">
+                <!-- Resumen Financiero del Turno -->
+                <MudItem xs="12" md="5">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-3 mud-text-primary">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment" Style="vertical-align: middle; margin-right: 4px; font-size: 18px;" />
+                        Resumen del Turno
+                    </MudText>
+                    <MudStack Spacing="2">
+                        <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Fondo Inicial:</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">$@totals.InitialCash.ToString("N2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Ventas Totales (Todas):</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">$@totals.SalesTotal.ToString("N2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Ventas en Efectivo:</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-success">$@totals.CashSalesTotal.ToString("N2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Entradas (Morralla):</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-success">+$@totals.InflowsTotal.ToString("N2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Salidas (Recolecciones):</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-warning">-$@totals.OutflowsTotal.ToString("N2")</MudText>
+                        </div>
+                        @if (totals.ReturnsTotal > 0)
+                        {
+                            <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Devoluciones en Efectivo:</MudText>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-error">-$@totals.ReturnsTotal.ToString("N2")</MudText>
+                            </div>
+                        }
+                        
+                        <MudDivider Class="my-2" />
+
+                        <div class="d-flex justify-space-between pa-3 border-solid border-2 mud-border-primary" style="border-radius: 8px; background: rgba(124, 77, 255, 0.05);">
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-primary">Efectivo Esperado:</MudText>
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mud-text-primary">$@totals.ExpectedCash.ToString("N2")</MudText>
+                        </div>
+                    </MudStack>
+                </MudItem>
+
+                <!-- Desgloses de Operación (Forma de pago e impuestos) -->
+                <MudItem xs="12" md="7">
+                    <MudStack Spacing="3">
+                        <!-- Card: Formas de Pago -->
+                        <MudPaper Elevation="0" Class="pa-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.01);">
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-3 mud-text-primary">
+                                <MudIcon Icon="@Icons.Material.Filled.Payments" Class="mr-2" Style="vertical-align: middle; font-size: 18px;" />
+                                Ventas por Forma de Pago
+                            </MudText>
+                            @if (totals.PaymentMethods == null || !totals.PaymentMethods.Any())
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary italic pa-2">No se registraron ventas en este turno.</MudText>
+                            }
+                            else
+                            {
+                                <MudStack Spacing="1">
+                                    @foreach (var pm in totals.PaymentMethods)
+                                    {
+                                        <div class="d-flex justify-space-between pa-2 px-3 align-center" style="border-bottom: 1px dashed rgba(255,255,255,0.06); background: rgba(255,255,255,0.01); border-radius: 6px;">
+                                            <div class="d-flex align-center gap-2">
+                                                <MudIcon Icon="@GetPaymentMethodIcon(pm.PaymentMethod)" Color="Color.Secondary" Size="Size.Small" />
+                                                <MudText Typo="Typo.body2">@GetPaymentMethodName(pm.PaymentMethod)</MudText>
+                                            </div>
+                                            <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-primary">@pm.Amount.ToString("C2")</MudText>
+                                        </div>
+                                    }
+                                </MudStack>
+                            }
+                        </MudPaper>
+
+                        <!-- Card: Desglose de Impuestos -->
+                        <MudPaper Elevation="0" Class="pa-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.01);">
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-3 mud-text-info">
+                                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Class="mr-2" Style="vertical-align: middle; font-size: 18px;" />
+                                Desglose de Impuestos (IVA)
+                            </MudText>
+                            @if (totals.Taxes == null || !totals.Taxes.Any())
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary italic pa-2">No se generaron impuestos en este turno.</MudText>
+                            }
+                            else
+                            {
+                                <MudTable Items="@totals.Taxes" Dense="true" Elevation="0" Class="bg-transparent" Breakpoint="Breakpoint.None">
+                                    <HeaderContent>
+                                        <MudTh Style="color: var(--mud-palette-text-secondary); font-size: 0.8rem; font-weight: bold; background: rgba(255,255,255,0.02);">Tasa / Tipo</MudTh>
+                                        <MudTh Style="color: var(--mud-palette-text-secondary); font-size: 0.8rem; font-weight: bold; text-align: right; background: rgba(255,255,255,0.02);">Base Imponible</MudTh>
+                                        <MudTh Style="color: var(--mud-palette-text-secondary); font-size: 0.8rem; font-weight: bold; text-align: right; background: rgba(255,255,255,0.02);">IVA Generado</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd Style="font-size: 0.8rem;">@GetTaxRateName(context.Rate, context.IsExempt)</MudTd>
+                                        <MudTd Style="font-size: 0.8rem; text-align: right;">@context.BaseAmount.ToString("C2")</MudTd>
+                                        <MudTd Style="font-size: 0.8rem; text-align: right;" Class="font-weight-bold mud-text-info">@context.TaxAmount.ToString("C2")</MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                        </MudPaper>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined" Style="text-transform: none; border-radius: 8px; font-weight: bold;">Cancelar</MudButton>
+        <MudButton OnClick="Submit" 
+                   Color="Color.Error" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(isLoading || isProcessing || unpaidSales.Any())"
+                   Class="px-6 font-weight-bold"
+                   Style="text-transform: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(244, 67, 54, 0.2);">
+            @if (isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Cerrando Turno...</span>
+            }
+            else
+            {
+                <span>Confirmar y Cerrar Turno</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid ShiftId { get; set; }
+    [Parameter] public Guid CashRegisterId { get; set; }
+    [Parameter] public Guid CashierId { get; set; }
+
+    private ShiftTotalsDto totals = null!;
+    private List<UnpaidSaleDto> unpaidSales = new();
+    private bool isLoading = true;
+    private bool isProcessing = false;
+
+    private decimal DeclaredAmount => totals?.ExpectedCash ?? 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShiftTotals();
+    }
+
+    private async Task LoadShiftTotals()
+    {
+        isLoading = true;
+        try
+        {
+            totals = await Mediator.Send(new GetShiftTotalsQuery(ShiftId));
+            unpaidSales = await Mediator.Send(new GetUnpaidSalesQuery(ShiftId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al calcular totales del turno: {ex.Message}", Severity.Error);
+            Cancel();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        isProcessing = true;
+        try
+        {
+            // Enviar comando de arqueo y cierre formal usando el monto esperado en caja
+            var command = new CashCutCommand(
+                CashRegisterId: CashRegisterId,
+                CashierId: CashierId,
+                InitialCash: totals.InitialCash,
+                SalesTotal: totals.SalesTotal,
+                CashInDrawer: DeclaredAmount
+            );
+
+            await Mediator.Send(command);
+            Snackbar.Add("El turno ha sido cerrado con éxito. Corte de caja registrado.", Severity.Success);
+            
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al registrar corte: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private string GetPaymentMethodName(PaymentMethodType method) => method switch
+    {
+        PaymentMethodType.Cash => "Efectivo",
+        PaymentMethodType.CreditCard => "Tarjeta de Crédito",
+        PaymentMethodType.DebitCard => "Tarjeta de Débito",
+        PaymentMethodType.Transfer => "Transferencia Bancaria",
+        PaymentMethodType.Check => "Cheque",
+        _ => method.ToString()
+    };
+
+    private string GetPaymentMethodIcon(PaymentMethodType method) => method switch
+    {
+        PaymentMethodType.Cash => Icons.Material.Filled.AttachMoney,
+        PaymentMethodType.CreditCard => Icons.Material.Filled.CreditCard,
+        PaymentMethodType.DebitCard => Icons.Material.Filled.CreditCard,
+        PaymentMethodType.Transfer => Icons.Material.Filled.AccountBalance,
+        PaymentMethodType.Check => Icons.Material.Filled.Check,
+        _ => Icons.Material.Filled.Payment
+    };
+
+    private string GetTaxRateName(decimal rate, bool isExempt)
+    {
+        if (isExempt) return "Exento de IVA";
+        return $"IVA {(rate * 100):F0}%"; // If stored as decimal like 0.16 -> IVA 16% or if it is already percentage
+    }
+}

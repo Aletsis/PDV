@@ -1,0 +1,145 @@
+@namespace PDV.WebUI.Components.Shared.UI
+
+<div class="pdv-state-container w-100">
+    @if (IsLoading)
+    {
+        @if (ShowSkeleton)
+        {
+            <PdvDataGridSkeleton Rows="@SkeletonRows" Columns="@SkeletonColumns" />
+        }
+        else
+        {
+            <div class="pdv-state-loader d-flex flex-column align-center justify-center py-12" aria-busy="true" aria-live="polite">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" aria-label="Cargando..." />
+                <span class="pdv-state-loader-text mt-3">Cargando datos...</span>
+            </div>
+        }
+    }
+    else if (HasError)
+    {
+        <div class="pdv-state-error-panel pa-6 d-flex align-center gap-4 rounded-xl" role="alert">
+            <div class="pdv-state-error-icon-wrap">
+                <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Color="Color.Error" Size="Size.Large" aria-hidden="true" />
+            </div>
+            <div class="flex-grow-1">
+                <h3 class="pdv-state-error-title font-weight-bold">Error de Carga</h3>
+                <p class="pdv-state-error-msg mb-0">@ErrorMessage</p>
+            </div>
+            @if (OnRetry.HasDelegate)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Refresh" OnClick="OnRetry" Class="pdv-state-btn" Style="border-radius: 10px; text-transform: none; font-weight: 600;">
+                    Reintentar
+                </MudButton>
+            }
+        </div>
+    }
+    else if (IsEmpty)
+    {
+        <div class="pdv-state-empty pa-8 d-flex flex-column align-center justify-center text-center rounded-xl">
+            <div class="pdv-state-empty-icon-wrap mb-4">
+                <MudIcon Icon="@EmptyIcon" Size="Size.Large" Color="Color.Secondary" aria-hidden="true" />
+            </div>
+            <h3 class="pdv-state-empty-title font-weight-bold mb-2">@EmptyTitle</h3>
+            <p class="pdv-state-empty-msg text-secondary mb-4">@EmptyMessage</p>
+            
+            @if (!string.IsNullOrEmpty(EmptyActionText) && OnEmptyAction.HasDelegate)
+            {
+                <PdvInteractiveButton UseGradient="true" StartIcon="@Icons.Material.Filled.Add" OnClick="OnEmptyAction">
+                    @EmptyActionText
+                </PdvInteractiveButton>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="pdv-state-content-wrapper">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Toggles loading display (either a skeletal table or centered spinner).
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Toggles empty layout card presentation.
+    /// </summary>
+    [Parameter]
+    public bool IsEmpty { get; set; }
+
+    /// <summary>
+    /// Toggles error panel presentation.
+    /// </summary>
+    [Parameter]
+    public bool HasError { get; set; }
+
+    /// <summary>
+    /// Error detail message (default: Ocurrió un error inesperado al cargar la información).
+    /// </summary>
+    [Parameter]
+    public string ErrorMessage { get; set; } = "Ocurrió un error inesperado al cargar la información.";
+
+    /// <summary>
+    /// Main header text shown inside empty states (default: Sin registros).
+    /// </summary>
+    [Parameter]
+    public string EmptyTitle { get; set; } = "Sin registros";
+
+    /// <summary>
+    /// Descriptive instruction explanation shown inside empty states.
+    /// </summary>
+    [Parameter]
+    public string EmptyMessage { get; set; } = "No hay datos para mostrar en este momento.";
+
+    /// <summary>
+    /// MudIcon class representing the empty state visually (default: Icons.Material.Filled.Inbox).
+    /// </summary>
+    [Parameter]
+    public string EmptyIcon { get; set; } = Icons.Material.Filled.Inbox;
+
+    /// <summary>
+    /// Label text of the optional action button shown in empty states (leave blank to hide).
+    /// </summary>
+    [Parameter]
+    public string EmptyActionText { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Trigger callback invoked when the empty state's action button is activated.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnEmptyAction { get; set; }
+
+    /// <summary>
+    /// Retry callback invoked when the error panel's retry button is activated.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    /// <summary>
+    /// Inner template elements rendered when state is completely loaded and successful.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Number of simulated skeleton rows when using tabular loader (default: 5).
+    /// </summary>
+    [Parameter]
+    public int SkeletonRows { get; set; } = 5;
+
+    /// <summary>
+    /// Number of simulated skeleton column cells when using tabular loader (default: 4).
+    /// </summary>
+    [Parameter]
+    public int SkeletonColumns { get; set; } = 4;
+
+    /// <summary>
+    /// Toggles using grid skeleton vs centered spinner during loading states (default: true).
+    /// </summary>
+    [Parameter]
+    public bool ShowSkeleton { get; set; } = true;
+}

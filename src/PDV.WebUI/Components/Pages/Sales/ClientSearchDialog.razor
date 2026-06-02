@@ -1,0 +1,158 @@
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Domain.Enums
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Warning" />
+            <MudText Typo="Typo.h6">Buscar y Seleccionar Cliente</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @ref="searchField"
+                          @bind-Value="searchQuery"
+                          Label="Buscar por Nombre, RFC o Teléfono"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Placeholder="Escribe para buscar..."
+                          OnKeyDown="HandleKeyDown" />
+
+            <MudTable Items="@FilteredClients" Hover="true" Dense="true" Bordered="false"
+                      Elevation="0" Height="300px" Style="background: transparent; overflow-y: auto;"
+                      RowClass="client-row" OnRowClick="OnRowClicked" T="ClientDto">
+                <HeaderContent>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600;">Nombre</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600;">RFC / Tax ID</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600;">Teléfono</MudTh>
+                    <MudTh Style="color: rgba(255,255,255,0.7); font-weight: 600; text-align: center;">Tipo</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Nombre" Style="font-weight: 600; color: #ffffff;">@context.Name</MudTd>
+                    <MudTd DataLabel="RFC">
+                        @if (!string.IsNullOrWhiteSpace(context.TaxId))
+                        {
+                            <span style="font-family: 'Roboto Mono', monospace;">@context.TaxId</span>
+                        }
+                        else
+                        {
+                            <span style="color: rgba(255,255,255,0.3);">—</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Teléfono">
+                        @if (!string.IsNullOrWhiteSpace(context.Phone))
+                        {
+                            <span>@context.Phone</span>
+                        }
+                        else
+                        {
+                            <span style="color: rgba(255,255,255,0.3);">—</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Tipo" Style="text-align: center;">
+                        @if (context.ClientType == ClientType.Wholesale)
+                        {
+                            <span style="background: rgba(105, 240, 174, 0.12); color: #69f0ae; border: 1px solid rgba(105, 240, 174, 0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 500;">
+                                Mayoreo
+                            </span>
+                        }
+                        else
+                        {
+                            <span style="background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 500;">
+                                Menudeo
+                            </span>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="SelectPublicGeneral" Variant="Variant.Filled" Color="Color.Default" Style="text-transform: none; border-radius: 8px;">
+            Público General
+        </MudButton>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none; border-radius: 8px;">
+            Cancelar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .client-row {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+    .client-row:hover {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+    }
+</style>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public List<ClientDto> Clients { get; set; } = new();
+
+    private MudTextField<string> searchField = null!;
+    private string searchQuery = "";
+
+    private IEnumerable<ClientDto> FilteredClients
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchQuery))
+            {
+                return Clients.Where(c => c.IsActive);
+            }
+
+            var query = searchQuery.Trim();
+            return Clients.Where(c => c.IsActive && (
+                c.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                c.TaxId.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                c.Phone.Contains(query, StringComparison.OrdinalIgnoreCase)
+            ));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(100);
+            await searchField.FocusAsync();
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void SelectPublicGeneral()
+    {
+        MudDialog.Close(DialogResult.Ok<ClientDto?>(null));
+    }
+
+    private void OnRowClicked(TableRowClickEventArgs<ClientDto> args)
+    {
+        MudDialog.Close(DialogResult.Ok<ClientDto?>(args.Item));
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            var first = FilteredClients.FirstOrDefault();
+            if (first != null)
+            {
+                MudDialog.Close(DialogResult.Ok<ClientDto?>(first));
+            }
+        }
+        else if (e.Key == "Escape")
+        {
+            MudDialog.Cancel();
+        }
+    }
+}

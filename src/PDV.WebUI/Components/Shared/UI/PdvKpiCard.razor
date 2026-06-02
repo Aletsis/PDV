@@ -1,0 +1,139 @@
+@namespace PDV.WebUI.Components.Shared.UI
+
+<div class="pdv-kpi-card @GetGradientClass() @Class" style="@Style" role="region" aria-label="@Title">
+    @if (IsLoading)
+    {
+        <div class="pdv-kpi-skeleton-container d-flex align-center justify-space-between w-100" aria-busy="true" aria-live="polite">
+            <div class="d-flex flex-column gap-2 flex-grow-1">
+                <div class="pdv-skeleton pdv-skeleton-text pdv-skeleton-sm"></div>
+                <div class="pdv-skeleton pdv-skeleton-text pdv-skeleton-lg"></div>
+                <div class="pdv-skeleton pdv-skeleton-text pdv-skeleton-xs mt-1"></div>
+            </div>
+            <div class="pdv-skeleton pdv-skeleton-circle"></div>
+        </div>
+    }
+    else
+    {
+        <div class="pdv-kpi-info-panel flex-grow-1">
+            <span class="pdv-kpi-label text-uppercase">@Title</span>
+            <div class="pdv-kpi-value-wrap d-flex align-baseline gap-2">
+                <span class="pdv-kpi-value">@Value</span>
+            </div>
+            
+            @if (TrendValue.HasValue)
+            {
+                <div class="pdv-kpi-trend @GetTrendClass()" aria-label='@($"Cambio de {TrendValue.Value.ToString("F1")}{TrendSuffix}")'>
+                    <MudIcon Icon="@GetTrendIcon()" Size="Size.Small" Class="mr-1" aria-hidden="true" />
+                    <span class="font-weight-bold">@($"{Math.Abs(TrendValue.Value).ToString("F1")}{TrendSuffix}")</span>
+                </div>
+            }
+        </div>
+        
+        @if (!string.IsNullOrEmpty(Icon))
+        {
+            <div class="pdv-kpi-icon-container @GetIconClass()">
+                <MudIcon Icon="@Icon" Size="Size.Medium" Color="@IconColor" aria-hidden="true" />
+            </div>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Type safety enum for defining beautiful glassmorphic gradient accent styles.
+    /// </summary>
+    public enum KpiGradientType
+    {
+        None,
+        Primary,
+        Success,
+        Info,
+        Warning,
+        Error
+    }
+
+    /// <summary>
+    /// Title of the metric.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Metric value to display.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional MudBlazor icon to render.
+    /// </summary>
+    [Parameter]
+    public string Icon { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Accent color of the icon block (default: Color.Primary).
+    /// </summary>
+    [Parameter]
+    public Color IconColor { get; set; } = Color.Primary;
+
+    /// <summary>
+    /// Optional trend value. Positive numbers render green indicators; negative numbers render red indicators.
+    /// </summary>
+    [Parameter]
+    public double? TrendValue { get; set; }
+
+    /// <summary>
+    /// Suffix for the trend value (default: "%").
+    /// </summary>
+    [Parameter]
+    public string TrendSuffix { get; set; } = "%";
+
+    /// <summary>
+    /// Toggles the skeletal shimmer loader layout.
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Background gradient accent scheme (default: KpiGradientType.None).
+    /// </summary>
+    [Parameter]
+    public KpiGradientType GradientType { get; set; } = KpiGradientType.None;
+
+    /// <summary>
+    /// Additional CSS classes.
+    /// </summary>
+    [Parameter]
+    public string Class { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Additional inline style rules.
+    /// </summary>
+    [Parameter]
+    public string Style { get; set; } = string.Empty;
+
+    private string GetGradientClass() => GradientType switch
+    {
+        KpiGradientType.Primary => "pdv-kpi-grad-primary",
+        KpiGradientType.Success => "pdv-kpi-grad-success",
+        KpiGradientType.Info => "pdv-kpi-grad-info",
+        KpiGradientType.Warning => "pdv-kpi-grad-warning",
+        KpiGradientType.Error => "pdv-kpi-grad-error",
+        _ => "pdv-kpi-grad-none"
+    };
+
+    private string GetIconClass() => IconColor switch
+    {
+        Color.Success => "pdv-kpi-icon-success",
+        Color.Info => "pdv-kpi-icon-info",
+        Color.Warning => "pdv-kpi-icon-warning",
+        Color.Error => "pdv-kpi-icon-error",
+        _ => "pdv-kpi-icon-primary"
+    };
+
+    private string GetTrendClass() => (TrendValue ?? 0) >= 0 ? "pdv-kpi-trend-positive" : "pdv-kpi-trend-negative";
+
+    private string GetTrendIcon() => (TrendValue ?? 0) >= 0 ? Icons.Material.Filled.ArrowUpward : Icons.Material.Filled.ArrowDownward;
+}

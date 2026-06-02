@@ -1,0 +1,51 @@
+/* Scoped styles for SalesList page */
+
+.sl-alert {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.sl-alert-local {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ffb74d;
+    border: 1px solid rgba(255, 152, 0, 0.2);
+}
+
+.sl-alert-online {
+    background: rgba(105, 240, 174, 0.08);
+    color: #69f0ae;
+    border: 1px solid rgba(105, 240, 174, 0.18);
+}
+
+.sl-filter-card {
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sl-table-card {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sl-total-cell {
+    font-weight: bold;
+    color: var(--mud-palette-primary);
+}
+
+.sl-detail-summary-paper {
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sl-detail-table {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}

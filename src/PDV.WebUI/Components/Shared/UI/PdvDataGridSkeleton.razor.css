@@ -1,0 +1,46 @@
+.pdv-grid-skeleton-container {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.01);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    overflow: hidden;
+}
+
+.pdv-grid-skeleton-header {
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pdv-grid-skeleton-row {
+    border-bottom-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.pdv-grid-skeleton-row:last-child {
+    border-bottom: none !important;
+}
+
+.pdv-skeleton {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0.02) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+.pdv-skeleton-bar {
+    height: 14px;
+    width: 60%;
+}
+
+.pdv-skeleton-line {
+    height: 12px;
+}
+
+.pdv-w-50 { width: 50%; }
+.pdv-w-75 { width: 75%; }
+.pdv-w-100 { width: 90%; }
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}

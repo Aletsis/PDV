@@ -1,0 +1,325 @@
+@using MediatR
+@using PDV.Application.Features.Printers.Commands.CreatePrinter
+@using PDV.Application.Features.Printers.Commands.UpdatePrinter
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.AddCircle)"
+                     Color="@(IsEdit ? Color.Info : Color.Secondary)" />
+            <MudText Typo="Typo.h6">@(IsEdit ? "Editar Impresora" : "Nueva Impresora")</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudGrid Spacing="3">
+
+            @* ── Nombre ──────────────────────────────────── *@
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Model.Name"
+                              Label="Nombre de la Impresora"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="El nombre es obligatorio"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Print"
+                              Immediate="true"
+                              Placeholder="Ej: Impresora Caja 1" />
+            </MudItem>
+
+            @* ── Tipo de Conexión ─────────────────────────── *@
+            <MudItem xs="12" sm="6">
+                <MudSelect T="PrinterConnectionType"
+                           @bind-Value="Model.ConnectionType"
+                           Label="Tipo de Conexión"
+                           Variant="Variant.Outlined"
+                           Adornment="Adornment.Start"
+                           AdornmentIcon="@Icons.Material.Filled.DeviceHub"
+                           Disabled="@IsEdit">
+                    <MudSelectItem Value="PrinterConnectionType.Network">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Wifi" Style="font-size:16px; color:#64b5f6;" />
+                            <span>Red (TCP/IP)</span>
+                        </MudStack>
+                    </MudSelectItem>
+                    <MudSelectItem Value="PrinterConnectionType.Usb">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Usb" Style="font-size:16px; color:#69f0ae;" />
+                            <span>USB</span>
+                        </MudStack>
+                    </MudSelectItem>
+                    <MudSelectItem Value="PrinterConnectionType.Serial">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Cable" Style="font-size:16px; color:#ffb74d;" />
+                            <span>Serial (COM)</span>
+                        </MudStack>
+                    </MudSelectItem>
+                    <MudSelectItem Value="PrinterConnectionType.Bluetooth">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Bluetooth" Style="font-size:16px; color:#ce93d8;" />
+                            <span>Bluetooth</span>
+                        </MudStack>
+                    </MudSelectItem>
+                </MudSelect>
+                @if (IsEdit)
+                {
+                    <div style="font-size: 0.74rem; margin-top: 4px; padding: 0 14px; color: rgba(255,255,255,0.4);">
+                        El tipo de conexión no puede modificarse después de crear la impresora.
+                    </div>
+                }
+            </MudItem>
+
+            @* ── Campos condicionales por tipo ────────────── *@
+            @if (Model.ConnectionType == PrinterConnectionType.Network ||
+                 Model.ConnectionType == PrinterConnectionType.Bluetooth)
+            {
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="Model.IpAddress"
+                                  Label="Dirección IP"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="La dirección IP es obligatoria para impresoras de red"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Router"
+                                  Immediate="true"
+                                  Placeholder="Ej: 192.168.1.200"
+                                  @oninput="OnIpInput" />
+                    @if (!string.IsNullOrWhiteSpace(Model.IpAddress))
+                    {
+                        @if (_isIpValid)
+                        {
+                            <span class="d-block mt-1 px-3" style="font-size: 0.74rem; color: #69f0ae;">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="font-size:13px; vertical-align:middle; margin-right:4px;" />
+                                IP válida
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="d-block mt-1 px-3" style="font-size: 0.74rem; color: #ff6b6b;">
+                                <MudIcon Icon="@Icons.Material.Filled.Error" Style="font-size:13px; vertical-align:middle; margin-right:4px;" />
+                                Formato inválido — ingresa una IPv4 válida (ej. 192.168.1.200)
+                            </span>
+                        }
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="int"
+                                     @bind-Value="Model.Port"
+                                     Label="Puerto"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     Min="1"
+                                     Max="65535"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Lan" />
+                </MudItem>
+            }
+            else
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="Model.DevicePath"
+                                  Label="Ruta del Dispositivo"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="La ruta del dispositivo es obligatoria"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
+                                  Immediate="true"
+                                  Placeholder="@(Model.ConnectionType == PrinterConnectionType.Usb ? "Ej: USB001" : "Ej: COM3")" />
+                </MudItem>
+            }
+
+            @* ── Configuración ESC/POS ────────────────────── *@
+            <MudItem xs="12">
+                <MudDivider />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 mb-1"
+                         Style="font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Tune" Style="font-size:14px; vertical-align:middle; margin-right:4px;" />
+                    Configuración ESC/POS
+                </MudText>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int"
+                                 @bind-Value="Model.CodePage"
+                                 Label="Página de Código (Encoding)"
+                                 Variant="Variant.Outlined"
+                                 Min="1"
+                                 HelperText="1252 = Windows Latin-1 (recomendado)"
+                                 Adornment="Adornment.Start"
+                                 AdornmentIcon="@Icons.Material.Filled.Translate" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int"
+                           @bind-Value="Model.MaxWidth"
+                           Label="Ancho de Impresión (dots)"
+                           Variant="Variant.Outlined"
+                           Adornment="Adornment.Start"
+                           AdornmentIcon="@Icons.Material.Filled.SwapHoriz">
+                    <MudSelectItem Value="384">384 dots — Papel 58 mm</MudSelectItem>
+                    <MudSelectItem Value="576">576 dots — Papel 80 mm HD</MudSelectItem>
+                    <MudSelectItem Value="832">832 dots — Papel 80 mm (alta DPI)</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            @* ── Estado (sólo edición) ────────────────────── *@
+            @if (IsEdit)
+            {
+                <MudItem xs="12">
+                    <MudDivider />
+                    <MudSwitch T="bool"
+                               @bind-Value="Model.IsActive"
+                               Label="@(Model.IsActive ? "Impresora Activa" : "Impresora Inactiva")"
+                               Color="Color.Success"
+                               Class="mt-2" />
+                </MudItem>
+            }
+
+        </MudGrid>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none; font-weight: bold; border-radius: 8px;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Save" OnClick="Save" IsLoading="@_isSaving">
+            Guardar Impresora
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public PrinterFormModel Model { get; set; } = new();
+
+    private bool _isIpValid = true;
+    private bool _isSaving  = false;
+
+    protected override void OnInitialized()
+    {
+        ValidateIp(Model.IpAddress);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void OnIpInput(ChangeEventArgs e)
+    {
+        Model.IpAddress = e.Value?.ToString();
+        ValidateIp(Model.IpAddress);
+    }
+
+    private void ValidateIp(string? ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) { _isIpValid = true; return; }
+        _isIpValid = System.Net.IPAddress.TryParse(ip.Trim(), out _);
+    }
+
+    private async Task Save()
+    {
+        // ── Validación básica ─────────────────────────────────
+        if (string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Snackbar.Add("El nombre de la impresora es obligatorio.", Severity.Warning);
+            return;
+        }
+
+        var requiresNetwork = Model.ConnectionType == PrinterConnectionType.Network ||
+                              Model.ConnectionType == PrinterConnectionType.Bluetooth;
+        var requiresDevice  = Model.ConnectionType == PrinterConnectionType.Usb ||
+                              Model.ConnectionType == PrinterConnectionType.Serial;
+
+        if (requiresNetwork)
+        {
+            if (string.IsNullOrWhiteSpace(Model.IpAddress))
+            {
+                Snackbar.Add("La dirección IP es obligatoria para impresoras de red.", Severity.Warning);
+                return;
+            }
+            if (!_isIpValid)
+            {
+                Snackbar.Add("La dirección IP ingresada no tiene un formato válido.", Severity.Warning);
+                return;
+            }
+            if (Model.Port <= 0 || Model.Port > 65535)
+            {
+                Snackbar.Add("El puerto debe ser un valor entre 1 y 65535.", Severity.Warning);
+                return;
+            }
+        }
+
+        if (requiresDevice && string.IsNullOrWhiteSpace(Model.DevicePath))
+        {
+            Snackbar.Add("La ruta del dispositivo es obligatoria.", Severity.Warning);
+            return;
+        }
+
+        if (Model.CodePage <= 0)
+        {
+            Snackbar.Add("La página de código debe ser un valor positivo.", Severity.Warning);
+            return;
+        }
+
+        // ── Envío ─────────────────────────────────────────────
+        _isSaving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                var cmd = new UpdatePrinterCommand(
+                    Id:         Model.Id,
+                    Name:       Model.Name,
+                    IpAddress:  Model.IpAddress?.Trim() ?? string.Empty,
+                    Port:       Model.Port,
+                    CodePage:   Model.CodePage,
+                    MaxWidth:   Model.MaxWidth,
+                    IsActive:   Model.IsActive);
+
+                await Mediator.Send(cmd);
+            }
+            else
+            {
+                var cmd = new CreatePrinterCommand(
+                    Name:           Model.Name,
+                    IpAddress:      Model.IpAddress?.Trim() ?? string.Empty,
+                    Port:           Model.Port,
+                    CodePage:       Model.CodePage,
+                    MaxWidth:       Model.MaxWidth,
+                    IsActive:       true,
+                    ConnectionType: Model.ConnectionType);
+
+                await Mediator.Send(cmd);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    // ── Modelo del formulario ────────────────────────────────
+
+    public sealed class PrinterFormModel
+    {
+        public Guid                    Id             { get; set; }
+        public string                  Name           { get; set; } = string.Empty;
+        public PrinterConnectionType   ConnectionType { get; set; } = PrinterConnectionType.Network;
+        public string?                 IpAddress      { get; set; }
+        public int                     Port           { get; set; } = 9100;
+        public string?                 DevicePath     { get; set; }
+        public int                     CodePage       { get; set; } = 1252;
+        public int                     MaxWidth       { get; set; } = 384;
+        public bool                    IsActive       { get; set; } = true;
+    }
+}

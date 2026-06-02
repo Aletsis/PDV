@@ -1,0 +1,142 @@
+@namespace PDV.WebUI.Components.Shared.UI
+
+<MudButton HtmlTag="button"
+           Variant="@Variant"
+           Color="@(UseGradient ? Color.Default : Color)"
+           OnClick="HandleClick"
+           Disabled="@(Disabled || IsLoading)"
+           Class="@GetButtonClass()"
+           Style="@Style"
+           aria-label="@(string.IsNullOrEmpty(AriaLabel) ? Text : AriaLabel)"
+           aria-busy="@IsLoading"
+           role="button">
+    @if (IsLoading)
+    {
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2 pdv-btn-spinner" aria-hidden="true" />
+        <span>Procesando...</span>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(StartIcon))
+        {
+            <MudIcon Icon="@StartIcon" Size="Size.Small" Class="mr-2" aria-hidden="true" />
+        }
+        
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else
+        {
+            <span>@Text</span>
+        }
+        
+        @if (!string.IsNullOrEmpty(EndIcon))
+        {
+            <MudIcon Icon="@EndIcon" Size="Size.Small" Class="ml-2" aria-hidden="true" />
+        }
+    }
+</MudButton>
+
+@code {
+    /// <summary>
+    /// Button text label. Rendered if ChildContent is null.
+    /// </summary>
+    [Parameter]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Action trigger callback for button activation.
+    /// </summary>
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    /// <summary>
+    /// MudBlazor button color theme (default: Color.Primary). Overridden if UseGradient is true.
+    /// </summary>
+    [Parameter]
+    public Color Color { get; set; } = Color.Primary;
+
+    /// <summary>
+    /// Visual style variants (default: Variant.Filled).
+    /// </summary>
+    [Parameter]
+    public Variant Variant { get; set; } = Variant.Filled;
+
+    /// <summary>
+    /// Toggles loading status. Prevents multiple activations by auto-disabling the button.
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Toggles disabled standard input state.
+    /// </summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
+    /// Prepend visual icon.
+    /// </summary>
+    [Parameter]
+    public string StartIcon { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Append visual icon.
+    /// </summary>
+    [Parameter]
+    public string EndIcon { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Applies premium background brand gradient aesthetics.
+    /// </summary>
+    [Parameter]
+    public bool UseGradient { get; set; }
+
+    /// <summary>
+    /// Screen reader label (default: mirrors Text property).
+    /// </summary>
+    [Parameter]
+    public string AriaLabel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Inner template content slot.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Additional CSS classes.
+    /// </summary>
+    [Parameter]
+    public string Class { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Inline custom styles rules.
+    /// </summary>
+    [Parameter]
+    public string Style { get; set; } = string.Empty;
+
+    private string GetButtonClass()
+    {
+        var classes = new List<string> { "pdv-interactive-btn" };
+        
+        if (UseGradient)
+        {
+            classes.Add("pdv-btn-gradient");
+        }
+        
+        if (!string.IsNullOrEmpty(Class))
+        {
+            classes.Add(Class);
+        }
+        
+        return string.Join(" ", classes);
+    }
+
+    private async Task HandleClick(MouseEventArgs e)
+    {
+        if (Disabled || IsLoading) return;
+        await OnClick.InvokeAsync(e);
+    }
+}

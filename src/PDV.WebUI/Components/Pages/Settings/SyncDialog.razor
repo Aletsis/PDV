@@ -1,0 +1,149 @@
+@using MediatR
+@using MudBlazor
+@using PDV.Application.Features.Sync.Commands
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog Style="max-width: 650px; width: 100%;">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-weight: 700; color: #64b5f6; display: flex; align-items: center; gap: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.Sync" />
+            Sincronización de Catálogos
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4" Style="color: rgba(255,255,255,0.7);">
+            Haz clic en el catálogo que deseas sincronizar desde el Sistema Comercial CONTPAQi.
+        </MudText>
+
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            <PdvInteractiveButton Color="Color.Primary"
+                                  StartIcon="@Icons.Material.Filled.Rule"
+                                  OnClick="@(() => SyncCatalog(CatalogType.UnidadesMedida, "Unidades de Medida"))"
+                                  IsLoading="@(_isSyncing && _activeCatalog == CatalogType.UnidadesMedida)"
+                                  Disabled="@(_isSyncing && _activeCatalog != CatalogType.UnidadesMedida)">
+                Unidades de Medida
+            </PdvInteractiveButton>
+            <PdvInteractiveButton Color="Color.Primary"
+                                  StartIcon="@Icons.Material.Filled.Business"
+                                  OnClick="@(() => SyncCatalog(CatalogType.Departamentos, "Departamentos"))"
+                                  IsLoading="@(_isSyncing && _activeCatalog == CatalogType.Departamentos)"
+                                  Disabled="@(_isSyncing && _activeCatalog != CatalogType.Departamentos)">
+                Departamentos
+            </PdvInteractiveButton>
+            <PdvInteractiveButton Color="Color.Primary"
+                                  StartIcon="@Icons.Material.Filled.Category"
+                                  OnClick="@(() => SyncCatalog(CatalogType.Categorias, "Categorías"))"
+                                  IsLoading="@(_isSyncing && _activeCatalog == CatalogType.Categorias)"
+                                  Disabled="@(_isSyncing && _activeCatalog != CatalogType.Categorias)">
+                Categorías
+            </PdvInteractiveButton>
+            <PdvInteractiveButton Color="Color.Primary"
+                                  StartIcon="@Icons.Material.Filled.Inventory"
+                                  OnClick="@(() => SyncCatalog(CatalogType.Productos, "Productos"))"
+                                  IsLoading="@(_isSyncing && _activeCatalog == CatalogType.Productos)"
+                                  Disabled="@(_isSyncing && _activeCatalog != CatalogType.Productos)">
+                Productos
+            </PdvInteractiveButton>
+            <PdvInteractiveButton Color="Color.Primary"
+                                  StartIcon="@Icons.Material.Filled.People"
+                                  OnClick="@(() => SyncCatalog(CatalogType.Clientes, "Clientes"))"
+                                  IsLoading="@(_isSyncing && _activeCatalog == CatalogType.Clientes)"
+                                  Disabled="@(_isSyncing && _activeCatalog != CatalogType.Clientes)">
+                Clientes
+            </PdvInteractiveButton>
+        </div>
+
+        <MudText Typo="Typo.subtitle2" Style="font-weight: 600; color: #ffb74d;" Class="mb-2">Consola de Sincronización</MudText>
+        <div class="console-box">
+            @if (_logs.Count == 0)
+            {
+                <div class="console-placeholder">La consola está lista. Presiona un botón de arriba para iniciar...</div>
+            }
+            else
+            {
+                @foreach (var log in _logs)
+                {
+                    <div class="console-line @log.Level.ToLower()">
+                        <span class="console-timestamp">[@log.Timestamp.ToString("HH:mm:ss")]</span>
+                        <span class="console-text">@log.Message</span>
+                    </div>
+                }
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Color="Color.Default" Variant="Variant.Text" Style="text-transform: none; font-weight: 600; border-radius: 8px;">
+            Cerrar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private bool _isSyncing = false;
+    private CatalogType? _activeCatalog = null;
+    private List<LogEntry> _logs = new();
+
+    private void AddLog(string message)
+    {
+        var level = "info";
+        var lowerMsg = message.ToLowerInvariant();
+        if (lowerMsg.Contains("error"))
+        {
+            level = "error";
+        }
+        else if (lowerMsg.Contains("exitosamente") || lowerMsg.Contains("éxito") || lowerMsg.Contains("completada"))
+        {
+            level = "success";
+        }
+        else if (lowerMsg.Contains("omitido") || lowerMsg.Contains("advertencia") || lowerMsg.Contains("warning"))
+        {
+            level = "warning";
+        }
+
+        _logs.Add(new LogEntry(DateTime.Now, message, level));
+        StateHasChanged();
+    }
+
+    private void Close() => MudDialog.Close();
+
+    private async Task SyncCatalog(CatalogType type, string catalogName)
+    {
+        if (_isSyncing) return;
+        _isSyncing = true;
+        _activeCatalog = type;
+        _logs.Clear();
+
+        var progress = new Progress<string>(log => InvokeAsync(() => AddLog(log)));
+
+        var result = await Mediator.Send(new SyncCatalogCommand(type, progress));
+
+        if (result.Success)
+        {
+            Snackbar.Add($"{catalogName} sincronizados correctamente.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add($"Error al sincronizar {catalogName}: {result.ErrorMessage}", Severity.Error);
+        }
+
+        _isSyncing = false;
+        _activeCatalog = null;
+    }
+
+    private class LogEntry
+    {
+        public DateTime Timestamp { get; }
+        public string Message { get; }
+        public string Level { get; }
+
+        public LogEntry(DateTime timestamp, string message, string level)
+        {
+            Timestamp = timestamp;
+            Message = message;
+            Level = level;
+        }
+    }
+}

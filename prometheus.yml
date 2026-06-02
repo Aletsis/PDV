@@ -1,0 +1,42 @@
+# =============================================================
+# Configuración de Prometheus - Monitoreo del Sistema PDV
+# =================================────────────────============
+
+global:
+  scrape_interval:     15s # Intervalo en el que Prometheus extraerá métricas (por defecto)
+  evaluation_interval: 15s # Evaluar reglas de alerta cada 15 segundos
+  scrape_timeout:      10s # Tiempo de espera máximo antes de fallar la petición de scrape
+
+# Configuración de Alertas (Se puede extender con Alertmanager en producción)
+# rule_files:
+#   - "alert_rules.yml"
+
+# Configuración de los objetivos de scrapeo
+scrape_configs:
+  # ───────────────────────────────────────────────────────────
+  # Objetivo 1: Aplicación Blazor WebUI (.NET 9)
+  # ───────────────────────────────────────────────────────────
+  - job_name: 'pdv-webui'
+    scrape_interval: 5s # Scrape más frecuente para métricas en tiempo real de transacciones y SignalR
+    metrics_path: '/metrics' # Ruta estándar expuesta por OpenTelemetry / prometheus-net
+    static_configs:
+      - targets: ['webui:5000'] # Apunta al contenedor webui definido en docker-compose
+        labels:
+          environment: 'production'
+          application: 'pdv-system'
+
+  # ───────────────────────────────────────────────────────────
+  # Objetivo 2: Base de Datos PostgreSQL (Usando postgres_exporter)
+  # ───────────────────────────────────────────────────────────
+  # - job_name: 'pdv-postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         environment: 'production'
+
+  # ───────────────────────────────────────────────────────────
+  # Objetivo 3: Monitoreo de Servidor Nginx (Usando nginx_exporter)
+  # ───────────────────────────────────────────────────────────
+  # - job_name: 'pdv-nginx'
+  #   static_configs:
+  #     - targets: ['nginx-exporter:9113']

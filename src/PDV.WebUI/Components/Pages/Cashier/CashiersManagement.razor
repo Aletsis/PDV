@@ -1,0 +1,189 @@
+@page "/admin/cashiers"
+@using MediatR
+@using PDV.Application.Features.Cashiers.Queries.ListCashiers
+@using PDV.Application.Features.Cashiers.Commands.CreateCashier
+@using PDV.Application.Features.Cashiers.Commands.UpdateCashier
+@using PDV.Application.Features.Cashiers.Commands.DeleteCashier
+@using PDV.Application.Features.Cashiers.Dtos
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Cajeras</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Page Header & Mode Monitor -->
+    <PdvHeader Title="Gestión de Cajeras"
+               Subtitle="Administra el personal de caja asignado a las terminales de venta."
+               Icon="@Icons.Material.Filled.Person"
+               IconColor="Color.Primary">
+        <Actions>
+            <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="OpenCreateDialog">
+                Nueva Cajera
+            </PdvInteractiveButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <PdvKpiCard Title="Total Cajeras"
+                       Value="@cashiers.Count.ToString()"
+                       Icon="@Icons.Material.Filled.People"
+                       IconColor="Color.Primary"
+                       IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <PdvKpiCard Title="Activas"
+                       Value="@cashiers.Count(c => c.IsActive).ToString()"
+                       Icon="@Icons.Material.Filled.CheckCircle"
+                       IconColor="Color.Success"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <PdvKpiCard Title="Inactivas"
+                       Value="@cashiers.Count(c => !c.IsActive).ToString()"
+                       Icon="@Icons.Material.Filled.Cancel"
+                       IconColor="Color.Error"
+                       IsLoading="@isLoading"
+                       GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Main Data Section -->
+    <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!cashiers.Any())"
+                            EmptyTitle="Sin cajeras"
+                            EmptyMessage="No se encontraron cajeras registradas en el sistema en este momento."
+                            EmptyIcon="@Icons.Material.Filled.People"
+                            SkeletonRows="4"
+                            SkeletonColumns="4">
+            <MudDataGrid Items="@cashiers" Filterable="true" Sortable="true" Hover="true" RowClass="cr-table-row" Style="border-radius: 12px; overflow: hidden;" Elevation="0">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <PropertyColumn Property="x => x.EmployeeId" Title="ID Empleado" />
+                    <TemplateColumn Title="Estado">
+                        <CellTemplate>
+                            @if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.FiberManualRecord" Class="font-weight-medium">Activa</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.FiberManualRecord" Class="font-weight-medium">Inactiva</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 120px;" CellClass="d-flex justify-end gap-1">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteCashier(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="CashierDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+@code {
+    private List<CashierDto> cashiers = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            cashiers = await Mediator.Send(new ListCashiersQuery());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar cajeras: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<CashierDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.Model, new CashierDto { IsActive = true } }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<CashierDialog>("Nueva Cajera", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Cajera creada exitosamente", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task OpenEditDialog(CashierDto cashier)
+    {
+        var model = new CashierDto
+        {
+            Id = cashier.Id,
+            Name = cashier.Name,
+            EmployeeId = cashier.EmployeeId,
+            UserId = cashier.UserId,
+            IsActive = cashier.IsActive
+        };
+
+        var parameters = new DialogParameters<CashierDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.Model, model }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<CashierDialog>("Editar Cajera", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Cajera actualizada exitosamente", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task DeleteCashier(CashierDto cashier)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Eliminar Cajera",
+            $"¿Estás seguro que deseas eliminar {cashier.Name}?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteCashierCommand(cashier.Id));
+                Snackbar.Add("Cajera eliminada exitosamente", Severity.Success);
+                await LoadData();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

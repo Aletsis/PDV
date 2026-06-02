@@ -1,0 +1,85 @@
+# =========================================================================
+# Git Ignore para Solución PDV (.NET Core, VS, VS Code, DBs, Docker y Logs)
+# =========================================================================
+
+# -------------------------------------------------------------------------
+# Compilación y Artefactos de Salida (.NET)
+# -------------------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Rr]elease/
+[Dd]ebug/
+publish/
+**/bin/
+**/obj/
+
+# -------------------------------------------------------------------------
+# Archivos de configuración de usuario y caché (Visual Studio)
+# -------------------------------------------------------------------------
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+PDV.slnLaunch.user
+
+# -------------------------------------------------------------------------
+# Entorno y Configuración de Editores (VS Code / JetBrains / Otros)
+# -------------------------------------------------------------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.docstates
+*.suo
+_ReSharper*/
+*.csproj.user
+*.userprefs
+
+# -------------------------------------------------------------------------
+# Bases de Datos Locales (Evita subir bases de datos de prueba)
+# -------------------------------------------------------------------------
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sdf
+*.mdf
+*.ldf
+
+# Especificación explícita para la base de datos de desarrollo
+src/PDV.WebUI/pdv.db
+
+# -------------------------------------------------------------------------
+# Registros y Logs de Ejecución
+# -------------------------------------------------------------------------
+*.log
+logs/
+Logs/
+src/PDV.WebUI/Logs/
+
+# -------------------------------------------------------------------------
+# Archivos Temporales y Caché del Sistema Operativo
+# -------------------------------------------------------------------------
+[Tt]humbs.db
+[Dd]esktop.ini
+.DS_Store
+
+# -------------------------------------------------------------------------
+# Archivos de Datos Fiscales / Privados (Facturas de prueba)
+# -------------------------------------------------------------------------
+FFGIH0000021977.xml
+
+# -------------------------------------------------------------------------
+# Archivos temporales y de pruebas rápidas (Scratch)
+# -------------------------------------------------------------------------
+scratch/
+
+# -------------------------------------------------------------------------
+# docker-compose y archivos de entorno
+# -------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local

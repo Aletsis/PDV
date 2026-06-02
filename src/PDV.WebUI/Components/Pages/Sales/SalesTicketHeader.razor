@@ -1,0 +1,131 @@
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Sales.Queries.GetUnpaidSales
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Domain.Entities
+
+<MudPaper Elevation="3" Class="pa-4 glass-card mb-4" Style="background: linear-gradient(135deg, rgba(20, 24, 46, 0.8) 0%, rgba(8, 10, 20, 0.8) 100%) !important;">
+    <MudGrid AlignItems="Center">
+        <!-- Left Info Widgets -->
+        <MudItem xs="12" xl="9" Class="d-flex flex-wrap gap-3 align-center">
+            <!-- Cash Register Status Card -->
+            <div class="d-flex align-center gap-3 pa-2 px-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.Dns" Color="Color.Primary" Size="Size.Medium" />
+                <div>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="line-height: 1;">CAJA REGISTRADORA</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@(CurrentCashRegister?.Name ?? "Sin Asignar")</MudText>
+                </div>
+            </div>
+
+            <!-- Cashier Info Card -->
+            <div class="d-flex align-center gap-3 pa-2 px-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Info" Size="Size.Medium" />
+                <div>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="line-height: 1;">CAJERO ACTIVO</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@CurrentCashierName</MudText>
+                </div>
+            </div>
+
+            <!-- Folio Projections Card -->
+            <div class="d-flex align-center gap-3 pa-2 px-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Success" Size="Size.Medium" />
+                <div>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="line-height: 1;">TICKET</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-success">@ActiveSeries-@ProjectedFolio</MudText>
+                </div>
+            </div>
+
+            <!-- Client Info Card -->
+            <div class="d-flex align-center gap-3 pa-2 px-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Warning" Size="Size.Medium" />
+                <div>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="line-height: 1;">CLIENTE SELECCIONADO</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@SelectedClientName</MudText>
+                </div>
+                <MudButton Variant="Variant.Text" 
+                           Color="Color.Warning" 
+                           Size="Size.Small" 
+                           OnClick="OnClientSearchClicked"
+                           Style="text-transform: none; font-weight: bold; border-radius: 4px; padding: 2px 6px; min-width: auto; height: auto;">
+                    @(SelectedClientId.HasValue ? "Cambiar" : "Seleccionar")
+                </MudButton>
+            </div>
+        </MudItem>
+
+        <!-- Right Toolbar Actions -->
+        <MudItem xs="12" xl="3" Class="d-flex justify-xl-end gap-2 flex-wrap align-center">
+            <!-- F2 Lookup Shortcut Button -->
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Info" 
+                       StartIcon="@Icons.Material.Filled.Search"
+                       OnClick="OnCatalogClicked"
+                       Style="text-transform: none; font-weight: bold; border-radius: 8px; height: 42px;">
+                Catálogo (F2)
+            </MudButton>
+
+            <!-- Historial / Devoluciones Button -->
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       StartIcon="@Icons.Material.Filled.History"
+                       OnClick="OnOpenNotesHistory"
+                       Style="text-transform: none; font-weight: bold; border-radius: 8px; height: 42px;">
+                Historial / Devoluciones
+            </MudButton>
+
+            <!-- Suspended/Open Notes Toggle Menu (Notas Abiertas) -->
+            @if (SuspendedSales.Any())
+            {
+                <MudMenu Label="@($"Notas Abiertas ({SuspendedSales.Count})")" 
+                         Color="Color.Warning" 
+                         Variant="Variant.Filled" 
+                         StartIcon="@Icons.Material.Filled.PauseCircleFilled"
+                         EndIcon="@Icons.Material.Filled.KeyboardArrowDown" 
+                         Style="text-transform: none; font-weight: bold; border-radius: 8px; height: 42px;">
+                    @foreach (var saleDto in SuspendedSales)
+                    {
+                        <MudMenuItem OnClick="@(() => OnResumeSale.InvokeAsync(saleDto))" Class="pa-2">
+                            <div class="d-flex align-center justify-space-between gap-4" style="min-width: 250px;">
+                                <div>
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Nota #@saleDto.Series-@saleDto.Folio</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@saleDto.Date.ToString("hh:mm tt") - @saleDto.ClientName</MudText>
+                                </div>
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">$@saleDto.TotalAmount.ToString("F2")</MudChip>
+                            </div>
+                        </MudMenuItem>
+                    }
+                </MudMenu>
+            }
+
+            <!-- Cash Actions Dropdown Menu -->
+            <MudMenu Label="Acciones de Caja" 
+                     Color="Color.Secondary" 
+                     Variant="Variant.Filled" 
+                     StartIcon="@Icons.Material.Filled.AccountBalanceWallet"
+                     EndIcon="@Icons.Material.Filled.KeyboardArrowDown" 
+                     Style="text-transform: none; font-weight: bold; border-radius: 8px; height: 42px;">
+                <MudMenuItem Icon="@Icons.Material.Filled.TrendingUp" OnClick="@(() => OnOpenCashAction.InvokeAsync(true))">Entrega Morralla</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.TrendingDown" OnClick="@(() => OnOpenCashAction.InvokeAsync(false))">Recolección de Efectivo</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Lock" OnClick="OnOpenCashCut" Style="color: var(--mud-palette-error);">Corte de Caja</MudMenuItem>
+            </MudMenu>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter] public CashRegisterDto? CurrentCashRegister { get; set; }
+    [Parameter] public string CurrentCashierName { get; set; } = "Empleado General";
+    [Parameter] public string ActiveSeries { get; set; } = "V";
+    [Parameter] public int ProjectedFolio { get; set; } = 1;
+    [Parameter] public string SelectedClientName { get; set; } = "Público General (Menudeo)";
+    [Parameter] public Guid? SelectedClientId { get; set; }
+    [Parameter] public List<UnpaidSaleDto> SuspendedSales { get; set; } = new();
+    [Parameter] public bool HasActiveSale { get; set; }
+
+    [Parameter] public EventCallback OnCatalogClicked { get; set; }
+    [Parameter] public EventCallback OnClientSearchClicked { get; set; }
+    [Parameter] public EventCallback<UnpaidSaleDto> OnResumeSale { get; set; }
+    [Parameter] public EventCallback<bool> OnOpenCashAction { get; set; }
+    [Parameter] public EventCallback OnOpenCashCut { get; set; }
+    [Parameter] public EventCallback OnOpenNotesHistory { get; set; }
+}

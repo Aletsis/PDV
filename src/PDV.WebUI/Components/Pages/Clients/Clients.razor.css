@@ -1,0 +1,35 @@
+.animate-spin {
+    animation: spin-animation 1.5s linear infinite;
+}
+
+@keyframes spin-animation {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.border-dashed {
+    border-style: dashed !important;
+    border-width: 1.5px !important;
+}
+
+.local-mode-monitor {
+    background-color: rgba(var(--mud-palette-surface-rgb), 0.6);
+    border-color: rgba(var(--mud-palette-text-secondary-rgb), 0.2);
+    backdrop-filter: blur(8px);
+}
+
+.monitor-label {
+    font-size: 0.7rem;
+    color: var(--mud-palette-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.monitor-val {
+    font-size: 0.85rem;
+    color: var(--mud-palette-text-primary);
+}
+
+.monitor-val-accent {
+    font-size: 0.85rem;
+}

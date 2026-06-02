@@ -1,0 +1,347 @@
+@page "/admin/departments"
+@using MediatR
+@using PDV.Application.Features.Departments.Queries.GetDepartments
+@using PDV.Application.Features.Departments.Commands.CreateDepartment
+@using PDV.Application.Features.Departments.Commands.UpdateDepartment
+@using PDV.Application.Features.Departments.Commands.DeleteDepartment
+@using PDV.Application.Features.Departments.Dtos
+@using PDV.Application.Features.Sync.Queries
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@implements IDisposable
+
+<PageTitle>Gestión de Departamentos</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Page Header & Mode Monitor -->
+    <PdvHeader Title="Departamentos"
+               Subtitle="Administra los departamentos para la clasificación y control jerárquico de tus productos."
+               Icon="@Icons.Material.Filled.Business"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            @if (isLocalMode)
+            {
+                <div class="local-mode-monitor d-flex align-center gap-3 px-4 py-2 border-dashed rounded-lg">
+                    <div class="d-flex flex-column">
+                        <span class="monitor-label">Base de Datos</span>
+                        <span class="monitor-val font-weight-medium">Local (SQLite)</span>
+                    </div>
+                    <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+                    <div class="d-flex flex-column align-end">
+                        <span class="monitor-label">Modo Operativo</span>
+                        <div class="d-flex align-center gap-1">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudDone" Size="Size.Small" Color="Color.Success" />
+                            <span class="monitor-val-accent text-success font-weight-bold">Solo Lectura</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </StatusAlert>
+        <Actions>
+            @if (!isLocalMode)
+            {
+                <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="OpenCreateDialog">
+                    Nuevo Departamento
+                </PdvInteractiveButton>
+            }
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="4">
+            <PdvKpiCard Title="Total Departamentos"
+                        Value="@totalDepartments.ToString()"
+                        Icon="@Icons.Material.Filled.Business"
+                        IconColor="Color.Primary"
+                        IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <PdvKpiCard Title="Activos"
+                        Value="@activeDepartments.ToString()"
+                        Icon="@Icons.Material.Filled.CheckCircle"
+                        IconColor="Color.Success"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <PdvKpiCard Title="Inactivos"
+                        Value="@inactiveDepartments.ToString()"
+                        Icon="@Icons.Material.Filled.Cancel"
+                        IconColor="Color.Error"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Server Only Mode Alert -->
+    @if (isLocalMode)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="border-solid" Style="border-radius: 12px; border-width: 1px; background: rgba(33, 150, 243, 0.05);">
+            La administración de departamentos se realiza únicamente en el servidor central. En esta terminal local, la información se actualiza automáticamente y se encuentra en modo de solo lectura.
+        </MudAlert>
+    }
+
+    <!-- Main Data Section -->
+    <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <!-- Table Toolbar -->
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 600px;">
+                <MudTextField T="string" Value="searchString" ValueChanged="OnSearchStringChanged" Placeholder="Buscar por Nombre o Descripción..." 
+                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                               IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Clearable="true" Class="flex-grow-1" />
+                
+                <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged" Label="Estado" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px;">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">Todos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(true)">Activos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">Inactivos</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!filteredDepartments.Any())"
+                            EmptyTitle="Sin departamentos"
+                            EmptyMessage="No se encontraron departamentos que coincidan con los filtros."
+                            EmptyIcon="@Icons.Material.Filled.Business"
+                            SkeletonRows="5"
+                            SkeletonColumns="4">
+            <MudDataGrid T="DepartmentDto" Items="@filteredDepartments" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+                         Dense="false" Elevation="0" Class="border border-solid rounded-lg">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <PropertyColumn Property="x => x.Description" Title="Descripción" />
+                    <PropertyColumn Property="x => x.ClasificacionId" Title="ID CONTPAQi (Clasificación 5)" HeaderStyle="width: 250px;" />
+                    <TemplateColumn Title="Estado" HeaderStyle="width: 150px;">
+                        <CellTemplate>
+                            @if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="font-weight-medium">Activo</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel" Class="font-weight-medium">Inactivo</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    @if (!isLocalMode)
+                    {
+                        <TemplateColumn Title="Acciones" HeaderStyle="width: 120px;" CellClass="d-flex justify-end gap-1">
+                            <CellTemplate>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                               OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                               OnClick="@(() => DeleteDepartment(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
+                            </CellTemplate>
+                        </TemplateColumn>
+                    }
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="DepartmentDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+@code {
+    private List<DepartmentDto> departments = new();
+    private List<DepartmentDto> filteredDepartments = new();
+    
+    private bool isLocalMode = false;
+    private bool isLoading = false;
+    
+    private int totalDepartments = 0;
+    private int activeDepartments = 0;
+    private int inactiveDepartments = 0;
+    
+    private string searchString = "";
+    private bool? filterActive = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
+        await LoadSyncStatus();
+        await LoadDepartments();
+    }
+
+    private void OnConnectionStatusChanged(bool isConnected)
+    {
+        InvokeAsync(async () => {
+            await LoadSyncStatus();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadSyncStatus()
+    {
+        try
+        {
+            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+            isLocalMode = syncStatus.IsLocalMode;
+        }
+        catch (Exception)
+        {
+            isLocalMode = false;
+        }
+    }
+
+    private async Task LoadDepartments()
+    {
+        isLoading = true;
+        try
+        {
+            departments = await Mediator.Send(new GetDepartmentsQuery(IncludeInactive: true));
+            UpdateMetrics();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar departamentos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void UpdateMetrics()
+    {
+        totalDepartments = departments.Count;
+        activeDepartments = departments.Count(d => d.IsActive);
+        inactiveDepartments = departments.Count(d => !d.IsActive);
+    }
+
+    private void ApplyFilters()
+    {
+        var query = departments.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchString))
+        {
+            query = query.Where(d => 
+                d.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                (d.Description != null && d.Description.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        if (filterActive.HasValue)
+        {
+            query = query.Where(d => d.IsActive == filterActive.Value);
+        }
+
+        filteredDepartments = query.ToList();
+    }
+
+    private void OnSearchStringChanged(string value)
+    {
+        searchString = value;
+        ApplyFilters();
+    }
+
+    private void OnFilterActiveChanged(bool? value)
+    {
+        filterActive = value;
+        ApplyFilters();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        if (isLocalMode) return;
+        
+        var parameters = new DialogParameters<DepartmentDialog>
+        {
+            { x => x.Model, new DepartmentDialog.DepartmentFormModel() }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<DepartmentDialog>("Nuevo Departamento", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is DepartmentDialog.DepartmentFormModel model)
+        {
+            try
+            {
+                var command = new CreateDepartmentCommand(model.Name, model.Description, model.ClasificacionId, model.IsActive);
+                await Mediator.Send(command);
+                Snackbar.Add("Departamento creado exitosamente", Severity.Success);
+                await LoadDepartments();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEditDialog(DepartmentDto department)
+    {
+        if (isLocalMode) return;
+
+        var model = new DepartmentDialog.DepartmentFormModel
+        {
+            Id = department.Id,
+            Name = department.Name,
+            Description = department.Description,
+            ClasificacionId = department.ClasificacionId,
+            IsActive = department.IsActive
+        };
+
+        var parameters = new DialogParameters<DepartmentDialog>
+        {
+            { x => x.Model, model }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<DepartmentDialog>("Editar Departamento", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is DepartmentDialog.DepartmentFormModel updatedModel)
+        {
+            try
+            {
+                var command = new UpdateDepartmentCommand(updatedModel.Id, updatedModel.Name, updatedModel.Description, updatedModel.ClasificacionId, updatedModel.IsActive);
+                await Mediator.Send(command);
+                Snackbar.Add("Departamento actualizado exitosamente", Severity.Success);
+                await LoadDepartments();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteDepartment(DepartmentDto department)
+    {
+        if (isLocalMode) return;
+
+        bool? result = await DialogService.ShowMessageBox(
+            "Eliminar Departamento",
+            $"¿Estás seguro que deseas eliminar el departamento '{department.Name}'?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteDepartmentCommand(department.Id));
+                Snackbar.Add("Departamento eliminado exitosamente", Severity.Success);
+                await LoadDepartments();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+}

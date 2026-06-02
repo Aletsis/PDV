@@ -1,0 +1,187 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudDialog MaxWidth="MaxWidth.Small" FullWidth="true">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="d-flex align-center gap-2 font-weight-bold mud-text-primary">
+            <MudIcon Icon="@Icons.Material.Filled.Payments" />
+            Cobro Multipago (Split Payment)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4">
+            <!-- Resumen de Cuenta -->
+            <MudPaper Outlined="true" Class="pa-4 bg-light d-flex justify-space-between align-center border-solid border mud-border-primary">
+                <div>
+                    <MudText Typo="Typo.subtitle1" Class="mud-text-secondary">TOTAL A COBRAR</MudText>
+                    <MudText Typo="Typo.h4" Class="font-weight-bold mud-text-primary">$@TotalAmount.ToString("F2")</MudText>
+                </div>
+                <div class="text-right">
+                    <MudText Typo="Typo.subtitle2" Class="@($"font-weight-bold {(RemainingAmount <= 0 ? "mud-text-success" : "mud-text-error")}")">
+                        @(RemainingAmount <= 0 ? "✓ Cubierto" : $"Pendiente: ${RemainingAmount.ToString("F2")}")
+                    </MudText>
+                    @if (ChangeAmount > 0)
+                    {
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold mud-text-success mt-1">Cambio: $@ChangeAmount.ToString("F2")</MudText>
+                    }
+                </div>
+            </MudPaper>
+
+            <!-- Inputs de pago -->
+            <MudForm @ref="form">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12">
+                        <MudNumericField T="decimal"
+                                         Label="Efectivo (Cash)"
+                                         @bind-Value="cashAmount"
+                                         Format="C2"
+                                         Min="0"
+                                         Variant="Variant.Outlined"
+                                         Adornment="Adornment.Start"
+                                         AdornmentIcon="@Icons.Material.Filled.AttachMoney"
+                                         HideSpinButtons="true"
+                                         Immediate="true"
+                                         OnBlur="Recalculate" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudNumericField T="decimal"
+                                         Label="Tarjeta (Debit/Credit Card)"
+                                         @bind-Value="cardAmount"
+                                         Format="C2"
+                                         Min="0"
+                                         Variant="Variant.Outlined"
+                                         Adornment="Adornment.Start"
+                                         AdornmentIcon="@Icons.Material.Filled.CreditCard"
+                                         HideSpinButtons="true"
+                                         Immediate="true"
+                                         OnBlur="Recalculate" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudNumericField T="decimal"
+                                         Label="Transferencia (Transfer)"
+                                         @bind-Value="transferAmount"
+                                         Format="C2"
+                                         Min="0"
+                                         Variant="Variant.Outlined"
+                                         Adornment="Adornment.Start"
+                                         AdornmentIcon="@Icons.Material.Filled.AccountBalance"
+                                         HideSpinButtons="true"
+                                         Immediate="true"
+                                         OnBlur="Recalculate" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+
+            <!-- Quick payment helpers for cash -->
+            @if (RemainingAmount > 0)
+            {
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <MudText Typo="Typo.caption" Class="w-100 mud-text-secondary">Efectivo rápido:</MudText>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => AddQuickCash(RemainingAmount))">Exacto ($@RemainingAmount.ToString("F2"))</MudButton>
+                    @foreach (var bill in QuickBills)
+                    {
+                        @if (bill > RemainingAmount)
+                        {
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => AddQuickCash(bill))">$@bill.ToString("F0")</MudButton>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined">Cancelar</MudButton>
+        <MudButton OnClick="Submit" 
+                   Color="Color.Success" 
+                   Variant="Variant.Filled" 
+                   Disabled="@(RemainingAmount > 0)"
+                   Class="px-6 font-weight-bold">
+            Confirmar Cobro
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public decimal TotalAmount { get; set; }
+
+    private decimal cashAmount;
+    private decimal cardAmount;
+    private decimal transferAmount;
+    
+    private MudForm form = default!;
+
+    private decimal TotalPaid => cashAmount + cardAmount + transferAmount;
+    private decimal RemainingAmount => Math.Max(0, TotalAmount - TotalPaid);
+    
+    // Change is calculated ONLY from cash payments when the total paid exceeds total amount
+    private decimal ChangeAmount
+    {
+        get
+        {
+            if (TotalPaid <= TotalAmount) return 0;
+            var excess = TotalPaid - TotalAmount;
+            return Math.Min(cashAmount, excess);
+        }
+    }
+
+    private readonly decimal[] QuickBills = { 20, 50, 100, 200, 500, 1000 };
+
+    private void AddQuickCash(decimal amount)
+    {
+        cashAmount = amount;
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        // Force Blazor re-render of calculated values
+        StateHasChanged();
+    }
+
+    private void Submit()
+    {
+        if (TotalPaid < TotalAmount)
+        {
+            Snackbar.Add("El monto pagado es insuficiente.", Severity.Error);
+            return;
+        }
+
+        // Determine the primary payment method for database compatibility
+        string primaryMethod = "Cash";
+        decimal maxAmount = cashAmount;
+
+        if (cardAmount > maxAmount)
+        {
+            primaryMethod = "CreditCard"; // Maps to DebitCard or CreditCard
+            maxAmount = cardAmount;
+        }
+        if (transferAmount > maxAmount)
+        {
+            primaryMethod = "Transfer";
+        }
+
+        var result = new SplitPaymentResult(
+            CashAmount: cashAmount,
+            CardAmount: cardAmount,
+            TransferAmount: transferAmount,
+            PrimaryMethod: primaryMethod,
+            Change: ChangeAmount
+        );
+
+        MudDialog.Close(DialogResult.Ok(result));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public record SplitPaymentResult(
+        decimal CashAmount,
+        decimal CardAmount,
+        decimal TransferAmount,
+        string PrimaryMethod,
+        decimal Change
+    );
+}

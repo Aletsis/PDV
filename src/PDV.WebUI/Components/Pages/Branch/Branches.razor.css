@@ -1,0 +1,31 @@
+.border-dashed {
+    border-style: dashed !important;
+    border-width: 1.5px !important;
+}
+
+.local-mode-monitor {
+    background-color: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.monitor-label {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.monitor-val {
+    font-size: 0.85rem;
+    color: #ffffff;
+    margin-top: 2px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.monitor-val-accent {
+    font-size: 0.85rem;
+    margin-top: 1px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}

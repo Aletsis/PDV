@@ -1,0 +1,100 @@
+@using FluentValidation
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudForm Model="@Model" @ref="form" Validation="@(departmentValidator.ValidateValue)">
+            <MudGrid Class="pt-2">
+                <!-- Nombre -->
+                <MudItem xs="12">
+                    <MudTextField Label="Nombre del Departamento" 
+                                  @bind-Value="Model.Name" 
+                                  For="@(() => Model.Name)" 
+                                  Required="true" 
+                                  Variant="Variant.Outlined" 
+                                  Margin="Margin.Dense" />
+                </MudItem>
+
+                <!-- Descripción -->
+                <MudItem xs="12">
+                    <MudTextField Label="Descripción (Opcional)" 
+                                  @bind-Value="Model.Description" 
+                                  For="@(() => Model.Description)" 
+                                  Variant="Variant.Outlined" 
+                                  Margin="Margin.Dense"
+                                  Lines="2" />
+                </MudItem>
+
+                <!-- CONTPAQi ClasificacionId -->
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="ID Clasificación 5 CONTPAQi" 
+                                     @bind-Value="Model.ClasificacionId" 
+                                     For="@(() => Model.ClasificacionId)" 
+                                     Variant="Variant.Outlined" 
+                                     Margin="Margin.Dense"
+                                     HelperText="Clasificación 5 de CONTPAQi" />
+                </MudItem>
+
+                <!-- Estado Activo -->
+                <MudItem xs="12" sm="6" Class="d-flex align-center justify-center">
+                    <MudSwitch T="bool" @bind-Value="Model.IsActive" Label="Departamento Activo" Color="Color.Success" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none; font-weight: bold; border-radius: 8px;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="Submit" IsLoading="@_saving">
+            Guardar Departamento
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public DepartmentFormModel Model { get; set; } = new();
+
+    private MudForm form = default!;
+    private DepartmentFormModelValidator departmentValidator = new();
+    private bool _saving = false;
+
+    void Cancel() => MudDialog.Cancel();
+
+    async Task Submit()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            _saving = true;
+            MudDialog.Close(DialogResult.Ok(Model));
+        }
+    }
+
+    public class DepartmentFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public int? ClasificacionId { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class DepartmentFormModelValidator : AbstractValidator<DepartmentFormModel>
+    {
+        public DepartmentFormModelValidator()
+        {
+            RuleFor(x => x.Name)
+                .NotEmpty().WithMessage("El nombre del departamento es requerido.")
+                .Length(1, 100).WithMessage("El nombre debe tener entre 1 y 100 caracteres.");
+        }
+
+        public Func<object, string, Task<IEnumerable<string>>> ValidateValue => async (model, propertyName) =>
+        {
+            var result = await ValidateAsync(ValidationContext<DepartmentFormModel>.CreateWithOptions((DepartmentFormModel)model, x => x.IncludeProperties(propertyName)));
+            if (result.IsValid)
+                return Array.Empty<string>();
+            return result.Errors.Select(e => e.ErrorMessage);
+        };
+    }
+}

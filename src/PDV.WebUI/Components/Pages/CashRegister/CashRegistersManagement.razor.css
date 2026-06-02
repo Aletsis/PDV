@@ -1,0 +1,73 @@
+.cr-ip-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-family: 'Roboto Mono', monospace;
+}
+.cr-ip-badge.assigned {
+    background: rgba(105, 240, 174, 0.12);
+    color: #69f0ae;
+    border: 1px solid rgba(105, 240, 174, 0.25);
+}
+.cr-ip-badge.unassigned {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.cr-mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.cr-mode-sales {
+    background: rgba(100, 181, 246, 0.12);
+    color: #64b5f6;
+    border: 1px solid rgba(100, 181, 246, 0.2);
+}
+.cr-mode-orders {
+    background: rgba(255, 183, 77, 0.12);
+    color: #ffb74d;
+    border: 1px solid rgba(255, 183, 77, 0.2);
+}
+.cr-action-btn {
+    opacity: 0.75;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.cr-action-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+.cr-table-row:hover {
+    background: rgba(255,255,255,0.03) !important;
+}
+.ip-input-wrapper {
+    position: relative;
+}
+.ip-validation-hint {
+    font-size: 0.74rem;
+    margin-top: 4px;
+    padding: 0 14px;
+}
+.ip-valid { color: #69f0ae; }
+.ip-invalid { color: #ff6b6b; }
+.ip-neutral { color: rgba(255,255,255,0.4); }
+.cr-server-ip-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(124, 77, 255, 0.1);
+    border: 1px solid rgba(124, 77, 255, 0.2);
+    border-radius: 8px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.6);
+}

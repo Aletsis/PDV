@@ -1,0 +1,49 @@
+@namespace PDV.WebUI.Components.Shared.UI
+
+<div class="pdv-grid-skeleton-container border border-solid rounded-lg" aria-busy="true" aria-live="polite">
+    @if (ShowHeader)
+    {
+        <div class="pdv-grid-skeleton-header d-flex gap-4 p-4 align-center">
+            @for (int c = 0; c < Columns; c++)
+            {
+                <div class="pdv-skeleton-th flex-grow-1">
+                    <div class="pdv-skeleton pdv-skeleton-bar"></div>
+                </div>
+            }
+        </div>
+    }
+    
+    <div class="pdv-grid-skeleton-rows">
+        @for (int r = 0; r < Rows; r++)
+        {
+            <div class="pdv-grid-skeleton-row d-flex gap-4 p-4 align-center border-bottom border-solid">
+                @for (int c = 0; c < Columns; c++)
+                {
+                    <div class="pdv-skeleton-td flex-grow-1">
+                        <div class="pdv-skeleton pdv-skeleton-line @(c == 0 ? "pdv-w-50" : c == 1 ? "pdv-w-75" : "pdv-w-100")"></div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Total row count of pulsing skeletons to output.
+    /// </summary>
+    [Parameter]
+    public int Rows { get; set; } = 5;
+
+    /// <summary>
+    /// Total column count of pulsing skeletons per row.
+    /// </summary>
+    [Parameter]
+    public int Columns { get; set; } = 4;
+
+    /// <summary>
+    /// Toggle rendering the header skeleton block.
+    /// </summary>
+    [Parameter]
+    public bool ShowHeader { get; set; } = true;
+}

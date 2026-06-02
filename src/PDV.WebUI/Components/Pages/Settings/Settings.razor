@@ -1,0 +1,853 @@
+@page "/admin/settings"
+@rendermode InteractiveServer
+@using MediatR
+@using PDV.Application.Features.SystemConfiguration.Queries.GetSystemConfiguration
+@using PDV.Application.Features.SystemConfiguration.Commands.UpdateSystemConfiguration
+@using PDV.Application.Features.SystemConfiguration.Commands.SendTestEmail
+@using PDV.Application.Features.SystemConfiguration.Commands.CreateBackup
+@using PDV.Application.Features.SystemConfiguration.Queries.ListBackups
+@using PDV.Application.Features.SystemConfiguration.Commands.RestoreBackup
+@using PDV.Application.Features.SystemConfiguration.Commands.DeleteBackup
+@using PDV.Application.Features.SystemConfiguration.Dtos
+@using PDV.Application.Features.Cashiers.Queries.ListCashiers
+@using PDV.Application.Features.Cashiers.Dtos
+@using System
+@using System.IO
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Configuración del Sistema — Administración</PageTitle>
+
+<!-- Page Header & Actions -->
+<PdvHeader Title="Configuración del Sistema"
+           Subtitle="Gestiona la información de la empresa, tickets, logos, correo SMTP, alertas y respaldos."
+           Icon="@Icons.Material.Filled.Settings"
+           IconColor="Color.Primary">
+    <Actions>
+        <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveConfiguration" IsLoading="@_isSaving">
+            Guardar Configuración
+        </PdvInteractiveButton>
+    </Actions>
+</PdvHeader>
+
+@if (_isLoading)
+{
+    <MudStack Class="mt-6">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="250px" Style="border-radius: 14px;" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" Style="border-radius: 14px;" />
+    </MudStack>
+}
+else
+{
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6 mt-2" Style="border-radius: 14px;">
+        
+        @* ── Empresa Panel ──────────────────────────────────────── *@
+        <MudTabPanel Text="Empresa" Icon="@Icons.Material.Filled.Business">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Business" />
+                    Información Fiscal de la Empresa
+                </div>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="config.CompanyName" Label="Nombre de la Empresa" Variant="Variant.Outlined" Required="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Store" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="config.TaxId" Label="RFC / Tax ID" Variant="Variant.Outlined" Required="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Assignment" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="string" @bind-Value="config.FiscalRegime" Label="Régimen Fiscal" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Class">
+                            <MudSelectItem Value="@("601")">601 - General de Ley Personas Morales</MudSelectItem>
+                            <MudSelectItem Value="@("603")">603 - Personas Morales con Fines no Lucrativos</MudSelectItem>
+                            <MudSelectItem Value="@("605")">605 - Sueldos y Salarios e Ingresos Asimilados</MudSelectItem>
+                            <MudSelectItem Value="@("606")">606 - Arrendamiento</MudSelectItem>
+                            <MudSelectItem Value="@("612")">612 - Personas Físicas con Actividades Empresariales</MudSelectItem>
+                            <MudSelectItem Value="@("621")">621 - Incorporación Fiscal</MudSelectItem>
+                            <MudSelectItem Value="@("626")">626 - Régimen Simplificado de Confianza (RESICO)</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="config.Phone" Label="Teléfono" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="config.Email" Label="Email de la Empresa" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="config.Address" Label="Dirección Fiscal Completa" Variant="Variant.Outlined" Lines="2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.LocationOn" />
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── Ticket Panel ────────────────────────────────────────── *@
+        <MudTabPanel Text="Ticket" Icon="@Icons.Material.Filled.Receipt">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Receipt" />
+                    Configuración de Tickets de Venta
+                </div>
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="config.TicketWidth" Label="Ancho del Ticket (caracteres)" Variant="Variant.Outlined" Min="32" Max="80" HelperText="48 = Papel estándar de 80mm" />
+                    </MudItem>
+                    <MudItem xs="6" md="4">
+                        <MudSwitch @bind-Value="config.PrintLogoOnTicket" Color="Color.Primary" Label="Imprimir Logo en Ticket" Style="margin-top: 12px;" />
+                    </MudItem>
+                    <MudItem xs="6" md="4">
+                        <MudSwitch @bind-Value="config.AutoPrintTicket" Color="Color.Primary" Label="Impresión Automática" Style="margin-top: 12px;" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="config.TicketHeader" Label="Texto de Encabezado del Ticket" Variant="Variant.Outlined" Lines="3" Placeholder="Ej. ¡BIENVENIDOS!&#10;GRACIAS POR SU PREFERENCIA" HelperText="Este texto saldrá al inicio de cada ticket" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="config.TicketFooter" Label="Texto de Pie de Página del Ticket" Variant="Variant.Outlined" Lines="3" Placeholder="Ej. No se aceptan devoluciones después de 7 días.&#10;Visite nuestro sitio web." HelperText="Este texto saldrá al final de cada ticket" />
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── Logos Panel ─────────────────────────────────────────── *@
+        <MudTabPanel Text="Logos" Icon="@Icons.Material.Filled.Image">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Image" />
+                    Gestión de Logos de Marca
+                </div>
+                <MudText Typo="Typo.body2" Class="mb-4" Style="color: rgba(255,255,255,0.5);">Carga las versiones de tus logotipos para los distintos usos en el sistema.</MudText>
+                
+                <MudGrid>
+                    @* Logo Ticket *@
+                    <MudItem xs="12" md="4">
+                        <div class="logo-upload-container">
+                            <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight:600;">Logo para Ticket</MudText>
+                            <MudFileUpload T="IBrowserFile" Accept=".png,.jpg,.jpeg" OnFilesChanged="@((e) => OnLogoSelected(e, 1))">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.CloudUpload" Size="Size.Small">
+                                        Subir Logo Ticket
+                                    </MudButton>
+                                </ActivatorContent>
+                            </MudFileUpload>
+                            
+                            <div class="mt-4 d-flex flex-column align-center justify-center" style="min-height: 160px; background: rgba(0,0,0,0.1); border-radius: 8px; padding: 12px;">
+                                @if (logoPreviewTicket != null)
+                                {
+                                    <MudImage Src="@logoPreviewTicket" Alt="Vista previa Ticket" Width="120" Height="120" ObjectFit="ObjectFit.Contain" />
+                                    <MudButton Color="Color.Error" Variant="Variant.Text" Size="Size.Small" OnClick="@(() => ClearLogoSelection(1))" Class="mt-2">Quitar</MudButton>
+                                }
+                                else if (config.LogoImage != null && config.LogoImage.Length > 0)
+                                {
+                                    <MudImage Src="@($"data:image/png;base64,{Convert.ToBase64String(config.LogoImage)}")" Alt="Logo Actual" Width="120" Height="120" ObjectFit="ObjectFit.Contain" />
+                                    <MudText Typo="Typo.caption" Class="mt-2" Style="color: rgba(255,255,255,0.3);">Logo Activo</MudText>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Print" Style="font-size: 3rem; color: rgba(255,255,255,0.1);" />
+                                    <MudText Typo="Typo.caption" Class="mt-2" Style="color: rgba(255,255,255,0.25);">Sin logotipo de ticket</MudText>
+                                }
+                            </div>
+                        </div>
+                    </MudItem>
+
+                    @* Logo CFDI *@
+                    <MudItem xs="12" md="4">
+                        <div class="logo-upload-container">
+                            <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight:600;">Logo para CFDI / Facturas</MudText>
+                            <MudFileUpload T="IBrowserFile" Accept=".png,.jpg,.jpeg" OnFilesChanged="@((e) => OnLogoSelected(e, 2))">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.CloudUpload" Size="Size.Small">
+                                        Subir Logo CFDI
+                                    </MudButton>
+                                </ActivatorContent>
+                            </MudFileUpload>
+                            
+                            <div class="mt-4 d-flex flex-column align-center justify-center" style="min-height: 160px; background: rgba(0,0,0,0.1); border-radius: 8px; padding: 12px;">
+                                @if (logoPreviewCfdi != null)
+                                {
+                                    <MudImage Src="@logoPreviewCfdi" Alt="Vista previa CFDI" Width="120" Height="120" ObjectFit="ObjectFit.Contain" />
+                                    <MudButton Color="Color.Error" Variant="Variant.Text" Size="Size.Small" OnClick="@(() => ClearLogoSelection(2))" Class="mt-2">Quitar</MudButton>
+                                }
+                                else if (config.LogoCfdiImage != null && config.LogoCfdiImage.Length > 0)
+                                {
+                                    <MudImage Src="@($"data:image/png;base64,{Convert.ToBase64String(config.LogoCfdiImage)}")" Alt="Logo Actual" Width="120" Height="120" ObjectFit="ObjectFit.Contain" />
+                                    <MudText Typo="Typo.caption" Class="mt-2" Style="color: rgba(255,255,255,0.3);">Logo Activo</MudText>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Style="font-size: 3rem; color: rgba(255,255,255,0.1);" />
+                                    <MudText Typo="Typo.caption" Class="mt-2" Style="color: rgba(255,255,255,0.25);">Sin logotipo de factura</MudText>
+                                }
+                            </div>
+                        </div>
+                    </MudItem>
+
+                    @* Logo App *@
+                    <MudItem xs="12" md="4">
+                        <div class="logo-upload-container">
+                            <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight:600;">Logo para Interfaz (App)</MudText>
+                            <MudFileUpload T="IBrowserFile" Accept=".png,.jpg,.jpeg" OnFilesChanged="@((e) => OnLogoSelected(e, 3))">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.CloudUpload" Size="Size.Small">
+                                        Subir Logo App
+                                    </MudButton>
+                                </ActivatorContent>
+                            </MudFileUpload>
+                            
+                            <div class="mt-4 d-flex flex-column align-center justify-center" style="min-height: 160px; background: rgba(0,0,0,0.1); border-radius: 8px; padding: 12px;">
+                                @if (logoPreviewApp != null)
+                                {
+                                    <MudImage Src="@logoPreviewApp" Alt="Vista previa App" Width="120" Height="120" ObjectFit="ObjectFit.Contain" />
+                                    <MudButton Color="Color.Error" Variant="Variant.Text" Size="Size.Small" OnClick="@(() => ClearLogoSelection(3))" Class="mt-2">Quitar</MudButton>
+                                }
+                                else if (config.LogoAppImage != null && config.LogoAppImage.Length > 0)
+                                {
+                                    <MudImage Src="@($"data:image/png;base64,{Convert.ToBase64String(config.LogoAppImage)}")" Alt="Logo Actual" Width="120" Height="120" ObjectFit="ObjectFit.Contain" />
+                                    <MudText Typo="Typo.caption" Class="mt-2" Style="color: rgba(255,255,255,0.3);">Logo Activo</MudText>
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Computer" Style="font-size: 3rem; color: rgba(255,255,255,0.1);" />
+                                    <MudText Typo="Typo.caption" Class="mt-2" Style="color: rgba(255,255,255,0.25);">Sin logotipo de interfaz</MudText>
+                                }
+                            </div>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── Correo Panel ────────────────────────────────────────── *@
+        <MudTabPanel Text="Correo" Icon="@Icons.Material.Filled.Email">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Email" />
+                    Configuración de Correo Electrónico (SMTP)
+                </div>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="config.SmtpServer" Label="Servidor SMTP" Variant="Variant.Outlined" Placeholder="Ej. smtp.gmail.com" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Dns" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudNumericField @bind-Value="config.SmtpPort" Label="Puerto" Variant="Variant.Outlined" Placeholder="Ej. 587 o 465" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.SettingsEthernet" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="config.SmtpUser" Label="Usuario / Correo Electrónico" Variant="Variant.Outlined" Placeholder="usuario@empresa.com" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountCircle" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="config.SmtpPassword" InputType="InputType.Password" Label="Contraseña" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Password" />
+                    </MudItem>
+
+                    <MudItem xs="12" Class="mt-4">
+                        <MudDivider />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <div style="background: rgba(255,255,255,0.02); padding: 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight: 600; color: #ffb74d;">Probar Configuración SMTP</MudText>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+                                <MudTextField @bind-Value="_testEmailDest" Label="Correo destinatario de prueba" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 400px; flex: 1;" Placeholder="destinatario@correo.com" />
+                                <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Send" OnClick="SendTestEmail" Disabled="_isSendingTest" Style="border-radius: 8px; text-transform:none; font-weight:600; height: 40px;">
+                                    @(_isSendingTest ? "Enviando..." : "Enviar Correo de Prueba")
+                                </MudButton>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── Alertas Panel ────────────────────────────────────────── *@
+        <MudTabPanel Text="Alertas" Icon="@Icons.Material.Filled.NotificationsActive">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" />
+                    Alertas y Avisos del Sistema
+                </div>
+                <MudText Typo="Typo.body2" Class="mb-6" Style="color: rgba(255,255,255,0.5);">Activa las notificaciones del sistema ante eventos críticos del negocio.</MudText>
+                
+                <MudGrid Spacing="4">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudPaper Class="p-4 d-flex flex-column align-center justify-center text-center" Style="background: rgba(255,255,255,0.02); border-radius: 12px; border:1px solid rgba(255,255,255,0.05); min-height: 150px;">
+                            <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Style="font-size: 2.5rem; color:#69f0ae;" />
+                            <MudText Typo="Typo.subtitle2" Class="mt-2" Style="font-weight: 600;">Efectivo en Caja</MudText>
+                            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.4);" Class="mb-3">Límite máximo excedido</MudText>
+                            <MudSwitch @bind-Value="config.AlertCashLimit" Color="Color.Success" />
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudPaper Class="p-4 d-flex flex-column align-center justify-center text-center" Style="background: rgba(255,255,255,0.02); border-radius: 12px; border:1px solid rgba(255,255,255,0.05); min-height: 150px;">
+                            <MudIcon Icon="@Icons.Material.Filled.Alarm" Style="font-size: 2.5rem; color:#ffb74d;" />
+                            <MudText Typo="Typo.subtitle2" Class="mt-2" Style="font-weight: 600;">Apertura Tardía</MudText>
+                            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.4);" Class="mb-3">Corte de caja a destiempo</MudText>
+                            <MudSwitch @bind-Value="config.AlertLateOpening" Color="Color.Warning" />
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudPaper Class="p-4 d-flex flex-column align-center justify-center text-center" Style="background: rgba(255,255,255,0.02); border-radius: 12px; border:1px solid rgba(255,255,255,0.05); min-height: 150px;">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Style="font-size: 2.5rem; color:#ff6b6b;" />
+                            <MudText Typo="Typo.subtitle2" Class="mt-2" Style="font-weight: 600;">Fallas del Sistema</MudText>
+                            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.4);" Class="mb-3">Errores críticos de base de datos</MudText>
+                            <MudSwitch @bind-Value="config.AlertSystemFailure" Color="Color.Error" />
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudPaper Class="p-4 d-flex flex-column align-center justify-center text-center" Style="background: rgba(255,255,255,0.02); border-radius: 12px; border:1px solid rgba(255,255,255,0.05); min-height: 150px;">
+                            <MudIcon Icon="@Icons.Material.Filled.PendingActions" Style="font-size: 2.5rem; color:#ce93d8;" />
+                            <MudText Typo="Typo.subtitle2" Class="mt-2" Style="font-weight: 600;">Pedido Tardío</MudText>
+                            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.4);" Class="mb-3">Orden pendiente excesiva</MudText>
+                            <MudSwitch @bind-Value="config.AlertLateOrder" Color="Color.Secondary" />
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── Respaldos Panel ──────────────────────────────────────── *@
+        <MudTabPanel Text="Respaldos" Icon="@Icons.Material.Filled.Backup">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Backup" />
+                    Copias de Seguridad (SQLite)
+                </div>
+                
+                <MudGrid>
+                    <MudItem xs="12" md="8">
+                        <MudTextField @bind-Value="config.BackupDirectory" Label="Directorio para Respaldos de Base de Datos" Variant="Variant.Outlined" Placeholder="C:\RespaldosPOS" HelperText="Dejar vacío para usar ruta interna predeterminada (/backups)" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Folder" />
+                    </MudItem>
+                    <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="CreateNewBackup" Disabled="_isCreatingBackup" Style="border-radius: 8px; text-transform:none; font-weight:600; height: 50px;">
+                            @(_isCreatingBackup ? "Creando Respaldo..." : "Crear Respaldo Ahora")
+                        </MudButton>
+                    </MudItem>
+                    
+                    <MudItem xs="12" Class="mt-4">
+                        <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight: 600; color: #64b5f6;">Historial de Copias de Seguridad</MudText>
+                        
+                        @if (_isHistoryLoading)
+                        {
+                            <MudProgressCircular Color="Color.Info" Indeterminate="true" Class="my-4" />
+                        }
+                        else
+                        {
+                            <MudTable Items="_backups" Dense="true" Hover="true" Bordered="false" Striped="true" Elevation="0" RowClass="settings-row-hover" Style="border-radius: 8px; background: rgba(0,0,0,0.15);">
+                                <HeaderContent>
+                                    <MudTh>Nombre de Archivo</MudTh>
+                                    <MudTh>Fecha de Creación</MudTh>
+                                    <MudTh>Tamaño</MudTh>
+                                    <MudTh Style="width: 140px; text-align: center;">Acciones</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIcon Icon="@Icons.Material.Filled.Storage" Style="color: rgba(255,255,255,0.4); font-size:18px;" />
+                                            <span style="font-family: monospace;">@context.FileName</span>
+                                        </MudStack>
+                                    </MudTd>
+                                    <MudTd>@context.CreatedAt.ToString("g")</MudTd>
+                                    <MudTd>@FormatBytes(context.SizeBytes)</MudTd>
+                                    <MudTd Style="text-align: center;">
+                                        <MudTooltip Text="Restaurar Base de Datos">
+                                            <MudIconButton Icon="@Icons.Material.Filled.RestorePage" Color="Color.Warning" Size="Size.Small" OnClick="@(() => ConfirmRestoreBackup(context))" />
+                                        </MudTooltip>
+                                        <MudTooltip Text="Eliminar Respaldo">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteBackupFile(context))" />
+                                        </MudTooltip>
+                                    </MudTd>
+                                </RowTemplate>
+                                <NoRecordsContent>
+                                    <div class="py-6 text-center" style="color: rgba(255,255,255,0.25);">
+                                        <MudIcon Icon="@Icons.Material.Filled.History" Style="font-size:3rem;" />
+                                        <MudText Typo="Typo.body2" Class="mt-2">No se encontraron copias de seguridad en la carpeta especificada.</MudText>
+                                    </div>
+                                </NoRecordsContent>
+                            </MudTable>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── Automatización Panel ─────────────────────────────────── *@
+        <MudTabPanel Text="Automatización" Icon="@Icons.Material.Filled.Autorenew">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Autorenew" />
+                    Tareas y Procesos Automáticos
+                </div>
+                
+                <MudGrid>
+                    @* Reportes *@
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="p-4" Style="background: rgba(255,255,255,0.02); border-radius: 12px; border:1px solid rgba(255,255,255,0.05); height: 100%;">
+                            <div class="d-flex align-center justify-between mb-4">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@Icons.Material.Filled.MailOutline" Style="color: #64b5f6;" />
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight:600;">Envío Automático de Reportes</MudText>
+                                </MudStack>
+                                <MudSwitch @bind-Value="config.AutoReportEnabled" Color="Color.Primary" />
+                            </div>
+                            
+                            <MudStack Spacing="3" Class="mt-2">
+                                <MudSelect T="Guid" Label="Destinatarios del Reporte" MultiSelection="true" SelectedValues="_selectedReportUsers" SelectedValuesChanged="OnReportUsersChanged" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Group" Disabled="!config.AutoReportEnabled">
+                                    @foreach (var c in _cashiers)
+                                    {
+                                        <MudSelectItem T="Guid" Value="c.Id">@c.Name (@c.EmployeeId)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                
+                                <MudTimePicker Label="Hora de Envío Diario" @bind-Time="config.AutoReportTime" Variant="Variant.Outlined" AmPm="true" Disabled="!config.AutoReportEnabled" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccessTime" />
+                            </MudStack>
+                        </MudPaper>
+                    </MudItem>
+
+                    @* Respaldos *@
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="p-4" Style="background: rgba(255,255,255,0.02); border-radius: 12px; border:1px solid rgba(255,255,255,0.05); height: 100%;">
+                            <div class="d-flex align-center justify-between mb-4">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@Icons.Material.Filled.History" Style="color: #69f0ae;" />
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight:600;">Respaldos Automáticos Diarios</MudText>
+                                </MudStack>
+                                <MudSwitch @bind-Value="config.AutoBackupEnabled" Color="Color.Success" />
+                            </div>
+                            
+                            <MudStack Spacing="3" Class="mt-2">
+                                <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">El sistema creará una copia de seguridad en segundo plano diariamente en la hora establecida sin interrumpir las ventas.</MudText>
+                                <MudTimePicker Label="Hora de Respaldo Diario" @bind-Time="config.AutoBackupTime" Variant="Variant.Outlined" AmPm="true" Disabled="!config.AutoBackupEnabled" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccessTime" />
+                            </MudStack>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
+        @* ── API Comercial Panel ───────────────────────────────────── *@
+        <MudTabPanel Text="API Comercial" Icon="@Icons.Material.Filled.Hub">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Hub" />
+                    Integración con Sistema Comercial
+                </div>
+                <MudText Typo="Typo.body2" Class="mb-6" Style="color: rgba(255,255,255,0.5);">Configura la URL base y la llave de API para conectar el Punto de Venta con tu sistema Comercial.</MudText>
+
+                <MudGrid>
+                    <MudItem xs="12">
+                        <div style="background: linear-gradient(135deg, rgba(100,181,246,0.07) 0%, rgba(129,212,250,0.04) 100%); border: 1px solid rgba(100,181,246,0.18); border-radius: 12px; padding: 20px 24px; margin-bottom: 8px;">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Style="color: #64b5f6; font-size: 1.1rem;" />
+                                <MudText Typo="Typo.body2" Style="color: #90caf9;">La API Key se almacena de forma segura y se usa en cada petición al sistema Comercial como encabezado de autenticación.</MudText>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="12" md="7">
+                        <MudTextField @bind-Value="config.ComercialApiUrl"
+                                      Label="URL Base de la API Comercial"
+                                      Variant="Variant.Outlined"
+                                      Placeholder="https://api.comercial.miempresa.com"
+                                      HelperText="Incluye el protocolo (https://) pero sin barra final"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Language"
+                                      InputType="InputType.Url" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="5">
+                        <MudTextField @bind-Value="config.ComercialApiKey"
+                                      Label="API Key"
+                                      Variant="Variant.Outlined"
+                                      Placeholder="Ej. sk-abc123..."
+                                      HelperText="Llave secreta de autenticación proporcionada por Comercial"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.VpnKey"
+                                      InputType="InputType.Password" />
+                    </MudItem>
+
+                    <MudItem xs="12" Class="mt-2">
+                        <MudDivider />
+                    </MudItem>
+
+                    @* Estado de la conexión *@
+                    <MudItem xs="12">
+                        <div style="background: rgba(255,255,255,0.02); padding: 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight: 600; color: #ffb74d;">Estado de Conexión</MudText>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+                                @if (string.IsNullOrWhiteSpace(config.ComercialApiUrl))
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.LinkOff" Color="Color.Default" Variant="Variant.Outlined" Style="border-radius: 8px;">Sin configurar</MudChip>
+                                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">Configura la URL y la API Key para habilitar la integración con el sistema Comercial.</MudText>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Link" Color="Color.Success" Variant="Variant.Outlined" Style="border-radius: 8px;">URL configurada</MudChip>
+                                    @if (!string.IsNullOrWhiteSpace(config.ComercialApiKey))
+                                    {
+                                        <MudChip T="string" Icon="@Icons.Material.Filled.VpnKey" Color="Color.Info" Variant="Variant.Outlined" Style="border-radius: 8px;">API Key configurada</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Icon="@Icons.Material.Filled.VpnKeyOff" Color="Color.Warning" Variant="Variant.Outlined" Style="border-radius: 8px;">API Key pendiente</MudChip>
+                                    }
+                                }
+                            </MudStack>
+                        </div>
+                    </MudItem>
+
+                    @* Sincronización Manual *@
+                    <MudItem xs="12" Class="mt-4">
+                        <div style="background: rgba(255,255,255,0.02); padding: 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <MudText Typo="Typo.subtitle2" Class="mb-3" Style="font-weight: 600; color: #64b5f6;">Sincronización Manual</MudText>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.Sync"
+                                           OnClick="OpenSyncDialog"
+                                           Style="border-radius: 8px; text-transform:none; font-weight:600; height: 40px;">
+                                    Sincronizar Catálogos
+                                </MudButton>
+                                <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.4);">
+                                    Permite forzar la sincronización manual de catálogos como Unidades de Medida en tiempo real.
+                                </MudText>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    // ── Estado ─────────────────────────────────────────────────
+    private SystemConfigurationDto config = new();
+    private List<CashierDto> _cashiers = new();
+    private List<BackupDto> _backups = new();
+    private IEnumerable<Guid> _selectedReportUsers = new HashSet<Guid>();
+    
+    private void OnReportUsersChanged(IEnumerable<Guid> values)
+    {
+        _selectedReportUsers = values;
+    }
+    
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private bool _isSendingTest = false;
+    private bool _isCreatingBackup = false;
+    private bool _isHistoryLoading = false;
+
+    // Logos local states
+    private string? logoPreviewTicket;
+    private string? logoPreviewCfdi;
+    private string? logoPreviewApp;
+    
+    private byte[]? newLogoBytesTicket;
+    private byte[]? newLogoBytesCfdi;
+    private byte[]? newLogoBytesApp;
+
+    // Test Smtp state
+    private string _testEmailDest = string.Empty;
+
+    // ── Ciclo de vida ──────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            config = await Mediator.Send(new GetSystemConfigurationQuery());
+            _cashiers = await Mediator.Send(new ListCashiersQuery());
+
+            // Bind Automatization selections
+            if (!string.IsNullOrEmpty(config.AutoReportUsers))
+            {
+                _selectedReportUsers = config.AutoReportUsers
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(Guid.Parse)
+                    .ToHashSet();
+            }
+
+            await LoadBackupHistory();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar configuración: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadBackupHistory()
+    {
+        _isHistoryLoading = true;
+        try
+        {
+            _backups = await Mediator.Send(new ListBackupsQuery(config.BackupDirectory));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar historial de respaldos: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            _isHistoryLoading = false;
+        }
+    }
+
+    // ── Carga e interacción de Logos ─────────────────────────────
+    private async Task OnLogoSelected(InputFileChangeEventArgs e, int logoType)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        if (file.Size > 2 * 1024 * 1024)
+        {
+            Snackbar.Add("El archivo supera el tamaño máximo de 2MB.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+            var b64Preview = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}";
+
+            if (logoType == 1) // Ticket
+            {
+                newLogoBytesTicket = bytes;
+                logoPreviewTicket = b64Preview;
+            }
+            else if (logoType == 2) // CFDI
+            {
+                newLogoBytesCfdi = bytes;
+                logoPreviewCfdi = b64Preview;
+            }
+            else if (logoType == 3) // App
+            {
+                newLogoBytesApp = bytes;
+                logoPreviewApp = b64Preview;
+            }
+
+            Snackbar.Add("Vista previa del logo cargada exitosamente.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al leer el archivo: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void ClearLogoSelection(int logoType)
+    {
+        if (logoType == 1)
+        {
+            newLogoBytesTicket = null;
+            logoPreviewTicket = null;
+        }
+        else if (logoType == 2)
+        {
+            newLogoBytesCfdi = null;
+            logoPreviewCfdi = null;
+        }
+        else if (logoType == 3)
+        {
+            newLogoBytesApp = null;
+            logoPreviewApp = null;
+        }
+    }
+
+    // ── Correo SMTP de Prueba ─────────────────────────────────────
+    private async Task SendTestEmail()
+    {
+        if (string.IsNullOrWhiteSpace(config.SmtpServer) || !config.SmtpPort.HasValue || string.IsNullOrWhiteSpace(config.SmtpUser))
+        {
+            Snackbar.Add("Por favor complete los campos de SMTP antes de enviar una prueba.", Severity.Warning);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_testEmailDest))
+        {
+            Snackbar.Add("Debe ingresar un destinatario de prueba.", Severity.Warning);
+            return;
+        }
+
+        _isSendingTest = true;
+        try
+        {
+            await Mediator.Send(new SendTestEmailCommand(
+                config.SmtpServer,
+                config.SmtpPort.Value,
+                config.SmtpUser,
+                config.SmtpPassword ?? string.Empty,
+                _testEmailDest
+            ));
+            Snackbar.Add("¡Correo de prueba enviado exitosamente!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al enviar correo de prueba: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSendingTest = false;
+        }
+    }
+
+    // ── Respaldos ────────────────────────────────────────────────
+    private async Task CreateNewBackup()
+    {
+        _isCreatingBackup = true;
+        try
+        {
+            var path = await Mediator.Send(new CreateBackupCommand(config.BackupDirectory));
+            Snackbar.Add($"Respaldo creado con éxito en: {Path.GetFileName(path)}", Severity.Success);
+            await LoadBackupHistory();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al crear respaldo: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isCreatingBackup = false;
+        }
+    }
+
+    private async Task ConfirmRestoreBackup(BackupDto b)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "⚠️ Restaurar Base de Datos",
+            $"¿Estás seguro de que deseas restaurar el archivo '{b.FileName}'? Se creará una copia de seguridad temporal de tu base de datos activa antes de sobreescribirla.",
+            yesText: "Restaurar ahora", cancelText: "Cancelar"
+        );
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await Mediator.Send(new RestoreBackupCommand(b.FullPath));
+            Snackbar.Add("Base de datos restaurada con éxito. Recargue la aplicación para refrescar.", Severity.Success);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al restaurar base de datos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteBackupFile(BackupDto b)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Eliminar Respaldo",
+            $"¿Estás seguro de que deseas eliminar permanentemente '{b.FileName}'?",
+            yesText: "Eliminar", cancelText: "Cancelar"
+        );
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await Mediator.Send(new DeleteBackupCommand(b.FullPath));
+            Snackbar.Add("Respaldo eliminado.", Severity.Success);
+            await LoadBackupHistory();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar archivo: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // ── Guardar Configuración principal ──────────────────────────
+    private async Task SaveConfiguration()
+    {
+        _isSaving = true;
+        try
+        {
+            // Sync selected automation report users to comma separated string
+            config.AutoReportUsers = _selectedReportUsers != null && _selectedReportUsers.Any()
+                ? string.Join(",", _selectedReportUsers)
+                : string.Empty;
+
+            await Mediator.Send(new UpdateSystemConfigurationCommand(
+                config.CompanyName,
+                config.TaxId,
+                config.FiscalRegime ?? "601",
+                config.Address,
+                config.Phone,
+                config.Email,
+                
+                config.TicketWidth,
+                config.PrintLogoOnTicket,
+                config.AutoPrintTicket,
+                config.TicketHeader,
+                config.TicketFooter,
+
+                config.SmtpServer,
+                config.SmtpPort,
+                config.SmtpUser,
+                config.SmtpPassword,
+
+                config.AlertCashLimit,
+                config.AlertLateOpening,
+                config.AlertSystemFailure,
+                config.AlertLateOrder,
+
+                config.BackupDirectory,
+
+                config.AutoReportEnabled,
+                config.AutoReportUsers,
+                config.AutoReportTime,
+                config.AutoBackupEnabled,
+                config.AutoBackupTime,
+
+                newLogoBytesTicket,
+                newLogoBytesCfdi,
+                newLogoBytesApp,
+
+                config.ComercialApiUrl,
+                config.ComercialApiKey
+            ));
+
+            // Reload data to refresh logo preview fields and clear temporal states
+            await LoadData();
+            ClearLogoSelection(1);
+            ClearLogoSelection(2);
+            ClearLogoSelection(3);
+
+            Snackbar.Add("Configuración guardada exitosamente.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar configuración: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void OpenSyncDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        DialogService.Show<SyncDialog>("Sincronización Manual", options);
+    }
+
+    private string FormatBytes(long bytes)
+    {
+        string[] suffix = { "B", "KB", "MB", "GB", "TB" };
+        int i;
+        double dblSByte = bytes;
+        for (i = 0; i < suffix.Length && bytes >= 1024; i++, bytes /= 1024)
+        {
+            dblSByte = bytes / 1024.0;
+        }
+        return $"{dblSByte:0.##} {suffix[i]}";
+    }
+}

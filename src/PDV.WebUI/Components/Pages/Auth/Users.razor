@@ -1,0 +1,400 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Identity
+@using PDV.Infrastructure.Identity
+@using Microsoft.EntityFrameworkCore
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Gestión de Usuarios</PageTitle>
+<div class="d-flex flex-column gap-6">
+
+    <!-- Page Header & Metrics unified in brand layout -->
+    <PdvHeader Title="Gestión de Usuarios"
+               Subtitle="Administra los usuarios del sistema, sus roles y permisos de acceso."
+               Icon="@Icons.Material.Filled.ManageAccounts"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            <div class="d-flex align-center gap-3 px-4 py-2 border-solid border mud-border-secondary" style="border-radius: 12px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.Shield" Color="Color.Primary" Size="Size.Small" />
+                <div class="d-flex flex-column">
+                    <span style="font-size: 0.72rem; color: rgba(255,255,255,0.5); text-transform: uppercase;">Módulo</span>
+                    <strong style="font-size: 0.82rem; color: #ffffff;">Solo Servidor</strong>
+                </div>
+            </div>
+        </StatusAlert>
+        <Actions>
+            <PdvInteractiveButton Color="Color.Secondary" 
+                                  StartIcon="@Icons.Material.Filled.PersonAdd" 
+                                  OnClick="OpenCreateDialog">
+                Nuevo Usuario
+            </PdvInteractiveButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Total"
+                        Value="@users.Count.ToString()"
+                        Icon="@Icons.Material.Filled.Group"
+                        IconColor="Color.Primary"
+                        IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Activos"
+                        Value="@(users.Count(u => u.IsActive).ToString())"
+                        Icon="@Icons.Material.Filled.PersonAdd"
+                        IconColor="Color.Success"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Inactivos"
+                        Value="@(users.Count(u => !u.IsActive).ToString())"
+                        Icon="@Icons.Material.Filled.PersonOff"
+                        IconColor="Color.Error"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Roles"
+                        Value="@availableRoles.Count.ToString()"
+                        Icon="@Icons.Material.Filled.Security"
+                        IconColor="Color.Warning"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- ── Main Table Card ──────────────────────────────── -->
+    <MudPaper Class="p-4" Style="border-radius: 14px;">
+
+        <!-- Toolbar -->
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 580px;">
+                <MudTextField @bind-Value="searchString"
+                               Placeholder="Buscar por nombre, usuario o email..."
+                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                               IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined"
+                               Margin="Margin.Dense" Clearable="true" Class="flex-grow-1" />
+
+                <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged"
+                           Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Style="max-width: 140px;">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">Todos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(true)">Activos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">Inactivos</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!FilteredUsers.Any())"
+                            EmptyTitle="Sin usuarios"
+                            EmptyMessage="No se encontraron usuarios que coincidan con la búsqueda o filtros."
+                            EmptyIcon="@Icons.Material.Filled.PeopleAlt"
+                            SkeletonRows="5"
+                            SkeletonColumns="5">
+            <MudDataGrid T="UserViewModel" Items="@FilteredUsers" Filterable="false" Sortable="true"
+                         Hover="true" Striped="true" Dense="false" Elevation="0"
+                         Class="border border-solid rounded-lg">
+                <Columns>
+                    <TemplateColumn Title="Usuario" SortBy="@(x => x.UserName)">
+                        <CellTemplate>
+                            <div class="d-flex align-center gap-3">
+                                <MudAvatar Size="Size.Small"
+                                           Class="usr-avatar"
+                                           Style="@($"background: {GetAvatarGradient(context.Item.UserName)};")">
+                                    @GetInitials(context.Item.FullName, context.Item.UserName)
+                                </MudAvatar>
+                                <div>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Item.UserName</MudText>
+                                    @if (!string.IsNullOrWhiteSpace(context.Item.FullName))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Item.FullName</MudText>
+                                    }
+                                </div>
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <PropertyColumn Property="x => x.Email" Title="Email" />
+
+                    <TemplateColumn Title="Roles">
+                        <CellTemplate>
+                            <div class="d-flex flex-wrap gap-1">
+                                @if (context.Item.Roles.Count == 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Default">Sin rol</MudChip>
+                                }
+                                else
+                                {
+                                    @foreach (var role in context.Item.Roles)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                                 Color="@GetRoleColor(role)" Icon="@GetRoleIcon(role)">
+                                            @role
+                                        </MudChip>
+                                    }
+                                }
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Estado" SortBy="@(x => x.IsActive)">
+                        <CellTemplate>
+                            @if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text"
+                                         Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle"
+                                         Class="font-weight-medium">Activo</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text"
+                                         Size="Size.Small" Icon="@Icons.Material.Filled.Cancel"
+                                         Class="font-weight-medium">Inactivo</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 130px;" CellClass="d-flex justify-end gap-1">
+                        <CellTemplate>
+                            <MudTooltip Text="Editar usuario">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary"
+                                               Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Item))"
+                                               Class="usr-action-btn" />
+                            </MudTooltip>
+                            <MudTooltip Text="@(context.Item.IsActive ? "Desactivar" : "Activar")">
+                                <MudIconButton Icon="@(context.Item.IsActive ? Icons.Material.Filled.PersonOff : Icons.Material.Filled.PersonAdd)"
+                                               Color="@(context.Item.IsActive ? Color.Warning : Color.Success)"
+                                               Size="Size.Small" OnClick="@(() => ToggleUserActive(context.Item))"
+                                               Class="usr-action-btn-warn" />
+                            </MudTooltip>
+                            <MudTooltip Text="Eliminar usuario">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                               Size="Size.Small" OnClick="@(() => DeleteUser(context.Item))"
+                                               Class="usr-action-btn-danger" />
+                            </MudTooltip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="UserViewModel" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+<!-- ── Create / Edit Dialog ──────────────────────────── -->
+@* Diálogo extraído a UserDialog.razor *@
+
+@code {
+    // ── State ─────────────────────────────────────────────
+    private List<UserViewModel> users = new();
+    private List<string> availableRoles = new();
+    private bool isLoading = false;
+    private string searchString = string.Empty;
+    private bool? filterActive = null;
+
+    // ── ViewModel ──────────────────────────────────
+    public class UserViewModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public bool IsActive { get; set; }
+        public List<string> Roles { get; set; } = new();
+    }
+
+    // ── Filtered list ────────────────────────────────────
+    private IEnumerable<UserViewModel> FilteredUsers => users.Where(u =>
+        (string.IsNullOrWhiteSpace(searchString) ||
+         u.UserName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+         u.FullName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+         (u.Email != null && u.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase)))
+        &&
+        (filterActive == null || u.IsActive == filterActive));
+
+    // ── Lifecycle ─────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // Load roles
+            availableRoles = await RoleManager.Roles.Select(r => r.Name!).ToListAsync();
+
+            // Load users with their roles
+            var appUsers = await UserManager.Users.ToListAsync();
+            var vms = new List<UserViewModel>();
+            foreach (var u in appUsers)
+            {
+                var roles = (await UserManager.GetRolesAsync(u)).ToList();
+                vms.Add(new UserViewModel
+                {
+                    Id = u.Id,
+                    UserName = u.UserName ?? string.Empty,
+                    FullName = u.FullName,
+                    Email = u.Email,
+                    IsActive = u.IsActive,
+                    Roles = roles
+                });
+            }
+            users = vms;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar usuarios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // ── Dialog Helpers ────────────────────────────────────
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.AvailableRoles, availableRoles },
+            { x => x.Model, new UserDialog.UserFormModel { IsActive = true } }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<UserDialog>("Nuevo Usuario", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task OpenEditDialog(UserViewModel vm)
+    {
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.EditUserId, vm.Id },
+            { x => x.AvailableRoles, availableRoles },
+            { x => x.Model, new UserDialog.UserFormModel
+                {
+                    FullName = vm.FullName,
+                    UserName = vm.UserName,
+                    Email = vm.Email ?? string.Empty,
+                    IsActive = vm.IsActive,
+                    SelectedRole = vm.Roles.FirstOrDefault() ?? string.Empty
+                }
+            }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<UserDialog>("Editar Usuario", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadData();
+        }
+    }
+
+    // ── CRUD Operations ───────────────────────────────────
+    private async Task ToggleUserActive(UserViewModel vm)
+    {
+        var user = await UserManager.FindByIdAsync(vm.Id);
+        if (user is null) return;
+
+        user.IsActive = !user.IsActive;
+        await UserManager.UpdateAsync(user);
+
+        var msg = user.IsActive ? "activado" : "desactivado";
+        Snackbar.Add($"Usuario '{user.UserName}' {msg} correctamente.", Severity.Success);
+        await LoadData();
+    }
+
+    private async Task DeleteUser(UserViewModel vm)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Eliminar Usuario",
+            $"¿Estás seguro de que deseas eliminar al usuario «{vm.UserName}»? Esta acción no se puede deshacer.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (confirmed != true) return;
+
+        var user = await UserManager.FindByIdAsync(vm.Id);
+        if (user is null) return;
+
+        var result = await UserManager.DeleteAsync(user);
+        if (result.Succeeded)
+        {
+            Snackbar.Add($"Usuario '{vm.UserName}' eliminado.", Severity.Success);
+            await LoadData();
+        }
+        else
+        {
+            foreach (var err in result.Errors)
+                Snackbar.Add(err.Description, Severity.Error);
+        }
+    }
+
+    private void OnFilterActiveChanged(bool? val) => filterActive = val;
+
+    // ── UI Helpers ────────────────────────────────────────
+    private static string GetInitials(string fullName, string userName)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2
+                ? $"{parts[0][0]}{parts[1][0]}".ToUpper()
+                : fullName[0].ToString().ToUpper();
+        }
+        return userName.Length > 0 ? userName[0].ToString().ToUpper() : "?";
+    }
+
+    private static string GetAvatarGradient(string seed)
+    {
+        // Deterministic gradient per username
+        var gradients = new[]
+        {
+            "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            "linear-gradient(135deg, #06b6d4, #3b82f6)",
+            "linear-gradient(135deg, #10b981, #059669)",
+            "linear-gradient(135deg, #f59e0b, #d97706)",
+            "linear-gradient(135deg, #ec4899, #db2777)",
+            "linear-gradient(135deg, #ef4444, #dc2626)",
+        };
+        var idx = Math.Abs(seed.GetHashCode()) % gradients.Length;
+        return gradients[idx];
+    }
+
+    private static Color GetRoleColor(string role) => role.ToLower() switch
+    {
+        "admin" or "administrador" => Color.Error,
+        "manager" or "gerente"     => Color.Warning,
+        "cashier" or "cajera"      => Color.Primary,
+        _                          => Color.Info
+    };
+
+    private static string GetRoleIcon(string role) => role.ToLower() switch
+    {
+        "admin" or "administrador" => Icons.Material.Filled.AdminPanelSettings,
+        "manager" or "gerente"     => Icons.Material.Filled.SupervisorAccount,
+        "cashier" or "cajera"      => Icons.Material.Filled.PointOfSale,
+        _                          => Icons.Material.Filled.Person
+    };
+}
+

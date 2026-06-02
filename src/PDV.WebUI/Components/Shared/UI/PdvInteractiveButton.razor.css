@@ -1,0 +1,44 @@
+.pdv-interactive-btn {
+    text-transform: none !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    letter-spacing: 0.2px !important;
+    padding: 8px 18px !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.pdv-interactive-btn:focus-visible {
+    box-shadow: 0 0 0 2px #080a14, 0 0 0 4px #7c4dff !important;
+    outline: none !important;
+}
+
+/* Premium Gradient override */
+.pdv-btn-gradient {
+    background: linear-gradient(135deg, #7c4dff 0%, #6366f1 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 4px 14px rgba(124, 77, 255, 0.25) !important;
+}
+
+.pdv-btn-gradient:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(124, 77, 255, 0.4) !important;
+    background: linear-gradient(135deg, #8b5cf6 0%, #4f46e5 100%) !important;
+}
+
+.pdv-btn-gradient:active:not(:disabled) {
+    transform: translateY(0) !important;
+    box-shadow: 0 2px 8px rgba(124, 77, 255, 0.2) !important;
+}
+
+.pdv-btn-gradient:disabled {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(255, 255, 255, 0.35) !important;
+    box-shadow: none !important;
+}
+
+.pdv-btn-spinner {
+    color: currentColor !important;
+}

@@ -1,0 +1,298 @@
+@using MediatR
+@using PDV.Application.Features.Sales.Commands.RemoveSaleItem
+@using PDV.Application.Features.Sales.Commands.UpdateSaleItemQuantity
+@using PDV.Application.Features.Sales.Commands.UpdateSaleItemPrice
+@using PDV.Application.Features.Sales.Commands.CancelSale
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDialogService DialogService
+
+<MudTable Items="@Items" Hover="true" Breakpoint="Breakpoint.None" Dense="true" Elevation="0" Style="overflow: hidden;">
+    <HeaderContent>
+        <MudTh>Producto</MudTh>
+        <MudTh Style="width: 140px;">Precio Unit.</MudTh>
+        <MudTh Style="width: 150px; text-align: center;">Cantidad / Peso</MudTh>
+        <MudTh Style="width: 120px; text-align: right;">Total</MudTh>
+        @if (!IsReadOnly)
+        {
+            <MudTh Style="width: 60px;"></MudTh>
+        }
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Producto">
+            <div>
+                <span class="font-weight-bold">@context.Product.Name</span>
+                @if (context.Product.SaleType == SaleType.Bulk)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-2">Granel</MudChip>
+                }
+            </div>
+        </MudTd>
+        <MudTd DataLabel="Precio Unit.">
+            @if (IsReadOnly)
+            {
+                <span class="mr-1">$</span>
+                <span>@((context.PriceOverride ?? context.Product.Price).ToString("F2"))</span>
+            }
+            else
+            {
+                <div class="d-flex align-center gap-1">
+                    <span class="mr-1">$</span>
+                    <MudNumericField T="decimal?"
+                                     Value="@context.PriceOverride"
+                                     ValueChanged="@(val => OnPriceOverrideChanged(context, val))"
+                                     Placeholder="@context.Product.Price.ToString("F2")"
+                                     Min="0"
+                                     Format="F2"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Style="max-width: 90px; height: 32px;"
+                                     HideSpinButtons="true" />
+                </div>
+            }
+        </MudTd>
+        <MudTd DataLabel="Cantidad / Peso">
+            @if (IsReadOnly)
+            {
+                <div class="d-flex align-center justify-center gap-1">
+                    <span>@context.QuantityDisplay.ToString(context.Product.SaleType == SaleType.Bulk ? "N3" : "N0")</span>
+                    @if (context.Product.SaleType == SaleType.Bulk)
+                    {
+                        <span class="mud-text-secondary text-sm ml-1">kg</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="d-flex align-center justify-center gap-1">
+                    @if (context.Product.SaleType == SaleType.Piece)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Size="Size.Small" OnClick="@(() => DecreaseQuantity(context))" />
+                        <MudNumericField T="int"
+                                         Value="context.Quantity"
+                                         ValueChanged="@(val => OnQuantityChanged(context, val))" 
+                                         Min="1" 
+                                         Variant="Variant.Outlined" 
+                                         Margin="Margin.Dense" 
+                                         Style="width: 60px; text-align: center; height: 32px;" 
+                                         HideSpinButtons="true" />
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small" OnClick="@(() => IncreaseQuantity(context))" />
+                    }
+                    else
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Size="Size.Small" OnClick="@(() => DecreaseWeight(context))" />
+                        <MudNumericField T="decimal"
+                                         Value="context.Weight"
+                                         ValueChanged="@(val => OnWeightChanged(context, val))" 
+                                         Min="0.001m" 
+                                         Format="N3"
+                                         Variant="Variant.Outlined" 
+                                         Margin="Margin.Dense" 
+                                         Style="width: 70px; text-align: center; height: 32px;" 
+                                         HideSpinButtons="true" />
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small" OnClick="@(() => IncreaseWeight(context))" />
+                        <span class="mud-text-secondary text-sm ml-1">kg</span>
+                    }
+                </div>
+            }
+        </MudTd>
+        <MudTd DataLabel="Total" Style="text-align: right;" Class="font-weight-bold">$@context.Total.ToString("F2")</MudTd>
+        @if (!IsReadOnly)
+        {
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveFromCart(context))" />
+            </MudTd>
+        }
+    </RowTemplate>
+    <NoRecordsContent>
+        <div class="d-flex flex-column align-center justify-center pa-8 text-center mud-text-secondary">
+            <MudIcon Icon="@Icons.Material.Filled.AddShoppingCart" Size="Size.Large" Class="mb-2" />
+            <MudText Typo="Typo.subtitle1">El carrito de compras está vacío.</MudText>
+        </div>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    [Parameter] public bool IsReadOnly { get; set; }
+    [Parameter] public Guid? ActiveSaleId { get; set; }
+    [Parameter] public List<CartItemDto> Items { get; set; } = new();
+    [Parameter] public EventCallback OnCartUpdated { get; set; }
+
+    private static readonly System.Threading.SemaphoreSlim _cartSemaphore = new(1, 1);
+
+    private async Task OnQuantityChanged(CartItemDto item, int newQty)
+    {
+        if (newQty < 1) newQty = 1;
+        if (newQty == item.Quantity) return;
+
+        var authorized = await RequestAuthorizationAsync($"Modificar cantidad de '{item.Product.Name}'");
+        if (!authorized)
+        {
+            await OnCartUpdated.InvokeAsync();
+            return;
+        }
+
+        await _cartSemaphore.WaitAsync();
+        try
+        {
+            if (ActiveSaleId.HasValue)
+            {
+                var command = new UpdateSaleItemQuantityCommand(ActiveSaleId.Value, item.SaleItemId, newQty);
+                await Mediator.Send(command);
+                await OnCartUpdated.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar cantidad: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cartSemaphore.Release();
+        }
+    }
+
+    private async Task OnWeightChanged(CartItemDto item, decimal newWeight)
+    {
+        if (newWeight < 0.001m) newWeight = 0.001m;
+        if (newWeight == item.Weight) return;
+
+        var authorized = await RequestAuthorizationAsync($"Modificar peso de '{item.Product.Name}'");
+        if (!authorized)
+        {
+            await OnCartUpdated.InvokeAsync();
+            return;
+        }
+
+        await _cartSemaphore.WaitAsync();
+        try
+        {
+            if (ActiveSaleId.HasValue)
+            {
+                var command = new UpdateSaleItemQuantityCommand(ActiveSaleId.Value, item.SaleItemId, newWeight);
+                await Mediator.Send(command);
+                await OnCartUpdated.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar peso: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cartSemaphore.Release();
+        }
+    }
+
+    private async Task OnPriceOverrideChanged(CartItemDto item, decimal? newPrice)
+    {
+        if (newPrice == item.PriceOverride) return;
+
+        var authorized = await RequestAuthorizationAsync($"Cambiar precio / Descuento de '{item.Product.Name}'");
+        if (!authorized)
+        {
+            await OnCartUpdated.InvokeAsync();
+            return;
+        }
+
+        await _cartSemaphore.WaitAsync();
+        try
+        {
+            if (ActiveSaleId.HasValue)
+            {
+                var command = new UpdateSaleItemPriceCommand(ActiveSaleId.Value, item.SaleItemId, newPrice);
+                await Mediator.Send(command);
+                await OnCartUpdated.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar precio: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cartSemaphore.Release();
+        }
+    }
+
+    private async Task RemoveFromCart(CartItemDto item)
+    {
+        var authorized = await RequestAuthorizationAsync($"Eliminar artículo '{item.Product.Name}' de la venta");
+        if (!authorized) return;
+
+        await _cartSemaphore.WaitAsync();
+        try
+        {
+            if (ActiveSaleId.HasValue)
+            {
+                var command = new RemoveSaleItemCommand(ActiveSaleId.Value, item.SaleItemId);
+                await Mediator.Send(command);
+                
+                // Si el carrito se vacía del todo, cancelamos la nota automáticamente para liberar stock
+                if (Items.Count <= 1)
+                {
+                    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                    var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
+                    await Mediator.Send(new CancelSaleCommand(ActiveSaleId.Value, "Carrito vaciado en POS", userId));
+                    await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
+                }
+            }
+            await OnCartUpdated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al remover artículo: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cartSemaphore.Release();
+        }
+    }
+
+    private async Task IncreaseQuantity(CartItemDto item)
+    {
+        await OnQuantityChanged(item, item.Quantity + 1);
+    }
+
+    private async Task DecreaseQuantity(CartItemDto item)
+    {
+        if (item.Quantity > 1)
+        {
+            await OnQuantityChanged(item, item.Quantity - 1);
+        }
+        else
+        {
+            await RemoveFromCart(item);
+        }
+    }
+
+    private async Task IncreaseWeight(CartItemDto item)
+    {
+        await OnWeightChanged(item, item.Weight + 0.1m);
+    }
+
+    private async Task DecreaseWeight(CartItemDto item)
+    {
+        if (item.Weight > 0.1m)
+        {
+            await OnWeightChanged(item, item.Weight - 0.1m);
+        }
+        else
+        {
+            await RemoveFromCart(item);
+        }
+    }
+
+    private async Task<bool> RequestAuthorizationAsync(string actionName)
+    {
+        var parameters = new DialogParameters { ["ActionName"] = actionName };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
+        var dialog = DialogService.Show<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var result = await dialog.Result;
+        return result != null && !result.Canceled && result.Data is bool authorized && authorized;
+    }
+}

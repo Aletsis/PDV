@@ -1,0 +1,465 @@
+@page "/clients"
+@using MediatR
+@using PDV.Application.Features.Clients.Queries.ListClients
+@using PDV.Application.Features.Clients.Commands.CreateClient
+@using PDV.Application.Features.Clients.Commands.UpdateClient
+@using PDV.Application.Features.Clients.Commands.DeleteClient
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Sync.Queries
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@implements IDisposable
+
+<PageTitle>Gestión de Clientes</PageTitle>
+<div class="d-flex flex-column gap-6">
+    <!-- Page Header & Connection Card -->
+    <PdvHeader Title="Clientes"
+               Subtitle="Administra los clientes del sistema, sus datos fiscales y su sincronización."
+               Icon="@Icons.Material.Filled.People"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            @if (isLocalMode)
+            {
+                <div class="local-mode-monitor d-flex align-center gap-3 px-4 py-2 border-dashed rounded-lg">
+                    <div class="d-flex flex-column">
+                        <span class="monitor-label">Base de Datos</span>
+                        <span class="monitor-val font-weight-medium">Local (SQLite)</span>
+                    </div>
+                    <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+                    <div class="d-flex flex-column align-end">
+                        <span class="monitor-label">Bandeja de Sincronización</span>
+                        <div class="d-flex align-center gap-1">
+                            @if (pendingSyncCount > 0)
+                            {
+                                <MudBadge Content="@pendingSyncCount" Color="Color.Warning" Overlap="false" Class="mr-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" Class="animate-spin" Color="Color.Warning" />
+                                </MudBadge>
+                                <span class="monitor-val-accent text-warning font-weight-bold">@pendingSyncCount Pendientes</span>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CloudDone" Size="Size.Small" Color="Color.Success" />
+                                <span class="monitor-val-accent text-success font-weight-bold">Sincronizado</span>
+                            }
+                        </div>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Color="Color.Primary" OnClick="RefreshSyncStatus" Class="ml-1" />
+                </div>
+            }
+        </StatusAlert>
+        <Actions>
+            <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+                Nuevo Cliente
+            </PdvInteractiveButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Total Clientes"
+                        Value="@totalClientsCount.ToString()"
+                        Icon="@Icons.Material.Filled.Groups"
+                        IconColor="Color.Primary"
+                        IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Activos"
+                        Value="@activeClientsCount.ToString()"
+                        Icon="@Icons.Material.Filled.CheckCircle"
+                        IconColor="Color.Success"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Inactivos"
+                        Value="@inactiveClientsCount.ToString()"
+                        Icon="@Icons.Material.Filled.PersonOff"
+                        IconColor="Color.Error"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PdvKpiCard Title="Último Sync"
+                        Value="@lastSyncText"
+                        Icon="@Icons.Material.Filled.Schedule"
+                        IconColor="Color.Warning"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Main Data Section -->
+    <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <!-- Table Toolbar -->
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 500px;">
+                <MudTextField @bind-Value="searchString" Placeholder="Buscar por Código, Nombre, RFC o Email..." 
+                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                               IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Clearable="true" Class="flex-grow-1" />
+                
+                <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged" Label="Estado" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 150px;">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">Todos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(true)">Activos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">Inactivos</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!filteredClients.Any())"
+                            EmptyTitle="Sin clientes"
+                            EmptyMessage="No se encontraron clientes que coincidan con los criterios de búsqueda o filtros."
+                            EmptyIcon="@Icons.Material.Filled.PeopleOutline"
+                            SkeletonRows="6"
+                            SkeletonColumns="7">
+            <MudDataGrid T="ClientDto" Items="@filteredClients" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+                         Dense="false" Elevation="0" Class="border border-solid rounded-lg">
+                <Columns>
+                    <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <PropertyColumn Property="x => x.Name" Title="Nombre" />
+                    <PropertyColumn Property="x => x.TaxId" Title="RFC / ID Fiscal" />
+                    <PropertyColumn Property="x => x.Phone" Title="Teléfono" />
+                    <PropertyColumn Property="x => x.Email" Title="Email" />
+                    <PropertyColumn Property="x => x.Address" Title="Dirección" />
+                    <TemplateColumn Title="Estado">
+                        <CellTemplate>
+                            @if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="font-weight-medium">Activo</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel" Class="font-weight-medium">Inactivo</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 120px;" CellClass="d-flex justify-end gap-1">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                           OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                           OnClick="@(() => DeleteClient(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="ClientDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+<!-- Add/Edit Dialog -->
+<MudDialog @bind-Visible="isDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = false })">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@(isEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Color="Color.Primary" Size="Size.Medium" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold">@(isEdit ? "Editar Cliente" : "Registrar Nuevo Cliente")</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="clientForm" ValidationDelay="300">
+            <MudGrid>
+                <!-- General Section -->
+                <MudItem xs="12" md="6">
+                    <div class="d-flex flex-column gap-4">
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DATOS GENERALES</MudText>
+                        
+                        <MudTextField @bind-Value="currentClient.Code" Label="Código" 
+                                      Variant="Variant.Outlined" Required="true" RequiredError="El código del cliente es obligatorio"
+                                      Disabled="isEdit"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.QrCode" />
+
+                        <MudTextField @bind-Value="currentClient.Name" Label="Nombre / Razón Social" 
+                                      Variant="Variant.Outlined" Required="true" RequiredError="El nombre es obligatorio"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" />
+                        
+                        <MudTextField @bind-Value="currentClient.TaxId" Label="RFC / ID Fiscal" 
+                                      Variant="Variant.Outlined" Required="true" RequiredError="El RFC es obligatorio"
+                                      HelperText="Ingrese a 12 o 13 dígitos sin guiones (ej. GOMP820325XX1)"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Assignment" />
+                        
+                        @if (isEdit)
+                        {
+                            <div class="d-flex align-center gap-2 mt-2">
+                                <MudSwitch @bind-Value="currentClient.IsActive" Color="Color.Success" Label="¿Cliente Activo?" />
+                            </div>
+                        }
+                    </div>
+                </MudItem>
+
+                <!-- Contact & Address Section -->
+                <MudItem xs="12" md="6">
+                    <div class="d-flex flex-column gap-4">
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">CONTACTO Y DIRECCIÓN</MudText>
+                        
+                        <MudTextField @bind-Value="currentClient.Email" Label="Correo Electrónico" 
+                                      Variant="Variant.Outlined" HelperText="Ej: ejemplo@dominio.com"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
+                        
+                        <MudTextField @bind-Value="currentClient.Phone" Label="Número Telefónico" 
+                                      Variant="Variant.Outlined" HelperText="Ej: 10 dígitos sin espacios"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
+                        
+                        <MudTextField @bind-Value="currentClient.Address" Label="Dirección Completa" 
+                                      Variant="Variant.Outlined" Placeholder="Calle, Número, Colonia, C.P., Ciudad"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Home" />
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="CloseDialog" Style="text-transform: none; font-weight: bold; border-radius: 8px;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveClient" IsLoading="@_saving">
+            Guardar Cliente
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<ClientDto> clients = new();
+    private bool isDialogVisible = false;
+    private bool isEdit = false;
+    private bool isLoading = false;
+    private bool _saving = false;
+    
+    private ClientDto currentClient = new();
+    private MudForm clientForm = new();
+
+    // Stats variables
+    private int totalClientsCount = 0;
+    private int activeClientsCount = 0;
+    private int inactiveClientsCount = 0;
+    private string lastSyncText = "Nunca";
+
+    // Sync status variables
+    private bool isLocalMode = false;
+    private int pendingSyncCount = 0;
+
+    // Search and filter parameters
+    private string searchString = "";
+    private bool? filterActive = true; // Default to showing only Active clients
+
+    private IEnumerable<ClientDto> filteredClients => clients
+        .Where(c => 
+            // Text Search filter
+            (string.IsNullOrWhiteSpace(searchString) || 
+             (c.Code != null && c.Code.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
+             c.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase) || 
+             c.TaxId.Contains(searchString, StringComparison.OrdinalIgnoreCase) || 
+             (c.Email != null && c.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase))) 
+            &&
+            // Active state filter
+            (filterActive == null || c.IsActive == filterActive)
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
+        await LoadData();
+    }
+
+    private void OnConnectionStatusChanged(bool isConnected)
+    {
+        InvokeAsync(async () => {
+            await LoadSyncStatus();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // Load both active and inactive clients to display correct metrics
+            clients = await Mediator.Send(new ListClientsQuery(IncludeInactive: true));
+            CalculateMetrics();
+            await LoadSyncStatus();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void CalculateMetrics()
+    {
+        totalClientsCount = clients.Count;
+        activeClientsCount = clients.Count(c => c.IsActive);
+        inactiveClientsCount = clients.Count(c => !c.IsActive);
+    }
+
+    private async Task LoadSyncStatus()
+    {
+        try
+        {
+            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+            isLocalMode = syncStatus.IsLocalMode;
+            pendingSyncCount = syncStatus.PendingMessagesCount;
+
+            // Load last pull time from file if local mode
+            if (isLocalMode)
+            {
+                var pullSyncFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "last-pull-sync.txt");
+                if (File.Exists(pullSyncFile))
+                {
+                    var fileContent = await File.ReadAllTextAsync(pullSyncFile);
+                    if (DateTime.TryParse(fileContent, out var dt))
+                    {
+                        // Convert to local time for user readability
+                        lastSyncText = dt.ToLocalTime().ToString("g");
+                        return;
+                    }
+                }
+                lastSyncText = "Pendiente";
+            }
+            else
+            {
+                lastSyncText = "En tiempo real";
+            }
+        }
+        catch (Exception)
+        {
+            // Fail silently or fallback
+            isLocalMode = false;
+            pendingSyncCount = 0;
+            lastSyncText = "No disponible";
+        }
+    }
+
+    private async Task RefreshSyncStatus()
+    {
+        await ConnectionMonitor.CheckConnectionAsync();
+        await LoadSyncStatus();
+        Snackbar.Add("Estado de sincronización actualizado", Severity.Info);
+    }
+
+    private void OnFilterActiveChanged(bool? val)
+    {
+        filterActive = val;
+    }
+
+    private void OpenCreateDialog()
+    {
+        currentClient = new ClientDto { IsActive = true };
+        isEdit = false;
+        isDialogVisible = true;
+    }
+
+    private void OpenEditDialog(ClientDto client)
+    {
+        currentClient = new ClientDto
+        {
+            Id = client.Id,
+            Code = client.Code,
+            Name = client.Name,
+            TaxId = client.TaxId,
+            Address = client.Address,
+            Phone = client.Phone,
+            Email = client.Email,
+            IsActive = client.IsActive
+        };
+        isEdit = true;
+        isDialogVisible = true;
+    }
+
+    private void CloseDialog()
+    {
+        isDialogVisible = false;
+    }
+
+    private async Task SaveClient()
+    {
+        await clientForm.Validate();
+        if (!clientForm.IsValid)
+        {
+            Snackbar.Add("Por favor complete los campos requeridos correctamente.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+            if (isEdit)
+            {
+                var command = new UpdateClientCommand
+                {
+                    Id = currentClient.Id,
+                    Code = currentClient.Code,
+                    Name = currentClient.Name,
+                    TaxId = currentClient.TaxId,
+                    Address = currentClient.Address,
+                    Phone = currentClient.Phone,
+                    Email = currentClient.Email,
+                    IsActive = currentClient.IsActive
+                };
+                await Mediator.Send(command);
+                Snackbar.Add("Cliente actualizado exitosamente", Severity.Success);
+            }
+            else
+            {
+                var command = new CreateClientCommand
+                {
+                    Code = currentClient.Code,
+                    Name = currentClient.Name,
+                    TaxId = currentClient.TaxId,
+                    Address = currentClient.Address,
+                    Phone = currentClient.Phone,
+                    Email = currentClient.Email
+                };
+                await Mediator.Send(command);
+                Snackbar.Add("Cliente creado exitosamente", Severity.Success);
+            }
+            CloseDialog();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar cliente: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteClient(ClientDto client)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Eliminar Cliente",
+            $"¿Estás seguro que deseas eliminar a '{client.Name}'?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                await Mediator.Send(new DeleteClientCommand(client.Id));
+                Snackbar.Add("Cliente eliminado exitosamente", Severity.Success);
+                await LoadData();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar cliente: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+}
