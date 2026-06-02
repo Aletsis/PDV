@@ -146,20 +146,6 @@ app.MapControllers();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
-// ── Seed de roles base ────────────────────────────────────────────────────
-using (var seedScope = app.Services.CreateScope())
-{
-    var roleManager = seedScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
-    foreach (var roleName in new[] { "Admin", "Manager", "Cashier" })
-    {
-        if (!await roleManager.RoleExistsAsync(roleName))
-        {
-            await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(roleName));
-            Log.Information("Rol '{Role}' creado automáticamente.", roleName);
-        }
-    }
-}
-
 // Optional: apply EF migrations at startup when env var APPLY_MIGRATIONS=true
 var applyMigrations = Environment.GetEnvironmentVariable("APPLY_MIGRATIONS");
 if (!string.IsNullOrWhiteSpace(applyMigrations) && applyMigrations.Equals("true", StringComparison.OrdinalIgnoreCase))
@@ -175,6 +161,20 @@ if (!string.IsNullOrWhiteSpace(applyMigrations) && applyMigrations.Equals("true"
     {
         Log.Fatal(ex, "Failed applying migrations at startup");
         throw;
+    }
+}
+
+// ── Seed de roles base ────────────────────────────────────────────────────
+using (var seedScope = app.Services.CreateScope())
+{
+    var roleManager = seedScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
+    foreach (var roleName in new[] { "Admin", "Manager", "Cashier" })
+    {
+        if (!await roleManager.RoleExistsAsync(roleName))
+        {
+            await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(roleName));
+            Log.Information("Rol '{Role}' creado automáticamente.", roleName);
+        }
     }
 }
 
