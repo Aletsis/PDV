@@ -48,7 +48,7 @@ Antes de ejecutar o desarrollar en el proyecto, asegúrese de tener instalado:
 
 ### 1. Clonar el repositorio (privado)
 ```bash
-git clone <URL-DE-TU-REPOSITORIO-PRIVADO>
+git clone https://github.com/Aletsis/PDV.git
 cd PDV
 ```
 

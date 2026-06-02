@@ -10,13 +10,13 @@ El sistema implementa una **Arquitectura Híbrida** para soportar el funcionamie
 
 ```mermaid
 graph TD
-    subgraph Servidor Central (Producción)
+    subgraph Servidor_Central
         WebUI_Server[PDV.WebUI - Servidor Principal]
         DB_Postgres[(Base de Datos PostgreSQL)]
         WebUI_Server --> DB_Postgres
     end
 
-    subgraph Estación de Caja 1 (Local)
+    subgraph Estacion_de_Caja_1
         Browser_1[Navegador Web / UI POS]
         DB_SQLite_1[(SQLite Local - pdv.db)]
         HardwareAgent_1[PDV.HardwareAgent - Servicio de Windows]

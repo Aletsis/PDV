@@ -10,7 +10,7 @@ El sistema implementa una **Arquitectura Híbrida Edge-Cloud**. Las cajas locale
 
 ```mermaid
 graph TD
-    subgraph Servidor Nube Central (Producción)
+    subgraph Servidor Nube Central
         direction TB
         LB[Nginx / Apache / Cloud LB] -->|HTTPS & WebSockets| WebApp[PDV.WebUI Containers]
         WebApp -->|Read/Write Pool| DB_Master[(PostgreSQL Primary)]
