@@ -19,10 +19,17 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
-            return authState.User?.Identity?.IsAuthenticated == true
-                ? authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                : null;
+            try
+            {
+                var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
+                return authState.User?.Identity?.IsAuthenticated == true
+                    ? authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                    : null;
+            }
+            catch (System.InvalidOperationException)
+            {
+                return null;
+            }
         }
     }
 
@@ -30,10 +37,17 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
-            return authState.User?.Identity?.IsAuthenticated == true
-                ? authState.User?.Identity?.Name
-                : null;
+            try
+            {
+                var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
+                return authState.User?.Identity?.IsAuthenticated == true
+                    ? authState.User?.Identity?.Name
+                    : null;
+            }
+            catch (System.InvalidOperationException)
+            {
+                return null;
+            }
         }
     }
 
@@ -41,8 +55,15 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
-            return authState.User?.Identity?.IsAuthenticated == true;
+            try
+            {
+                var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
+                return authState.User?.Identity?.IsAuthenticated == true;
+            }
+            catch (System.InvalidOperationException)
+            {
+                return false;
+            }
         }
     }
 }
