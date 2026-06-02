@@ -165,15 +165,18 @@ if (!string.IsNullOrWhiteSpace(applyMigrations) && applyMigrations.Equals("true"
 }
 
 // ── Seed de roles base ────────────────────────────────────────────────────
-using (var seedScope = app.Services.CreateScope())
+if (!runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
 {
-    var roleManager = seedScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
-    foreach (var roleName in new[] { "Admin", "Manager", "Cashier" })
+    using (var seedScope = app.Services.CreateScope())
     {
-        if (!await roleManager.RoleExistsAsync(roleName))
+        var roleManager = seedScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
+        foreach (var roleName in new[] { "Admin", "Manager", "Cashier" })
         {
-            await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(roleName));
-            Log.Information("Rol '{Role}' creado automáticamente.", roleName);
+            if (!await roleManager.RoleExistsAsync(roleName))
+            {
+                await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(roleName));
+                Log.Information("Rol '{Role}' creado automáticamente.", roleName);
+            }
         }
     }
 }
@@ -203,18 +206,21 @@ if (!string.IsNullOrWhiteSpace(requireNoPending) && requireNoPending.Equals("tru
 }
 
 // Seed default database values (Roles, Admin user and linked Employee)
-try
+if (!runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
 {
-    using var scope = app.Services.CreateScope();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await PDV.Infrastructure.Persistence.AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
-    Log.Information("Initial seed data checked and applied successfully.");
-}
-catch (Exception ex)
-{
-    Log.Error(ex, "An error occurred while seeding the database at startup.");
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await PDV.Infrastructure.Persistence.AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
+        Log.Information("Initial seed data checked and applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "An error occurred while seeding the database at startup.");
+    }
 }
 
 app.Run();
