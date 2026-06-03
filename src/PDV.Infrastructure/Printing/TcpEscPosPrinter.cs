@@ -1,3 +1,5 @@
+#pragma warning disable CA1416
+
 using System.Net.Sockets;
 using System.Text;
 using System.Drawing;

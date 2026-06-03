@@ -98,7 +98,9 @@ public static class AppDbContextSeed
                     {
                         try
                         {
+#pragma warning disable EF1002
                             await context.Database.ExecuteSqlRawAsync($"UPDATE {table} SET {col} = lower({col}) WHERE {col} IS NOT NULL;");
+#pragma warning restore EF1002
                         }
                         catch {}
                     }

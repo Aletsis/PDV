@@ -1,3 +1,5 @@
+#pragma warning disable CA1416
+
 using System.Drawing;
 using System.IO.Ports;
 using System.Net.Sockets;
