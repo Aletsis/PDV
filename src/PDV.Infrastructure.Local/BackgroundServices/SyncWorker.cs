@@ -59,6 +59,25 @@ public class SyncWorker : BackgroundService
     {
         _logger.LogInformation("SyncWorker background service started.");
 
+        // Reset failed outbox messages to pending on startup to allow auto-recovery of failed syncs
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var failedCount = await db.OutboxMessages
+                .Where(m => m.State == OutboxState.Failed)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.State, OutboxState.Pending)
+                                          .SetProperty(m => m.Attempts, 0), stoppingToken);
+            if (failedCount > 0)
+            {
+                _logger.LogInformation("Reset {Count} failed outbox messages to pending on startup.", failedCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting failed outbox messages on startup.");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
