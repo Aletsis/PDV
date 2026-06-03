@@ -76,8 +76,7 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
             folio: 0,
             saleId: sale.Id,
             clientId: sale.ClientId,
-            cashRegisterId: activeShift.CashRegisterId,
-            employeeId: null
+            cashRegisterId: activeShift.CashRegisterId
         );
 
         var returnItemObj = new PDV.Domain.Entities.ReturnItem(

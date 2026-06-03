@@ -101,7 +101,7 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
     [Parameter] public Guid CashRegisterId { get; set; }
-    [Parameter] public Guid CashierId { get; set; }
+    [Parameter] public string UserId { get; set; } = string.Empty;
     [Parameter] public bool IsInflow { get; set; } // True = Morralla (Inflow), False = Recolección (Outflow)
 
     // Billetes
@@ -170,7 +170,7 @@
 
             var command = new CashCollectionCommand(
                 CashRegisterId: CashRegisterId,
-                CashierId: CashierId,
+                UserId: UserId,
                 Amount: CalculatedAmount,
                 Reason: fullReason
             );

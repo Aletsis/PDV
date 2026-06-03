@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Infrastructure.Identity;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 using PDV.Domain.ValueObjects;
@@ -53,7 +54,8 @@ public class TicketGenerator : ITicketGenerator
         }
         if (!string.IsNullOrEmpty(sale.UserId))
         {
-            sb.AppendLine($"Cajero: {sale.UserId}");
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == sale.UserId, cancellationToken);
+            sb.AppendLine($"Cajero: {user?.FullName ?? sale.UserId}");
         }
 
         // Cliente
@@ -327,7 +329,8 @@ public class TicketGenerator : ITicketGenerator
         }
         if (!string.IsNullOrEmpty(returnSale.UserId))
         {
-            sb.AppendLine($"Cajero: {returnSale.UserId}");
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == returnSale.UserId, cancellationToken);
+            sb.AppendLine($"Cajero: {user?.FullName ?? returnSale.UserId}");
         }
 
         // Cliente
@@ -406,7 +409,6 @@ public class TicketGenerator : ITicketGenerator
             .Include(c => c.CashRegister)
                 .ThenInclude(r => r!.Branch)
                     .ThenInclude(b => b!.Address)
-            .Include(c => c.Employee)
             .FirstOrDefaultAsync(c => c.Id == collectionId, cancellationToken)
             ?? throw new KeyNotFoundException($"Movimiento de caja {collectionId} no encontrado");
 
@@ -437,7 +439,8 @@ public class TicketGenerator : ITicketGenerator
         {
             sb.AppendLine($"Caja: {collection.CashRegister.Name}");
         }
-        var cajeroName = collection.Employee?.Name ?? collection.UserId;
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == collection.UserId, cancellationToken);
+        var cajeroName = user?.FullName ?? collection.UserId;
         sb.AppendLine($"Cajero: {cajeroName}");
         sb.AppendLine($"Concepto: {cleanReason}");
         sb.AppendLine(DrawSeparator('-', width));
@@ -511,7 +514,6 @@ public class TicketGenerator : ITicketGenerator
             .Include(c => c.CashRegister)
                 .ThenInclude(r => r!.Branch)
                     .ThenInclude(b => b!.Address)
-            .Include(c => c.Employee)
             .Include(c => c.Shift)
             .FirstOrDefaultAsync(c => c.Id == cutId, cancellationToken)
             ?? throw new KeyNotFoundException($"Corte de caja {cutId} no encontrado");
@@ -536,7 +538,8 @@ public class TicketGenerator : ITicketGenerator
         {
             sb.AppendLine($"Caja: {cut.CashRegister.Name}");
         }
-        var cajeroName = cut.Employee?.Name ?? cut.UserId;
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == cut.UserId, cancellationToken);
+        var cajeroName = user?.FullName ?? cut.UserId;
         sb.AppendLine($"Cajero: {cajeroName}");
 
         if (cut.Shift != null)

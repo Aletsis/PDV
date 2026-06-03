@@ -9,7 +9,7 @@ namespace PDV.Application.Features.Sales.Commands.CashCut;
 
 public record CashCutCommand(
     Guid CashRegisterId, 
-    Guid CashierId, 
+    string UserId, 
     decimal InitialCash, 
     decimal SalesTotal, 
     decimal CashInDrawer
@@ -116,11 +116,10 @@ public class CashCutCommandHandler : IRequestHandler<CashCutCommand, Guid>
         var cut = new PDV.Domain.Entities.CashCut(
             shiftId: activeShift.Id,
             cashRegisterId: request.CashRegisterId,
-            userId: request.CashierId != Guid.Empty ? request.CashierId.ToString() : activeShift.UserId,
+            userId: !string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId,
             systemExpectedCash: expectedCash,
             cashDenominations: denominations,
-            declaredVouchers: new List<PaymentMethodBreakdown>(), 
-            employeeId: request.CashierId == Guid.Empty ? null : request.CashierId
+            declaredVouchers: new List<PaymentMethodBreakdown>()
         );
 
         _context.CashCuts.Add(cut);

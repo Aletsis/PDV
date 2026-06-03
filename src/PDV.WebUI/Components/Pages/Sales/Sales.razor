@@ -12,8 +12,7 @@
 @using PDV.Application.Features.Sales.Dtos
 @using PDV.Application.Features.Clients.Queries.ListClients
 @using PDV.Application.Features.Clients.Dtos
-@using PDV.Application.Features.Cashiers.Queries.ListCashiers
-@using PDV.Application.Features.Cashiers.Dtos
+
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
 @inject IMediator Mediator
@@ -206,7 +205,7 @@ else
     private List<ClientDto> clients = new();
     private CashRegisterDto? currentCashRegister;
     private ShiftDto? currentShift;
-    private CashierDto? currentCashier;
+
     private string currentUserId = "Anonymous";
     private string currentUserName = "Empleado General";
     private string? redirectPath = null;
@@ -292,8 +291,7 @@ else
         await LoadFolioProjection();
         await LoadClients();
 
-        var cashiers = await Mediator.Send(new ListCashiersQuery());
-        currentCashier = cashiers.FirstOrDefault(c => c.UserId == currentUserId);
+
 
         await RefreshSuspendedSales();
     }
@@ -680,7 +678,7 @@ else
         var parameters = new DialogParameters 
         { 
             ["CashRegisterId"] = currentCashRegister.Id,
-            ["CashierId"] = currentCashier?.Id ?? Guid.Empty,
+            ["UserId"] = currentUserId,
             ["IsInflow"] = isInflow
         };
 
@@ -706,7 +704,7 @@ else
         {
             ["ShiftId"] = currentShift.Id,
             ["CashRegisterId"] = currentCashRegister.Id,
-            ["CashierId"] = currentCashier?.Id ?? Guid.Empty
+            ["UserId"] = currentUserId
         };
 
         var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };

@@ -1,7 +1,7 @@
 namespace PDV.Domain.Events;
 
 public record CashRegisterCreatedEvent(Guid CashRegisterId, string Name, Guid BranchId) : IDomainEvent;
-public record CashRegisterEmployeeAssignedEvent(Guid CashRegisterId, Guid? EmployeeId) : IDomainEvent;
+public record CashRegisterUserAssignedEvent(Guid CashRegisterId, string? UserId) : IDomainEvent;
 public record CashRegisterPrinterAssignedEvent(Guid CashRegisterId, Guid? PrinterId) : IDomainEvent;
 public record CashRegisterTicketSeriesConfiguredEvent(
     Guid CashRegisterId,

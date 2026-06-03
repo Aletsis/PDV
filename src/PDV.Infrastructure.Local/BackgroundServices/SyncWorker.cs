@@ -13,6 +13,7 @@ using PDV.Infrastructure.Persistence;
 using PDV.Application.Features.Sync.Dtos;
 using PDV.Application.Features.Clients.Queries.GetClientsDelta;
 using PDV.Application.Features.Branches.Queries.GetBranchesDelta;
+using PDV.Application.Features.Printers.Queries.GetPrintersDelta;
 using System.IO;
 using PDV.Infrastructure.Local.Discovery;
 using System.Net.Sockets;
@@ -404,10 +405,13 @@ public class SyncWorker : BackgroundService
         // 4. Pull UnidadesMedida
         await PullUnidadesMedidaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
-        // 5. Pull Cash Registers
+        // 5. Pull Printers
+        await PullPrintersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
+        // 6. Pull Cash Registers
         await PullCashRegistersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
-        // 6. Pull Users
+        // 7. Pull Users
         await PullUsersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
         SaveLastPullTime(currentSyncStartTime);
@@ -850,7 +854,7 @@ public class SyncWorker : BackgroundService
                     );
                     cashRegister.SetId(dto.Id);
                     cashRegister.BindToIp(dto.IpAddress);
-                    cashRegister.AssignEmployee(dto.AssignedEmployeeId);
+                    cashRegister.AssignUser(dto.AssignedUserId);
                     cashRegister.AssignPrinter(dto.AssignedPrinterId);
 
                     if (!dto.IsActive)
@@ -865,7 +869,7 @@ public class SyncWorker : BackgroundService
                 {
                     existing.Update(dto.Name, dto.Location);
                     existing.BindToIp(dto.IpAddress);
-                    existing.AssignEmployee(dto.AssignedEmployeeId);
+                    existing.AssignUser(dto.AssignedUserId);
                     existing.AssignPrinter(dto.AssignedPrinterId);
 
                     if (dto.IsActive && !existing.IsActive)
@@ -887,6 +891,96 @@ public class SyncWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred during cash registers pull synchronization.");
+            if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
+            {
+                _clientDiscoveryService.InvalidateUrl();
+            }
+        }
+    }
+
+    private async Task PullPrintersDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/printers-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Printers pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<PrinterSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} printer deltas from server. Syncing locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            foreach (var dto in deltas)
+            {
+                var existing = await db.Printers.FirstOrDefaultAsync(p => p.Id == dto.Id, stoppingToken);
+
+                if (existing == null)
+                {
+                    var printer = new Printer(
+                        name: dto.Name,
+                        connectionType: dto.ConnectionType,
+                        codePage: dto.CodePage,
+                        maxWidth: dto.MaxWidth,
+                        ipAddress: dto.IpAddress,
+                        port: dto.Port,
+                        devicePath: dto.DevicePath,
+                        branchId: dto.BranchId
+                    );
+                    printer.SetId(dto.Id);
+
+                    if (!dto.IsActive)
+                    {
+                        printer.Deactivate();
+                    }
+
+                    printer.ClearDomainEvents();
+                    db.Printers.Add(printer);
+                }
+                else
+                {
+                    existing.Update(
+                        name: dto.Name,
+                        codePage: dto.CodePage,
+                        maxWidth: dto.MaxWidth,
+                        ipAddress: dto.IpAddress,
+                        port: dto.Port,
+                        devicePath: dto.DevicePath
+                    );
+
+                    db.Entry(existing).Property(x => x.ConnectionType).CurrentValue = dto.ConnectionType;
+                    db.Entry(existing).Property(x => x.BranchId).CurrentValue = dto.BranchId;
+
+                    if (dto.IsActive && !existing.IsActive)
+                    {
+                        existing.Activate();
+                    }
+                    else if (!dto.IsActive && existing.IsActive)
+                    {
+                        existing.Deactivate();
+                    }
+
+                    existing.ClearDomainEvents();
+                }
+            }
+
+            await db.SaveChangesAsync(stoppingToken);
+            _logger.LogInformation("Successfully applied {Count} printer deltas to local SQLite.", deltas.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during printers pull synchronization.");
             if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
             {
                 _clientDiscoveryService.InvalidateUrl();
@@ -1024,7 +1118,7 @@ public class SyncWorker : BackgroundService
         public string? IpAddress { get; set; }
         public int Mode { get; set; }
         public Guid BranchId { get; set; }
-        public Guid? AssignedEmployeeId { get; set; }
+        public string? AssignedUserId { get; set; }
         public Guid? AssignedPrinterId { get; set; }
     }
 

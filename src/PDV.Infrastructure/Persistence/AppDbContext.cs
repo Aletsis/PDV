@@ -36,7 +36,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public DbSet<Department> Departments { get; set; }
     public DbSet<Sale> Sales { get; set; }
     public DbSet<SaleItem> SaleItems { get; set; }
-    public DbSet<Employee> Employees { get; set; }
+
     public DbSet<CashRegister> CashRegisters { get; set; }
     public DbSet<CashCut> CashCuts { get; set; }
     public DbSet<CashCollection> CashCollections { get; set; }

@@ -44,16 +44,7 @@ public static class AppDbContextSeed
                 // Asignar el rol de Admin
                 await userManager.AddToRoleAsync(defaultUser, "Admin");
 
-                // 3. Crear el empleado del dominio correspondiente para que coincida con el usuario de Identity
-                var employee = new Employee(
-                    name: "Administrador del Sistema",
-                    employeeCode: "EMP-ADMIN",
-                    role: EmployeeRole.Admin,
-                    userId: defaultUser.Id
-                );
 
-                context.Employees.Add(employee);
-                await context.SaveChangesAsync();
             }
         }
 
@@ -73,7 +64,7 @@ public static class AppDbContextSeed
                     ("Products", new[] { "Id", "BranchId" }),
                     ("Sales", new[] { "Id", "ShiftId", "ClientId", "CashRegisterId", "BranchId" }),
                     ("SaleItems", new[] { "Id", "SaleId", "ProductId" }),
-                    ("Employees", new[] { "Id" }),
+
                     ("CashRegisters", new[] { "Id", "BranchId" }),
                     ("CashCuts", new[] { "Id", "ShiftId", "CashRegisterId", "CashierId" }),
                     ("CashCollections", new[] { "Id", "CashRegisterId", "CashierId" }),

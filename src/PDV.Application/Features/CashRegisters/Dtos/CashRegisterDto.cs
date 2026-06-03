@@ -19,8 +19,8 @@ public class CashRegisterDto
     public Guid BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
 
-    public Guid? AssignedEmployeeId { get; set; }
-    public string? AssignedEmployeeName { get; set; }
+    public string? AssignedUserId { get; set; }
+    public string? AssignedUserName { get; set; }
 
     public Guid? AssignedPrinterId { get; set; }
     public string? AssignedPrinterName { get; set; }

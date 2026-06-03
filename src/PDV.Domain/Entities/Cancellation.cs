@@ -19,8 +19,7 @@ public class Cancellation : BaseEntity, IAggregateRoot
     
     public string UserId { get; private set; }
     
-    public Guid? EmployeeId { get; private set; }
-    public Employee? Employee { get; private set; }
+
 
     public Guid BranchId { get; private set; }
     public Branch? Branch { get; private set; }
@@ -35,8 +34,7 @@ public class Cancellation : BaseEntity, IAggregateRoot
         string reason, 
         string userId,
         Guid? saleId = null, 
-        Guid? saleItemId = null, 
-        Guid? employeeId = null)
+        Guid? saleItemId = null)
     {
         if (branchId == Guid.Empty) throw new DomainException("El ID de sucursal es requerido.");
         if (string.IsNullOrWhiteSpace(reason)) throw new DomainException("Se requiere un motivo para la cancelación.");
@@ -54,7 +52,6 @@ public class Cancellation : BaseEntity, IAggregateRoot
         UserId = userId;
         SaleId = saleId;
         SaleItemId = saleItemId;
-        EmployeeId = employeeId;
         CancellationDate = DateTime.UtcNow;
 
         AddDomainEvent(new CancellationCreatedEvent(Id, Type, SaleId, SaleItemId, Reason));

@@ -10,7 +10,7 @@ public record UpdateCashRegisterCommand(
     string Name,
     string Location,
     Guid BranchId,
-    Guid? AssignedEmployeeId,
+    string? AssignedUserId,
     Guid? AssignedPrinterId,
     bool IsActive,
     string? IpAddress = null
@@ -43,7 +43,7 @@ public class UpdateCashRegisterCommandHandler : IRequestHandler<UpdateCashRegist
 
         // ── Actualización del agregado ────────────────────────────────────────
         entity.Update(request.Name, request.Location);
-        entity.AssignEmployee(request.AssignedEmployeeId);
+        entity.AssignUser(request.AssignedUserId);
         entity.AssignPrinter(request.AssignedPrinterId);
         entity.BindToIp(string.IsNullOrWhiteSpace(request.IpAddress) ? null : request.IpAddress);
 

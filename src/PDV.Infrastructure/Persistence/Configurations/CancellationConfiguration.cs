@@ -8,9 +8,5 @@ public class CancellationConfiguration : IEntityTypeConfiguration<Cancellation>
 {
     public void Configure(EntityTypeBuilder<Cancellation> entity)
     {
-        entity.HasOne(e => e.Employee)
-              .WithMany()
-              .HasForeignKey(e => e.EmployeeId)
-              .OnDelete(DeleteBehavior.Restrict);
     }
 }

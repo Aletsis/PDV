@@ -22,11 +22,6 @@ public class CashRegisterConfiguration : IEntityTypeConfiguration<CashRegister>
               .IsUnique()
               .HasFilter("\"IpAddress\" IS NOT NULL");
 
-        entity.HasOne(e => e.AssignedEmployee)
-              .WithMany()
-              .HasForeignKey(e => e.AssignedEmployeeId)
-              .OnDelete(DeleteBehavior.Restrict);
-
         entity.HasOne(e => e.Branch)
               .WithMany()
               .HasForeignKey(e => e.BranchId)

@@ -238,9 +238,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("EmployeeId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -270,8 +267,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BranchId");
-
-                    b.HasIndex("EmployeeId");
 
                     b.HasIndex("SaleId");
 
@@ -308,9 +303,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("EmployeeId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -334,8 +326,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CashRegisterId");
-
-                    b.HasIndex("EmployeeId");
 
                     b.HasIndex("ShiftId");
 
@@ -378,9 +368,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<Guid?>("EmployeeId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -405,8 +392,6 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.HasIndex("CashRegisterId");
 
-                    b.HasIndex("EmployeeId");
-
                     b.HasIndex("ShiftId");
 
                     b.ToTable("CashCuts");
@@ -418,11 +403,11 @@ namespace PDV.Infrastructure.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("AssignedEmployeeId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid?>("AssignedPrinterId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("AssignedUserId")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
@@ -469,8 +454,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AssignedEmployeeId");
 
                     b.HasIndex("AssignedPrinterId");
 
@@ -640,60 +623,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Departments");
-                });
-
-            modelBuilder.Entity("PDV.Domain.Entities.Employee", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EmployeeCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeCode")
-                        .IsUnique();
-
-                    b.ToTable("Employees");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.FolioSequence", b =>
@@ -1289,9 +1218,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("EmployeeId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Folio")
                         .HasColumnType("integer");
 
@@ -1349,8 +1275,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasIndex("CashRegisterId");
 
                     b.HasIndex("ClientId");
-
-                    b.HasIndex("EmployeeId");
 
                     b.HasIndex("SaleId");
 
@@ -2099,11 +2023,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PDV.Domain.Entities.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PDV.Domain.Entities.Sale", "Sale")
                         .WithMany()
                         .HasForeignKey("SaleId");
@@ -2113,8 +2032,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasForeignKey("SaleItemId");
 
                     b.Navigation("Branch");
-
-                    b.Navigation("Employee");
 
                     b.Navigation("Sale");
 
@@ -2128,11 +2045,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasForeignKey("CashRegisterId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("PDV.Domain.Entities.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PDV.Domain.Entities.Shift", "Shift")
                         .WithMany()
@@ -2169,8 +2081,6 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.Navigation("Denominations");
 
-                    b.Navigation("Employee");
-
                     b.Navigation("Shift");
                 });
 
@@ -2181,11 +2091,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasForeignKey("CashRegisterId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("PDV.Domain.Entities.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PDV.Domain.Entities.Shift", "Shift")
                         .WithMany()
@@ -2250,18 +2155,11 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.Navigation("DeclaredVouchers");
 
-                    b.Navigation("Employee");
-
                     b.Navigation("Shift");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.CashRegister", b =>
                 {
-                    b.HasOne("PDV.Domain.Entities.Employee", "AssignedEmployee")
-                        .WithMany()
-                        .HasForeignKey("AssignedEmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PDV.Domain.Entities.Printer", "AssignedPrinter")
                         .WithMany()
                         .HasForeignKey("AssignedPrinterId")
@@ -2272,8 +2170,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("AssignedEmployee");
 
                     b.Navigation("AssignedPrinter");
 
@@ -2464,11 +2360,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .WithMany()
                         .HasForeignKey("ClientId");
 
-                    b.HasOne("PDV.Domain.Entities.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PDV.Domain.Entities.Sale", "Sale")
                         .WithMany()
                         .HasForeignKey("SaleId");
@@ -2518,8 +2409,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Navigation("CashRegister");
 
                     b.Navigation("Client");
-
-                    b.Navigation("Employee");
 
                     b.Navigation("Sale");
 

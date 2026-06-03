@@ -63,8 +63,7 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
             0,
             sale.Id,
             sale.ClientId,
-            activeShift.CashRegisterId,
-            null // employeeId
+            activeShift.CashRegisterId
         );
 
         // Incrementar stock de productos devueltos y agregar items a la devolución

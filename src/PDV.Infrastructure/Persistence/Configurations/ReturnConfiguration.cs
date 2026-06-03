@@ -12,11 +12,6 @@ public class ReturnConfiguration : IEntityTypeConfiguration<Return>
         entity.Property(e => e.TotalTax).HasPrecision(18, 2);
         entity.Property(e => e.TotalRefund).HasPrecision(18, 2);
 
-        entity.HasOne(e => e.Employee)
-              .WithMany()
-              .HasForeignKey(e => e.EmployeeId)
-              .OnDelete(DeleteBehavior.Restrict);
-
         entity.HasOne(e => e.Shift)
               .WithMany()
               .HasForeignKey(e => e.ShiftId)

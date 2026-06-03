@@ -66,8 +66,7 @@ public class CancelSaleCommandHandler : IRequestHandler<CancelSaleCommand, bool>
                     reason: request.Reason,
                     userId: request.UserId,
                     saleId: sale.Id,
-                    saleItemId: null,
-                    employeeId: null
+                    saleItemId: null
                 );
 
                 _context.Cancellations.Add(cancellation);

@@ -44,8 +44,7 @@ public class Return : BaseEntity, IAggregateRoot
     // Usuario y Empleado que autoriza
     // ──────────────────────────────────────────────
     public string UserId { get; private set; }
-    public Guid? EmployeeId { get; private set; }
-    public Employee? Employee { get; private set; }
+
 
     // ──────────────────────────────────────────────
     // Totales calculados — espejo de Sale
@@ -75,8 +74,7 @@ public class Return : BaseEntity, IAggregateRoot
         int folio = 0,
         Guid? saleId = null,
         Guid? clientId = null,
-        Guid? cashRegisterId = null,
-        Guid? employeeId = null)
+        Guid? cashRegisterId = null)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw new DomainException("Se requiere un motivo para la devolución.");
         if (string.IsNullOrWhiteSpace(userId)) throw new DomainException("El ID de usuario es requerido.");
@@ -91,7 +89,6 @@ public class Return : BaseEntity, IAggregateRoot
         SaleId = saleId;
         ClientId = clientId;
         CashRegisterId = cashRegisterId;
-        EmployeeId = employeeId;
         ReturnDate = DateTime.UtcNow;
         IsCompleted = false;
         Subtotal = 0;

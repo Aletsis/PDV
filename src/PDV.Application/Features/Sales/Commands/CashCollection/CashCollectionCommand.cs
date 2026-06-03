@@ -7,7 +7,7 @@ using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.CashCollection;
 
-public record CashCollectionCommand(Guid CashRegisterId, Guid CashierId, decimal Amount, string Reason) : IRequest<Guid>;
+public record CashCollectionCommand(Guid CashRegisterId, string UserId, decimal Amount, string Reason) : IRequest<Guid>;
 
 public class CashCollectionCommandHandler : IRequestHandler<CashCollectionCommand, Guid>
 {
@@ -34,10 +34,9 @@ public class CashCollectionCommandHandler : IRequestHandler<CashCollectionComman
         var col = new PDV.Domain.Entities.CashCollection(
             shiftId: activeShift.Id,
             cashRegisterId: request.CashRegisterId,
-            userId: request.CashierId != Guid.Empty ? request.CashierId.ToString() : activeShift.UserId,
+            userId: !string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId,
             denominations: denominations,
-            reason: request.Reason,
-            employeeId: request.CashierId == Guid.Empty ? null : request.CashierId);
+            reason: request.Reason);
 
         _context.CashCollections.Add(col);
         await _context.SaveChangesAsync(cancellationToken);

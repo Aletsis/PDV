@@ -4,6 +4,7 @@ using PDV.Application.Features.Sync.Commands;
 using PDV.Application.Features.Sync.Dtos;
 using PDV.Application.Features.Clients.Queries.GetClientsDelta;
 using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId;
+using PDV.Application.Features.Printers.Queries.GetPrintersDelta;
 
 namespace PDV.WebUI.Controllers;
 
@@ -143,6 +144,22 @@ public class SyncController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting cash registers delta since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("printers-delta")]
+    public async Task<IActionResult> GetPrintersDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new GetPrintersDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting printers delta since {Since}", since);
             return Problem(ex.Message);
         }
     }

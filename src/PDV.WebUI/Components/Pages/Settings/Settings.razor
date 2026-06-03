@@ -9,13 +9,13 @@
 @using PDV.Application.Features.SystemConfiguration.Commands.RestoreBackup
 @using PDV.Application.Features.SystemConfiguration.Commands.DeleteBackup
 @using PDV.Application.Features.SystemConfiguration.Dtos
-@using PDV.Application.Features.Cashiers.Queries.ListCashiers
-@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Application.Common.Interfaces
 @using System
 @using System.IO
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IIdentityService IdentityService
 
 <PageTitle>Configuración del Sistema — Administración</PageTitle>
 
@@ -391,10 +391,10 @@ else
                             </div>
                             
                             <MudStack Spacing="3" Class="mt-2">
-                                <MudSelect T="Guid" Label="Destinatarios del Reporte" MultiSelection="true" SelectedValues="_selectedReportUsers" SelectedValuesChanged="OnReportUsersChanged" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Group" Disabled="!config.AutoReportEnabled">
-                                    @foreach (var c in _cashiers)
+                                <MudSelect T="string" Label="Destinatarios del Reporte" MultiSelection="true" SelectedValues="_selectedReportUsers" SelectedValuesChanged="OnReportUsersChanged" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Group" Disabled="!config.AutoReportEnabled">
+                                    @foreach (var u in _users)
                                     {
-                                        <MudSelectItem T="Guid" Value="c.Id">@c.Name (@c.EmployeeId)</MudSelectItem>
+                                        <MudSelectItem T="string" Value="u.Id">@u.FullName (@u.UserName)</MudSelectItem>
                                     }
                                 </MudSelect>
                                 
@@ -522,11 +522,11 @@ else
 @code {
     // ── Estado ─────────────────────────────────────────────────
     private SystemConfigurationDto config = new();
-    private List<CashierDto> _cashiers = new();
+    private List<UserSyncDataDto> _users = new();
     private List<BackupDto> _backups = new();
-    private IEnumerable<Guid> _selectedReportUsers = new HashSet<Guid>();
+    private IEnumerable<string> _selectedReportUsers = new HashSet<string>();
     
-    private void OnReportUsersChanged(IEnumerable<Guid> values)
+    private void OnReportUsersChanged(IEnumerable<string> values)
     {
         _selectedReportUsers = values;
     }
@@ -561,14 +561,12 @@ else
         try
         {
             config = await Mediator.Send(new GetSystemConfigurationQuery());
-            _cashiers = await Mediator.Send(new ListCashiersQuery());
+            _users = await IdentityService.GetUsersAsync(default);
 
-            // Bind Automatization selections
             if (!string.IsNullOrEmpty(config.AutoReportUsers))
             {
                 _selectedReportUsers = config.AutoReportUsers
                     .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(Guid.Parse)
                     .ToHashSet();
             }
 

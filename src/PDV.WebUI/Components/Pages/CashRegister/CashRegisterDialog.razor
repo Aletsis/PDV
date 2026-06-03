@@ -2,7 +2,7 @@
 @using PDV.Application.Features.CashRegisters.Commands.CreateCashRegister
 @using PDV.Application.Features.CashRegisters.Commands.UpdateCashRegister
 @using PDV.Application.Features.CashRegisters.Dtos
-@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.Branches.Dtos
 @using PDV.Application.Features.Printers.Dtos
 @using PDV.Domain.Enums
@@ -140,17 +140,17 @@
 
             @* Empleado y Impresora *@
             <MudItem xs="12" sm="6">
-                <MudSelect T="Guid?"
-                           @bind-Value="Model.AssignedEmployeeId"
-                           Label="Cajero Asignado (Opcional)"
+                <MudSelect T="string"
+                           @bind-Value="Model.AssignedUserId"
+                           Label="Usuario Asignado (Opcional)"
                            Variant="Variant.Outlined"
                            Clearable="true"
                            AdornmentIcon="@Icons.Material.Filled.Person"
                            Adornment="Adornment.Start">
-                    <MudSelectItem Value="@((Guid?)null)">— Ninguno —</MudSelectItem>
-                    @foreach (var cashier in Cashiers)
+                    <MudSelectItem T="string" Value="@((string?)null)">— Ninguno —</MudSelectItem>
+                    @foreach (var user in Users)
                     {
-                        <MudSelectItem Value="@((Guid?)cashier.Id)">@cashier.Name</MudSelectItem>
+                        <MudSelectItem T="string" Value="@user.Id">@user.FullName</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -213,7 +213,7 @@
     public List<BranchDto> Branches { get; set; } = new();
 
     [Parameter]
-    public List<CashierDto> Cashiers { get; set; } = new();
+    public List<UserSyncDataDto> Users { get; set; } = new();
 
     [Parameter]
     public List<PrinterDto> Printers { get; set; } = new();
@@ -284,7 +284,7 @@
                     Name:               Model.Name,
                     Location:           Model.Location ?? string.Empty,
                     BranchId:           Model.BranchId,
-                    AssignedEmployeeId: Model.AssignedEmployeeId,
+                    AssignedUserId:     Model.AssignedUserId,
                     AssignedPrinterId:  Model.AssignedPrinterId,
                     IsActive:           Model.IsActive,
                     IpAddress:          string.IsNullOrWhiteSpace(Model.IpAddress) ? null : Model.IpAddress.Trim());
@@ -298,7 +298,7 @@
                     Location:           Model.Location ?? string.Empty,
                     BranchId:           Model.BranchId,
                     Mode:               Model.Mode,
-                    AssignedEmployeeId: Model.AssignedEmployeeId,
+                    AssignedUserId:     Model.AssignedUserId,
                     AssignedPrinterId:  Model.AssignedPrinterId,
                     IpAddress:          string.IsNullOrWhiteSpace(Model.IpAddress) ? null : Model.IpAddress.Trim());
 
@@ -324,7 +324,7 @@
         public Guid   BranchId           { get; set; }
         public CashRegisterMode Mode     { get; set; } = CashRegisterMode.SalesFloor;
         public string? IpAddress         { get; set; }
-        public Guid?  AssignedEmployeeId { get; set; }
+        public string? AssignedUserId     { get; set; }
         public Guid?  AssignedPrinterId  { get; set; }
         public bool   IsActive           { get; set; } = true;
     }

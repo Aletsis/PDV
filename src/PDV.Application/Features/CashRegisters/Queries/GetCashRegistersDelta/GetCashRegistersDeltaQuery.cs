@@ -20,7 +20,7 @@ public class CashRegisterSyncDto
     public string? IpAddress { get; set; }
     public int Mode { get; set; }
     public Guid BranchId { get; set; }
-    public Guid? AssignedEmployeeId { get; set; }
+    public string? AssignedUserId { get; set; }
     public Guid? AssignedPrinterId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastModifiedAt { get; set; }
@@ -51,7 +51,7 @@ public class GetCashRegistersDeltaQueryHandler : IRequestHandler<GetCashRegister
                 IpAddress = c.IpAddress,
                 Mode = (int)c.Mode,
                 BranchId = c.BranchId,
-                AssignedEmployeeId = c.AssignedEmployeeId,
+                AssignedUserId = c.AssignedUserId,
                 AssignedPrinterId = c.AssignedPrinterId,
                 CreatedAt = c.CreatedAt,
                 LastModifiedAt = c.LastModifiedAt

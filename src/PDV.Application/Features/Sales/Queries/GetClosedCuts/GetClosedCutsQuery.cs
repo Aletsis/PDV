@@ -43,10 +43,12 @@ public class ClosedCutReturnDto
 public class GetClosedCutsQueryHandler : IRequestHandler<GetClosedCutsQuery, List<ClosedCutDto>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IIdentityService _identityService;
 
-    public GetClosedCutsQueryHandler(IApplicationDbContext context)
+    public GetClosedCutsQueryHandler(IApplicationDbContext context, IIdentityService identityService)
     {
         _context = context;
+        _identityService = identityService;
     }
 
     public async Task<List<ClosedCutDto>> Handle(GetClosedCutsQuery request, CancellationToken cancellationToken)
@@ -70,6 +72,17 @@ public class GetClosedCutsQueryHandler : IRequestHandler<GetClosedCutsQuery, Lis
         var shifts = await shiftsQuery
             .OrderByDescending(s => s.EndTime)
             .ToListAsync(cancellationToken);
+
+        var usersDict = new Dictionary<string, string>();
+        try
+        {
+            var users = await _identityService.GetUsersAsync(cancellationToken);
+            usersDict = users.ToDictionary(u => u.Id, u => u.FullName);
+        }
+        catch
+        {
+            // Offline/error fallback
+        }
 
         var result = new List<ClosedCutDto>();
 
@@ -148,18 +161,16 @@ public class GetClosedCutsQueryHandler : IRequestHandler<GetClosedCutsQuery, Lis
 
             // Obtener el nombre del cajero
             var cashierName = "Desconocido";
-            if (Guid.TryParse(shift.UserId, out var cashierGuid))
+            if (!string.IsNullOrEmpty(shift.UserId))
             {
-                var employee = await _context.Employees
-                    .FirstOrDefaultAsync(e => e.Id == cashierGuid, cancellationToken);
-                if (employee != null)
+                if (usersDict.TryGetValue(shift.UserId, out var name))
                 {
-                    cashierName = employee.Name;
+                    cashierName = name;
                 }
-            }
-            else
-            {
-                cashierName = shift.UserId;
+                else
+                {
+                    cashierName = shift.UserId;
+                }
             }
 
             result.Add(new ClosedCutDto

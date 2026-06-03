@@ -10,7 +10,7 @@ public interface IApplicationDbContext
     DbSet<Department> Departments { get; }
     DbSet<Sale> Sales { get; }
     DbSet<SaleItem> SaleItems { get; }
-    DbSet<Employee> Employees { get; }
+
     DbSet<CashRegister> CashRegisters { get; }
     DbSet<CashCut> CashCuts { get; }
     DbSet<CashCollection> CashCollections { get; }
@@ -49,4 +49,6 @@ public class UserSyncDataDto
 public interface IIdentityService
 {
     Task<List<UserSyncDataDto>> GetUsersDeltaAsync(DateTime sinceUtc, CancellationToken cancellationToken);
+    Task<List<UserSyncDataDto>> GetUsersAsync(CancellationToken cancellationToken);
+    Task<UserSyncDataDto?> GetUserByIdAsync(string userId, CancellationToken cancellationToken);
 }

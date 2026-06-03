@@ -13,11 +13,6 @@ public class CashCutConfiguration : IEntityTypeConfiguration<CashCut>
         entity.Property(e => e.DeclaredVouchersTotal).HasPrecision(18, 2);
         entity.Property(e => e.Difference).HasPrecision(18, 2);
 
-        entity.HasOne(e => e.Employee)
-              .WithMany()
-              .HasForeignKey(e => e.EmployeeId)
-              .OnDelete(DeleteBehavior.Restrict);
-
         entity.HasOne(e => e.CashRegister)
               .WithMany()
               .HasForeignKey(e => e.CashRegisterId)

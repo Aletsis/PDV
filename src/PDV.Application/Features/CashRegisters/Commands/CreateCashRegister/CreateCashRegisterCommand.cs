@@ -12,7 +12,7 @@ public record CreateCashRegisterCommand(
     string Location,
     Guid BranchId,
     CashRegisterMode Mode = CashRegisterMode.SalesFloor,
-    Guid? AssignedEmployeeId = null,
+    string? AssignedUserId = null,
     Guid? AssignedPrinterId = null,
     string? IpAddress = null
 ) : IRequest<Guid>;
@@ -42,8 +42,8 @@ public class CreateCashRegisterCommandHandler : IRequestHandler<CreateCashRegist
         // ── Creación del agregado ─────────────────────────────────────────────
         var entity = new CashRegister(request.Name, request.Location, request.BranchId, request.Mode);
 
-        if (request.AssignedEmployeeId.HasValue)
-            entity.AssignEmployee(request.AssignedEmployeeId.Value);
+        if (!string.IsNullOrEmpty(request.AssignedUserId))
+            entity.AssignUser(request.AssignedUserId);
 
         if (request.AssignedPrinterId.HasValue)
             entity.AssignPrinter(request.AssignedPrinterId.Value);

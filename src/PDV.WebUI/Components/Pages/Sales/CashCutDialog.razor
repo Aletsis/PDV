@@ -194,7 +194,7 @@
 
     [Parameter] public Guid ShiftId { get; set; }
     [Parameter] public Guid CashRegisterId { get; set; }
-    [Parameter] public Guid CashierId { get; set; }
+    [Parameter] public string UserId { get; set; } = string.Empty;
 
     private ShiftTotalsDto totals = null!;
     private List<UnpaidSaleDto> unpaidSales = new();
@@ -237,7 +237,7 @@
             // Enviar comando de arqueo y cierre formal usando el monto esperado en caja
             var command = new CashCutCommand(
                 CashRegisterId: CashRegisterId,
-                CashierId: CashierId,
+                UserId: UserId,
                 InitialCash: totals.InitialCash,
                 SalesTotal: totals.SalesTotal,
                 CashInDrawer: DeclaredAmount

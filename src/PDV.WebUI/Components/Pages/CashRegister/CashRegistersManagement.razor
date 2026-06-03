@@ -6,8 +6,7 @@
 @using PDV.Application.Features.CashRegisters.Commands.UpdateCashRegister
 @using PDV.Application.Features.CashRegisters.Commands.DeleteCashRegister
 @using PDV.Application.Features.CashRegisters.Dtos
-@using PDV.Application.Features.Cashiers.Queries.ListCashiers
-@using PDV.Application.Features.Cashiers.Dtos
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.Branches.Queries.GetBranches
 @using PDV.Application.Features.Branches.Dtos
 @using PDV.Application.Features.Printers.Queries.ListPrinters
@@ -18,6 +17,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IIdentityService IdentityService
 
 <PageTitle>Cajas Registradoras — Administración</PageTitle>
 
@@ -130,13 +130,13 @@
                         </CellTemplate>
                     </TemplateColumn>
 
-                    <TemplateColumn Title="Empleado">
+                    <TemplateColumn Title="Usuario Asignado">
                         <CellTemplate>
-                            @if (!string.IsNullOrEmpty(context.Item.AssignedEmployeeName))
+                            @if (!string.IsNullOrEmpty(context.Item.AssignedUserName))
                             {
                                 <MudChip T="string" Icon="@Icons.Material.Filled.Person" Size="Size.Small"
                                          Color="Color.Default" Variant="Variant.Outlined">
-                                    @context.Item.AssignedEmployeeName
+                                    @context.Item.AssignedUserName
                                 </MudChip>
                             }
                             else
@@ -221,7 +221,7 @@
 @code {
     // ── Estado de la página ─────────────────────────────────────────────────
     private List<CashRegisterDto> cashRegisters = new();
-    private List<CashierDto>      cashiers       = new();
+    private List<UserSyncDataDto> users          = new();
     private List<BranchDto>       branches       = new();
     private List<PrinterDto>      printers       = new();
 
@@ -245,14 +245,14 @@
         isLoading = true;
         try
         {
-            var (cr, ca, br, pr) = (
+            var (cr, us, br, pr) = (
                 await Mediator.Send(new ListCashRegistersQuery()),
-                await Mediator.Send(new ListCashiersQuery()),
+                await IdentityService.GetUsersAsync(default),
                 await Mediator.Send(new GetBranchesQuery(IncludeInactive: false)),
                 await Mediator.Send(new ListPrintersQuery())
             );
             cashRegisters = cr;
-            cashiers      = ca;
+            users         = us;
             branches      = br;
             printers      = pr;
         }
@@ -282,7 +282,7 @@
             { x => x.IsEdit, false },
             { x => x.Model, model },
             { x => x.Branches, branches },
-            { x => x.Cashiers, cashiers },
+            { x => x.Users, users },
             { x => x.Printers, printers },
             { x => x.ServerIp, serverIp }
         };
@@ -308,7 +308,7 @@
             BranchId           = cr.BranchId,
             Mode               = cr.Mode,
             IpAddress          = cr.IpAddress,
-            AssignedEmployeeId = cr.AssignedEmployeeId,
+            AssignedUserId     = cr.AssignedUserId,
             AssignedPrinterId  = cr.AssignedPrinterId,
             IsActive           = cr.IsActive,
         };
@@ -318,7 +318,7 @@
             { x => x.IsEdit, true },
             { x => x.Model, model },
             { x => x.Branches, branches },
-            { x => x.Cashiers, cashiers },
+            { x => x.Users, users },
             { x => x.Printers, printers },
             { x => x.ServerIp, serverIp }
         };

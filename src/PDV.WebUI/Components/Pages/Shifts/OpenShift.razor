@@ -9,7 +9,7 @@
 @using PDV.Application.Features.CashRegisters.Dtos
 @using PDV.Application.Features.Shifts.Commands.OpenShift
 @using PDV.Application.Features.Shifts.Queries.GetActiveShift
-@using PDV.Application.Features.Cashiers.Queries.ListCashiers
+@using PDV.Application.Common.Interfaces
 @using PDV.Domain.Enums
 @using PDV.Application.Common.Helpers
 @using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId
@@ -21,6 +21,7 @@
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject IIdentityService IdentityService
 @inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 
 <PageTitle>Apertura de Caja — PDV</PageTitle>
@@ -339,13 +340,8 @@
             }
 
             CashRegisterDto? registerByUser = null;
-            var cashiers = await Mediator.Send(new ListCashiersQuery());
-            var currentEmployee = cashiers.FirstOrDefault(c => c.UserId == currentUserId);
-            if (currentEmployee != null)
-            {
-                var registers = await Mediator.Send(new ListCashRegistersQuery());
-                registerByUser = registers.FirstOrDefault(r => r.AssignedEmployeeId == currentEmployee.Id);
-            }
+            var registers = await Mediator.Send(new ListCashRegistersQuery());
+            registerByUser = registers.FirstOrDefault(r => r.AssignedUserId == currentUserId);
 
             // Seleccionar caja
             if (CashRegisterId.HasValue && CashRegisterId.Value != Guid.Empty)
@@ -395,8 +391,8 @@
                     else
                     {
                         // Pertenece a otro usuario
-                        var owner = cashiers.FirstOrDefault(c => c.UserId == activeShift.UserId);
-                        shiftOwnerName = owner != null ? owner.Name : activeShift.UserId;
+                        var owner = await IdentityService.GetUserByIdAsync(activeShift.UserId, default);
+                        shiftOwnerName = owner != null ? owner.FullName : activeShift.UserId;
                         hasForeignOpenShift = true;
                     }
                 }

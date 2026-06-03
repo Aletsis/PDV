@@ -21,8 +21,7 @@ public class CashRegister : BaseEntity, IAggregateRoot
     public Guid BranchId { get; private set; }
     public Branch? Branch { get; private set; }
 
-    public Guid? AssignedEmployeeId { get; private set; }
-    public Employee? AssignedEmployee { get; private set; }
+    public string? AssignedUserId { get; private set; }
 
     public Guid? AssignedPrinterId { get; private set; }
     public Printer? AssignedPrinter { get; private set; }
@@ -89,10 +88,10 @@ public class CashRegister : BaseEntity, IAggregateRoot
     // Asignaciones
     // ──────────────────────────────────────────────
 
-    public void AssignEmployee(Guid? employeeId)
+    public void AssignUser(string? userId)
     {
-        AssignedEmployeeId = employeeId;
-        AddDomainEvent(new CashRegisterEmployeeAssignedEvent(Id, employeeId));
+        AssignedUserId = userId;
+        AddDomainEvent(new CashRegisterUserAssignedEvent(Id, userId));
     }
 
     public void AssignPrinter(Guid? printerId)

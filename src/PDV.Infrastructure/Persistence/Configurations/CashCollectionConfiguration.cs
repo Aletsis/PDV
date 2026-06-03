@@ -10,11 +10,6 @@ public class CashCollectionConfiguration : IEntityTypeConfiguration<CashCollecti
     {
         entity.Property(e => e.Amount).HasPrecision(18, 2);
 
-        entity.HasOne(e => e.Employee)
-              .WithMany()
-              .HasForeignKey(e => e.EmployeeId)
-              .OnDelete(DeleteBehavior.Restrict);
-
         entity.HasOne(e => e.CashRegister)
               .WithMany()
               .HasForeignKey(e => e.CashRegisterId)
