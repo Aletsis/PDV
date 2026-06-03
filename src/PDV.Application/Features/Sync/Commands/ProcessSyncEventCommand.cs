@@ -174,9 +174,25 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
             typeInfo.CreateObject = () => ctor.Invoke(null);
         }
 
+        var ignoredTypes = new HashSet<Type>
+        {
+            typeof(Product),
+            typeof(Client),
+            typeof(Branch),
+            typeof(CashRegister),
+            typeof(Sale)
+        };
+
         // 2. Enable deserialization of properties with non-public setters or backing fields
         foreach (var property in typeInfo.Properties)
         {
+            // Ignore entities navigation properties to prevent EF Core insert constraint conflicts
+            if (ignoredTypes.Contains(property.PropertyType))
+            {
+                property.Set = null;
+                continue;
+            }
+
             var underlyingProperty = typeInfo.Type.GetProperty(property.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             
             if (underlyingProperty != null)
