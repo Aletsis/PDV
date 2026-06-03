@@ -413,9 +413,10 @@
         }
     }
 
-    private async Task PrintInvoice(InvoiceDto invoice)
+    private Task PrintInvoice(InvoiceDto invoice)
     {
         Snackbar.Add($"Imprimiendo factura {invoice.InvoiceNumber}...", Severity.Info);
         // TODO: Implementar impresión de factura
+        return Task.CompletedTask;
     }
 }

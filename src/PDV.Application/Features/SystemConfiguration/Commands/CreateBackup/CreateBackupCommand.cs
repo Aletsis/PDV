@@ -10,7 +10,7 @@ public record CreateBackupCommand(string? BackupDirectory) : IRequest<string>;
 
 public class CreateBackupCommandHandler : IRequestHandler<CreateBackupCommand, string>
 {
-    public async Task<string> Handle(CreateBackupCommand request, CancellationToken cancellationToken)
+    public Task<string> Handle(CreateBackupCommand request, CancellationToken cancellationToken)
     {
         // 1. Locate db path
         string dbPath = Path.Combine(Directory.GetCurrentDirectory(), "pdv.db");
@@ -43,6 +43,6 @@ public class CreateBackupCommandHandler : IRequestHandler<CreateBackupCommand, s
         // For SQLite, we can copy the file directly. File.Copy is fine.
         File.Copy(dbPath, targetPath, overwrite: true);
 
-        return targetPath;
+        return Task.FromResult(targetPath);
     }
 }

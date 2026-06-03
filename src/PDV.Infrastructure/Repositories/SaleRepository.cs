@@ -35,16 +35,16 @@ public class SaleRepository : ISaleRepository
         return await _context.Sales.ToListAsync(cancellationToken);
     }
 
-    public async Task<int> AddAsync(Sale sale, CancellationToken cancellationToken = default)
+    public Task<int> AddAsync(Sale sale, CancellationToken cancellationToken = default)
     {
         _context.Sales.Add(sale);
-        return 0;
+        return Task.FromResult(0);
     }
 
-    public async Task UpdateAsync(Sale sale, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(Sale sale, CancellationToken cancellationToken = default)
     {
         _context.Sales.Update(sale);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public async Task<List<Sale>> GetByPaymentMethodAsync(PDV.Domain.Enums.PaymentMethodType paymentMethod, CancellationToken cancellationToken = default)
