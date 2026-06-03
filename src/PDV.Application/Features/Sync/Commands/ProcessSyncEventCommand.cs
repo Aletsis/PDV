@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using System.Reflection;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
@@ -29,7 +31,11 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
-            ReferenceHandler = ReferenceHandler.IgnoreCycles
+            ReferenceHandler = ReferenceHandler.IgnoreCycles,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver
+            {
+                Modifiers = { ConfigureEntityDeserializationModifier }
+            }
         };
     }
 
@@ -149,6 +155,74 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
         catch (Exception ex)
         {
             return SyncProcessResult.Fail($"Event processing error: {ex.Message}");
+        }
+    }
+
+    private static void ConfigureEntityDeserializationModifier(JsonTypeInfo typeInfo)
+    {
+        if (typeInfo.Kind != JsonTypeInfoKind.Object) return;
+
+        // 1. Force use of parameterless constructor (even if non-public)
+        var ctor = typeInfo.Type.GetConstructor(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            Type.EmptyTypes,
+            null);
+
+        if (ctor != null)
+        {
+            typeInfo.CreateObject = () => ctor.Invoke(null);
+        }
+
+        // 2. Enable deserialization of properties with non-public setters or backing fields
+        foreach (var property in typeInfo.Properties)
+        {
+            var underlyingProperty = typeInfo.Type.GetProperty(property.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            
+            if (underlyingProperty != null)
+            {
+                // If it has a non-public setter, bind it
+                if (property.Set == null && underlyingProperty.SetMethod != null)
+                {
+                    var setter = underlyingProperty.SetMethod;
+                    property.Set = (obj, val) => setter.Invoke(obj, new[] { val });
+                }
+            }
+
+            // If it is a read-only collection (e.g. backed by _items, _taxes, etc.)
+            if (property.Set == null)
+            {
+                string fieldName = "_" + JsonNamingPolicy.CamelCase.ConvertName(property.Name);
+                var field = typeInfo.Type.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+                
+                if (field != null)
+                {
+                    property.Set = (obj, value) =>
+                    {
+                        var list = field.GetValue(obj);
+                        if (list == null)
+                        {
+                            list = Activator.CreateInstance(field.FieldType);
+                            field.SetValue(obj, list);
+                        }
+
+                        if (value is System.Collections.IEnumerable enumerable)
+                        {
+                            var clearMethod = field.FieldType.GetMethod("Clear");
+                            clearMethod?.Invoke(list, null);
+
+                            var addMethod = field.FieldType.GetMethod("Add");
+                            if (addMethod != null)
+                            {
+                                foreach (var item in enumerable)
+                                {
+                                    addMethod.Invoke(list, new[] { item });
+                                }
+                            }
+                        }
+                    };
+                }
+            }
         }
     }
 }
