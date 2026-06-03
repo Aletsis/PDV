@@ -17,7 +17,7 @@ public class ReturnConfiguration : IEntityTypeConfiguration<Return>
               .HasForeignKey(e => e.EmployeeId)
               .OnDelete(DeleteBehavior.Restrict);
 
-        entity.HasOne<Shift>()
+        entity.HasOne(e => e.Shift)
               .WithMany()
               .HasForeignKey(e => e.ShiftId)
               .OnDelete(DeleteBehavior.Restrict);

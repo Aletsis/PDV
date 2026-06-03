@@ -1512,6 +1512,8 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.HasIndex("ClientId");
 
+                    b.HasIndex("ShiftId");
+
                     b.ToTable("Sales");
                 });
 
@@ -2474,7 +2476,7 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasOne("PDV.Domain.Entities.Shift", "Shift")
                         .WithMany()
                         .HasForeignKey("ShiftId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "Taxes", b1 =>
@@ -2562,6 +2564,12 @@ namespace PDV.Infrastructure.Server.Migrations
                         .WithMany()
                         .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PDV.Domain.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "Taxes", b1 =>
                         {
