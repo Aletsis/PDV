@@ -22,6 +22,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         {
             a.ToTable("InvoiceTaxBreakdowns");
             a.WithOwner().HasForeignKey("InvoiceId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.BaseAmount).HasPrecision(18, 2);
             a.Property(x => x.TaxAmount).HasPrecision(18, 2);
             a.Property(x => x.Rate).HasPrecision(18, 4);

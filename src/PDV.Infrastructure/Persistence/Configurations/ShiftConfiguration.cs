@@ -15,12 +15,16 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
         entity.OwnsMany(e => e.PaymentMethodTotals, a =>
         {
             a.WithOwner().HasForeignKey("ShiftId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.Amount).HasPrecision(18, 2);
         });
 
         entity.OwnsMany(e => e.SalesTaxTotals, a =>
         {
             a.WithOwner().HasForeignKey("ShiftId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.BaseAmount).HasPrecision(18, 2);
             a.Property(x => x.TaxAmount).HasPrecision(18, 2);
         });
@@ -28,6 +32,8 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
         entity.OwnsMany(e => e.ReturnsTaxTotals, a =>
         {
             a.WithOwner().HasForeignKey("ShiftId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.BaseAmount).HasPrecision(18, 2);
             a.Property(x => x.TaxAmount).HasPrecision(18, 2);
         });
@@ -35,6 +41,8 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
         entity.OwnsMany(e => e.CreditNotes, a =>
         {
             a.WithOwner().HasForeignKey("ShiftId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.Amount).HasPrecision(18, 2);
         });
     }

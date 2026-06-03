@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
 using PDV.Application.Features.Sync.Dtos;
 using PDV.Domain.Entities;
+using PDV.Domain.Events;
+using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sync.Commands;
 
@@ -112,6 +114,34 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                     }
                 }
                 await _context.SaveChangesAsync(cancellationToken);
+            }
+            else if (dto.EventType.Equals("InventoryMovementRegisteredEvent"))
+            {
+                var ev = JsonSerializer.Deserialize<InventoryMovementRegisteredEvent>(dto.Payload, _jsonOptions);
+                if (ev == null) return SyncProcessResult.Fail("Could not deserialize InventoryMovementRegisteredEvent payload.");
+
+                var exists = await _context.InventoryMovements.AnyAsync(m => m.Id == ev.MovementId, cancellationToken);
+                if (!exists)
+                {
+                    var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == ev.ProductId, cancellationToken);
+                    if (product != null)
+                    {
+                        var movement = new InventoryMovement(
+                            productId: ev.ProductId,
+                            quantity:  ev.Quantity,
+                            type:      ev.Type,
+                            referenceId: ev.ReferenceId,
+                            remarks:   ev.Remarks);
+                        movement.SetId(ev.MovementId);
+
+                        _context.InventoryMovements.Add(movement);
+
+                        // Ajustar el stock en el servidor (ev.Quantity es negativo para ventas)
+                        product.AdjustStock(product.Stock + ev.Quantity);
+
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
             }
 
             return SyncProcessResult.Ok();

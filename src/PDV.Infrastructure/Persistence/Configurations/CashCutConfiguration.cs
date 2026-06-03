@@ -21,12 +21,16 @@ public class CashCutConfiguration : IEntityTypeConfiguration<CashCut>
         entity.OwnsMany(e => e.CashDenominations, a =>
         {
             a.WithOwner().HasForeignKey("CashCutId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.Type).HasConversion<int>();
         });
 
         entity.OwnsMany(e => e.DeclaredVouchers, a =>
         {
             a.WithOwner().HasForeignKey("CashCutId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.PaymentMethod).HasConversion<int>();
             a.Property(x => x.Amount).HasPrecision(18, 2);
         });

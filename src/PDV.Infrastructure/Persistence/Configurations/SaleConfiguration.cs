@@ -16,6 +16,8 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
         {
             a.ToTable("SaleTaxBreakdowns");
             a.WithOwner().HasForeignKey("SaleId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.BaseAmount).HasPrecision(18, 2);
             a.Property(x => x.TaxAmount).HasPrecision(18, 2);
             a.Property(x => x.Rate).HasPrecision(18, 4);

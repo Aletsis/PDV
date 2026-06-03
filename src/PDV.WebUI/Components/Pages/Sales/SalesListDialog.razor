@@ -195,76 +195,7 @@
     </DialogActions>
 </MudDialog>
 
-<!-- Ticket Detail Dialog Modal -->
-<MudDialog @bind-Visible="isDetailDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true })">
-    <TitleContent>
-        <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
-            <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" />
-            Detalle de Nota de Venta: @selectedSale?.SaleNumber
-        </MudText>
-    </TitleContent>
-    <DialogContent>
-        @if (selectedSaleDetail != null)
-        {
-            <MudPaper Outlined="true" Class="pa-4 mb-4 bg-light" Style="border-radius: 8px;">
-                <MudGrid>
-                    <MudItem xs="12" sm="6">
-                        <MudText Class="mb-1"><strong>Fecha de Emisión:</strong> @selectedSaleDetail.Date.ToString("dd/MM/yyyy HH:mm")</MudText>
-                        <MudText Class="mb-1"><strong>Cliente Asociado:</strong> @selectedSaleDetail.ClientName</MudText>
-                        <MudText Class="mb-1"><strong>Forma de Pago:</strong> @selectedSaleDetail.PaymentMethod</MudText>
-                    </MudItem>
-                    <MudItem xs="12" sm="6" Class="d-flex flex-column align-sm-end justify-center">
-                        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2">
-                            <strong>Estado:</strong> 
-                            @if (selectedSaleDetail.IsCancelled)
-                            {
-                                <MudChip T="string" Color="Color.Error" Size="Size.Small">Cancelada</MudChip>
-                            }
-                            else if (selectedSaleDetail.IsPaid)
-                            {
-                                <MudChip T="string" Color="Color.Success" Size="Size.Small">Pagada</MudChip>
-                            }
-                            else
-                            {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Pendiente</MudChip>
-                            }
-                        </MudText>
-                    </MudItem>
-                </MudGrid>
-            </MudPaper>
-            
-            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Artículos del Ticket:</MudText>
-            <MudTable Items="@selectedSaleDetail.Items" Dense="true" Class="border-solid border mud-border-secondary" Style="border-radius: 8px; overflow: hidden;">
-                <HeaderContent>
-                    <MudTh>Producto</MudTh>
-                    <MudTh Style="text-align: right;">Precio Unit.</MudTh>
-                    <MudTh Style="text-align: center;">Cantidad / Peso</MudTh>
-                    <MudTh Style="text-align: right;">Total Importe</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd>@context.ProductName</MudTd>
-                    <MudTd Style="text-align: right;">@context.UnitPrice.ToString("C2")</MudTd>
-                    <MudTd Style="text-align: center;">@context.Quantity</MudTd>
-                    <MudTd Style="text-align: right;" Class="font-weight-bold">@context.TotalPrice.ToString("C2")</MudTd>
-                </RowTemplate>
-            </MudTable>
-            
-            <div class="d-flex justify-end mt-4">
-                <div class="text-right">
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">TOTAL FINAL DEL TICKET</MudText>
-                    <MudText Typo="Typo.h4" Class="font-weight-bold mud-text-primary">@selectedSaleDetail.TotalAmount.ToString("C2")</MudText>
-                </div>
-            </div>
-        }
-    </DialogContent>
-    <DialogActions>
-        @if (selectedSaleDetail != null && selectedSaleDetail.IsPaid && !selectedSaleDetail.IsCancelled)
-        {
-            <MudButton StartIcon="@Icons.Material.Filled.Print" OnClick="@(() => ReprintFromDetails())" Color="Color.Info" Variant="Variant.Filled" Style="text-transform: none; border-radius: 8px;">Reimprimir Ticket</MudButton>
-        }
-        <MudButton OnClick="CloseDetailDialog" Color="Color.Secondary" Variant="Variant.Outlined" Style="text-transform: none; border-radius: 8px;">Cerrar Detalle</MudButton>
-    </DialogActions>
-</MudDialog>
+
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
@@ -274,9 +205,6 @@
     private DateTime? endDate = DateTime.Today.AddDays(1);
     private bool? filterPaid = null;
 
-    private bool isDetailDialogVisible = false;
-    private SaleDto? selectedSale;
-    private SaleDetailDto? selectedSaleDetail;
     private CashRegisterDto? currentCashRegister;
 
     private string searchSeries = string.Empty;
@@ -411,13 +339,6 @@
         }
     }
 
-    private void CloseDetailDialog()
-    {
-        isDetailDialogVisible = false;
-        selectedSale = null;
-        selectedSaleDetail = null;
-    }
-
     private async Task ReprintTicket(SaleDto sale)
     {
         var exists = await EnsureSaleExistsLocally(sale.Id);
@@ -435,14 +356,6 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Error al imprimir: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task ReprintFromDetails()
-    {
-        if (selectedSale != null)
-        {
-            await ReprintTicket(selectedSale);
         }
     }
 

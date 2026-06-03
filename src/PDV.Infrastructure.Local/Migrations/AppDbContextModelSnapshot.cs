@@ -2064,12 +2064,13 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.CashDenomination", "Denominations", b1 =>
                         {
-                            b1.Property<string>("CashCollectionId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
+
+                            b1.Property<string>("CashCollectionId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Quantity")
                                 .HasColumnType("INTEGER");
@@ -2077,7 +2078,9 @@ namespace PDV.Infrastructure.Local.Migrations
                             b1.Property<int>("Type")
                                 .HasColumnType("INTEGER");
 
-                            b1.HasKey("CashCollectionId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("CashCollectionId");
 
                             b1.ToTable("CashCollections_Denominations");
 
@@ -2108,12 +2111,13 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.CashDenomination", "CashDenominations", b1 =>
                         {
-                            b1.Property<string>("CashCutId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
+
+                            b1.Property<string>("CashCutId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Quantity")
                                 .HasColumnType("INTEGER");
@@ -2121,7 +2125,9 @@ namespace PDV.Infrastructure.Local.Migrations
                             b1.Property<int>("Type")
                                 .HasColumnType("INTEGER");
 
-                            b1.HasKey("CashCutId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("CashCutId");
 
                             b1.ToTable("CashCuts_CashDenominations");
 
@@ -2131,9 +2137,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.PaymentMethodBreakdown", "DeclaredVouchers", b1 =>
                         {
-                            b1.Property<string>("CashCutId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2142,10 +2145,16 @@ namespace PDV.Infrastructure.Local.Migrations
                                 .HasPrecision(18, 2)
                                 .HasColumnType("TEXT");
 
+                            b1.Property<string>("CashCutId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
                             b1.Property<int>("PaymentMethod")
                                 .HasColumnType("INTEGER");
 
-                            b1.HasKey("CashCutId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("CashCutId");
 
                             b1.ToTable("CashCuts_DeclaredVouchers");
 
@@ -2276,15 +2285,16 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "TaxBreakdowns", b1 =>
                         {
-                            b1.Property<string>("InvoiceId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("InvoiceId")
+                                .IsRequired()
                                 .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
@@ -2298,7 +2308,9 @@ namespace PDV.Infrastructure.Local.Migrations
                                 .HasPrecision(18, 2)
                                 .HasColumnType("TEXT");
 
-                            b1.HasKey("InvoiceId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("InvoiceId");
 
                             b1.ToTable("InvoiceTaxBreakdowns", (string)null);
 
@@ -2374,9 +2386,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "Taxes", b1 =>
                         {
-                            b1.Property<string>("ReturnId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2392,11 +2401,17 @@ namespace PDV.Infrastructure.Local.Migrations
                                 .HasPrecision(18, 4)
                                 .HasColumnType("TEXT");
 
+                            b1.Property<string>("ReturnId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
                                 .HasColumnType("TEXT");
 
-                            b1.HasKey("ReturnId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ReturnId");
 
                             b1.ToTable("ReturnTaxBreakdowns", (string)null);
 
@@ -2462,9 +2477,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "Taxes", b1 =>
                         {
-                            b1.Property<string>("SaleId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2480,11 +2492,17 @@ namespace PDV.Infrastructure.Local.Migrations
                                 .HasPrecision(18, 4)
                                 .HasColumnType("TEXT");
 
+                            b1.Property<string>("SaleId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
                                 .HasColumnType("TEXT");
 
-                            b1.HasKey("SaleId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("SaleId");
 
                             b1.ToTable("SaleTaxBreakdowns", (string)null);
 
@@ -2530,9 +2548,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.PaymentMethodBreakdown", "PaymentMethodTotals", b1 =>
                         {
-                            b1.Property<string>("ShiftId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2544,7 +2559,13 @@ namespace PDV.Infrastructure.Local.Migrations
                             b1.Property<int>("PaymentMethod")
                                 .HasColumnType("INTEGER");
 
-                            b1.HasKey("ShiftId", "Id");
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ShiftId");
 
                             b1.ToTable("Shifts_PaymentMethodTotals");
 
@@ -2554,9 +2575,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "ReturnsTaxTotals", b1 =>
                         {
-                            b1.Property<string>("ShiftId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2571,11 +2589,17 @@ namespace PDV.Infrastructure.Local.Migrations
                             b1.Property<decimal>("Rate")
                                 .HasColumnType("TEXT");
 
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
                                 .HasColumnType("TEXT");
 
-                            b1.HasKey("ShiftId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ShiftId");
 
                             b1.ToTable("Shifts_ReturnsTaxTotals");
 
@@ -2585,9 +2609,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "SalesTaxTotals", b1 =>
                         {
-                            b1.Property<string>("ShiftId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2602,11 +2623,17 @@ namespace PDV.Infrastructure.Local.Migrations
                             b1.Property<decimal>("Rate")
                                 .HasColumnType("TEXT");
 
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
                                 .HasColumnType("TEXT");
 
-                            b1.HasKey("ShiftId", "Id");
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ShiftId");
 
                             b1.ToTable("Shifts_SalesTaxTotals");
 
@@ -2616,9 +2643,6 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.OwnsMany("PDV.Domain.ValueObjects.ShiftCreditNote", "CreditNotes", b1 =>
                         {
-                            b1.Property<string>("ShiftId")
-                                .HasColumnType("TEXT");
-
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("INTEGER");
@@ -2638,7 +2662,13 @@ namespace PDV.Infrastructure.Local.Migrations
                                 .IsRequired()
                                 .HasColumnType("TEXT");
 
-                            b1.HasKey("ShiftId", "Id");
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ShiftId");
 
                             b1.ToTable("ShiftCreditNote");
 

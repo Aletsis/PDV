@@ -18,6 +18,8 @@ public class CashCollectionConfiguration : IEntityTypeConfiguration<CashCollecti
         entity.OwnsMany(e => e.Denominations, a =>
         {
             a.WithOwner().HasForeignKey("CashCollectionId");
+            a.HasKey("Id");
+            a.Property("Id").ValueGeneratedOnAdd();
             a.Property(x => x.Type).HasConversion<int>();
         });
     }
