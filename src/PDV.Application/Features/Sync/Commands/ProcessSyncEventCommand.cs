@@ -54,6 +54,95 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                 var sale = JsonSerializer.Deserialize<Sale>(dto.Payload, _jsonOptions);
                 if (sale == null) return SyncProcessResult.Fail("Could not deserialize Sale payload.");
 
+                // 1. Ensure referenced Shift exists to satisfy foreign key constraints (Offline-first Stubbing)
+                var shiftExists = await _context.Shifts.AnyAsync(s => s.Id == sale.ShiftId, cancellationToken);
+                if (!shiftExists)
+                {
+                    var registerId = sale.CashRegisterId ?? Guid.Empty;
+                    var registerExists = registerId != Guid.Empty && await _context.CashRegisters.AnyAsync(r => r.Id == registerId, cancellationToken);
+                    if (!registerExists)
+                    {
+                        var firstReg = await _context.CashRegisters.FirstOrDefaultAsync(cancellationToken);
+                        if (firstReg != null)
+                        {
+                            registerId = firstReg.Id;
+                        }
+                        else
+                        {
+                            var branch = await _context.Branches.FirstOrDefaultAsync(cancellationToken);
+                            var branchId = branch?.Id ?? Guid.NewGuid();
+                            if (branch == null)
+                            {
+                                var dummyBranch = new Branch("Sucursal Temporal", "T-001", null, "", null, false);
+                                dummyBranch.SetId(branchId);
+                                _context.Branches.Add(dummyBranch);
+                                await _context.SaveChangesAsync(cancellationToken);
+                            }
+                            
+                            var dummyRegister = new CashRegister("Caja Temporal", "Piso Ventas", branchId);
+                            if (sale.CashRegisterId.HasValue && sale.CashRegisterId != Guid.Empty)
+                            {
+                                dummyRegister.SetId(sale.CashRegisterId.Value);
+                                registerId = sale.CashRegisterId.Value;
+                            }
+                            else
+                            {
+                                registerId = dummyRegister.Id;
+                            }
+                            
+                            _context.CashRegisters.Add(dummyRegister);
+                            await _context.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+
+                    var placeholderShift = new Shift(registerId, sale.UserId ?? "sync-system", 0);
+                    placeholderShift.SetId(sale.ShiftId);
+                    
+                    _context.Shifts.Add(placeholderShift);
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+
+                // 2. Ensure referenced Client exists if provided (optional foreign key)
+                if (sale.ClientId.HasValue && sale.ClientId != Guid.Empty)
+                {
+                    var clientExists = await _context.Clients.AnyAsync(c => c.Id == sale.ClientId.Value, cancellationToken);
+                    if (!clientExists)
+                    {
+                        var placeholderClient = new Client("C-TEMP", "Cliente Temporal", "", "", "");
+                        placeholderClient.SetId(sale.ClientId.Value);
+                        _context.Clients.Add(placeholderClient);
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
+
+                // 3. Ensure referenced Branch exists (required foreign key)
+                var branchIdForSale = sale.BranchId;
+                var branchExists = branchIdForSale != Guid.Empty && await _context.Branches.AnyAsync(b => b.Id == branchIdForSale, cancellationToken);
+                if (!branchExists)
+                {
+                    var firstBranch = await _context.Branches.FirstOrDefaultAsync(cancellationToken);
+                    if (firstBranch != null)
+                    {
+                        var branchProp = typeof(Sale).GetProperty("BranchId");
+                        branchProp?.SetValue(sale, firstBranch.Id);
+                    }
+                    else
+                    {
+                        var dummyBranch = new Branch("Sucursal Temporal", "T-001", null, "", null, false);
+                        dummyBranch.SetId(branchIdForSale == Guid.Empty ? Guid.NewGuid() : branchIdForSale);
+                        
+                        if (branchIdForSale == Guid.Empty)
+                        {
+                            var branchProp = typeof(Sale).GetProperty("BranchId");
+                            branchProp?.SetValue(sale, dummyBranch.Id);
+                        }
+                        
+                        _context.Branches.Add(dummyBranch);
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
+
+                // 4. Save the Sale
                 var exists = await _context.Sales.AnyAsync(s => s.Id == sale.Id, cancellationToken);
                 if (!exists)
                 {
@@ -66,10 +155,22 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                 var shift = JsonSerializer.Deserialize<Shift>(dto.Payload, _jsonOptions);
                 if (shift == null) return SyncProcessResult.Fail("Could not deserialize Shift payload.");
 
-                var exists = await _context.Shifts.AnyAsync(s => s.Id == shift.Id, cancellationToken);
-                if (!exists)
+                var existing = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == shift.Id, cancellationToken);
+                if (existing == null)
                 {
                     _context.Shifts.Add(shift);
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                else
+                {
+                    // Update existing placeholder shift with actual synced values
+                    ((DbContext)_context).Entry(existing).CurrentValues.SetValues(shift);
+                    
+                    CopyPrivateCollection(shift, existing, "_paymentMethodTotals");
+                    CopyPrivateCollection(shift, existing, "_salesTaxTotals");
+                    CopyPrivateCollection(shift, existing, "_returnsTaxTotals");
+                    CopyPrivateCollection(shift, existing, "_creditNotes");
+                    
                     await _context.SaveChangesAsync(cancellationToken);
                 }
             }
@@ -249,6 +350,24 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                             }
                         }
                     };
+                }
+            }
+        }
+    }
+
+    private static void CopyPrivateCollection(object source, object target, string fieldName)
+    {
+        var field = source.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field != null)
+        {
+            var srcList = field.GetValue(source) as System.Collections.IList;
+            var targetList = field.GetValue(target) as System.Collections.IList;
+            if (srcList != null && targetList != null)
+            {
+                targetList.Clear();
+                foreach (var item in srcList)
+                {
+                    targetList.Add(item);
                 }
             }
         }
