@@ -807,7 +807,7 @@ public class SyncWorker : BackgroundService
 
     private class UnidadMedidaSyncDto
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public int ExternalId { get; set; }
         public string NombreUnidad { get; set; } = string.Empty;
         public string Abreviatura { get; set; } = string.Empty;
