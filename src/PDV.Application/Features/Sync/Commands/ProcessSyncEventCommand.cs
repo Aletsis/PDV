@@ -306,6 +306,18 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
 
             return SyncProcessResult.Ok();
         }
+        catch (DbUpdateConcurrencyException concurrencyEx)
+        {
+            var entityDetails = string.Join(", ", concurrencyEx.Entries.Select(e => 
+            {
+                var type = e.Entity.GetType().Name;
+                var state = e.State.ToString();
+                var keys = string.Join("&", e.Metadata.FindPrimaryKey()?.Properties
+                    .Select(p => $"{p.Name}={e.Property(p.Name).CurrentValue}") ?? Array.Empty<string>());
+                return $"{type} (State: {state}, Keys: {keys})";
+            }));
+            return SyncProcessResult.Fail($"Event processing concurrency error: {concurrencyEx.Message}. Entities: {entityDetails}");
+        }
         catch (Exception ex)
         {
             var msg = ex.Message;
