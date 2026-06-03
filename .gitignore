@@ -83,3 +83,8 @@ scratch/
 .env
 .env.local
 .env.*.local
+
+# Carpetas de publicación local
+publish-agent/
+publish-windows/
+

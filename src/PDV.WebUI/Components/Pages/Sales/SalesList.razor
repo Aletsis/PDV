@@ -48,7 +48,7 @@
 
     <!-- Filtering Panel -->
     <MudPaper Class="pa-4 sl-filter-card">
-        <MudGrid AlignItems="Center">
+        <MudGrid>
             <MudItem xs="12" md="3">
                 <MudDatePicker @bind-Date="startDate" Label="Fecha de Inicio" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
@@ -82,7 +82,7 @@
                             EmptyIcon="@Icons.Material.Filled.SearchOff"
                             SkeletonRows="6"
                             SkeletonColumns="7">
-            <MudDataGrid Items="@sales" Filterable="true" Sortable="true" Dense="true" Elevation="0" Striped="true">
+            <MudDataGrid Items="@sales" Filterable="true" Dense="true" Elevation="0" Striped="true">
                 <Columns>
                     <PropertyColumn Property="x => x.SaleNumber" Title="Ticket / Folio" />
                     <PropertyColumn Property="x => x.Date" Title="Fecha y Hora" Format="dd/MM/yyyy HH:mm" />
@@ -153,7 +153,7 @@
 </div>
 
 <!-- Ticket Detail Dialog Modal -->
-<MudDialog @bind-IsVisible="isDetailDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true })">
+<MudDialog @bind-Visible="isDetailDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true })">
     <TitleContent>
         <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
             <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" />
@@ -328,7 +328,7 @@
         if (result == true)
         {
             var parameters = new DialogParameters { ["Title"] = "Razón de cancelación", ["Message"] = "Ingrese la razón de la cancelación:" };
-            var dialog = DialogService.Show<InputDialog>("Razón de cancelación", parameters);
+            var dialog = await DialogService.ShowAsync<InputDialog>("Razón de cancelación", parameters);
             var dialogResult = await dialog.Result;
             if (dialogResult != null && !dialogResult.Canceled && dialogResult.Data is string reason && !string.IsNullOrWhiteSpace(reason))
             {
@@ -366,7 +366,7 @@
         }
 
         var parameters = new DialogParameters { ["SaleDetail"] = detail };
-        var dialog = DialogService.Show<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
 
         if (result != null && !result.Canceled && result.Data is bool success && success)
@@ -380,7 +380,7 @@
         var parameters = new DialogParameters { ["SaleId"] = sale.Id };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
         
-        var dialog = DialogService.Show<InvoiceDetailsDialog>("Detalles de Facturación", parameters, options);
+        var dialog = await DialogService.ShowAsync<InvoiceDetailsDialog>("Detalles de Facturación", parameters, options);
         var result = await dialog.Result;
 
         if (result != null && !result.Canceled && result.Data is Guid invoiceId)
@@ -419,7 +419,7 @@
     {
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
-        var dialog = DialogService.Show<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
         return result != null && !result.Canceled && result.Data is bool authorized && authorized;
     }

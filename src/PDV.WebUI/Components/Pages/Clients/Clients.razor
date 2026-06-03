@@ -118,7 +118,7 @@
                             EmptyIcon="@Icons.Material.Filled.PeopleOutline"
                             SkeletonRows="6"
                             SkeletonColumns="7">
-            <MudDataGrid T="ClientDto" Items="@filteredClients" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+            <MudDataGrid T="ClientDto" Items="@filteredClients" Filterable="false" Hover="true" Striped="true" 
                          Dense="false" Elevation="0" Class="border border-solid rounded-lg">
                 <Columns>
                     <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />

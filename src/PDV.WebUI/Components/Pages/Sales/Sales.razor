@@ -480,7 +480,7 @@ else
 
     private async Task OpenProductLookup()
     {
-        var dialog = DialogService.Show<ProductLookupDialog>("Buscar Producto", new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+        var dialog = await DialogService.ShowAsync<ProductLookupDialog>("Buscar Producto", new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
         var result = await dialog.Result;
         if (result != null && !result.Canceled && result.Data is ProductLookupDialog.ProductLookupResult lookupResult)
         {
@@ -499,7 +499,7 @@ else
     {
         var parameters = new DialogParameters { ["Clients"] = clients };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
-        var dialog = DialogService.Show<ClientSearchDialog>("Buscar Cliente", parameters, options);
+        var dialog = await DialogService.ShowAsync<ClientSearchDialog>("Buscar Cliente", parameters, options);
         var result = await dialog.Result;
         
         if (result != null && !result.Canceled)
@@ -653,7 +653,7 @@ else
         if (cart.Count == 0) return;
 
         var parameters = new DialogParameters { ["TotalAmount"] = totalAmount };
-        var dialog = DialogService.Show<SplitPaymentDialog>("Cobrar Cuenta", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        var dialog = await DialogService.ShowAsync<SplitPaymentDialog>("Cobrar Cuenta", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
         var result = await dialog.Result;
         
         if (result != null && !result.Canceled && result.Data is SplitPaymentDialog.SplitPaymentResult splitResult)
@@ -684,7 +684,7 @@ else
             ["IsInflow"] = isInflow
         };
 
-        DialogService.Show<CashActionDialog>(
+        await DialogService.ShowAsync<CashActionDialog>(
             isInflow ? "Registrar Morralla" : "Registrar Recolección", 
             parameters, 
             new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true }
@@ -710,7 +710,7 @@ else
         };
 
         var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
-        var dialog = DialogService.Show<CashCutDialog>("Corte de Caja", parameters, options);
+        var dialog = await DialogService.ShowAsync<CashCutDialog>("Corte de Caja", parameters, options);
         var result = await dialog.Result;
 
         if (result != null && !result.Canceled && result.Data is bool success && success)
@@ -834,7 +834,7 @@ else
     {
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
-        var dialog = DialogService.Show<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
         return result != null && !result.Canceled && result.Data is bool authorized && authorized;
     }
@@ -842,7 +842,7 @@ else
     private async Task OpenNotesHistory()
     {
         var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
-        var dialog = DialogService.Show<SalesListDialog>("Historial de Notas y Devoluciones", options);
+        var dialog = await DialogService.ShowAsync<SalesListDialog>("Historial de Notas y Devoluciones", options);
         var result = await dialog.Result;
         if (result != null && !result.Canceled && result.Data is SaleDto selectedSale)
         {
@@ -922,7 +922,7 @@ else
         if (!authorized) return;
 
         var parameters = new DialogParameters { ["SaleDetail"] = historicalSaleDetail };
-        var dialog = DialogService.Show<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
 
         if (result != null && !result.Canceled && result.Data is bool success && success)

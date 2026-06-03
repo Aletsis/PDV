@@ -49,7 +49,7 @@ public class GetCashRegisterByIpQueryHandler : IRequestHandler<GetCashRegisterBy
                 .Include(x => x.Branch)
                 .Include(x => x.AssignedEmployee)
                 .Include(x => x.AssignedPrinter)
-                .FirstOrDefaultAsync(x => candidateIps.Contains(x.IpAddress) && x.IsActive, cancellationToken);
+                .FirstOrDefaultAsync(x => x.IpAddress != null && candidateIps.Contains(x.IpAddress) && x.IsActive, cancellationToken);
         }
 
         if (e == null) return null;

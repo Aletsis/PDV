@@ -2,11 +2,12 @@ namespace PDV.Domain.ValueObjects;
 
 public record Address
 {
-    public string Street { get; init; }
-    public string City { get; init; }
-    public string State { get; init; }
-    public string ZipCode { get; init; }
-    public string Country { get; init; }
+    public string Street { get; init; } = null!;
+    public string City { get; init; } = null!;
+    public string State { get; init; } = null!;
+    public string ZipCode { get; init; } = null!;
+    public string Country { get; init; } = null!;
+
 
     private Address() { } // For EF Core
 

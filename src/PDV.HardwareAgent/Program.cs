@@ -6,6 +6,9 @@ System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Inst
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configures the application life time to run as a Windows Service if started as such.
+builder.Host.UseWindowsService();
+
 // Configure the agent to listen on http://localhost:9000 for local requests
 builder.WebHost.UseUrls("http://localhost:9000");
 

@@ -119,7 +119,7 @@
                             EmptyIcon="@Icons.Material.Filled.Inventory"
                             SkeletonRows="6"
                             SkeletonColumns="7">
-            <MudDataGrid T="ProductDto" Items="@filteredProducts" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+            <MudDataGrid T="ProductDto" Items="@filteredProducts" Filterable="false" Hover="true" Striped="true" 
                          Dense="false" Elevation="0" Class="border border-solid rounded-lg">
                 <Columns>
                     <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600;" />
@@ -290,10 +290,10 @@
     private async Task OpenCreateDialog()
     {
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = DialogService.Show<ProductDialog>("Nuevo Producto", options);
+        var dialog = await DialogService.ShowAsync<ProductDialog>("Nuevo Producto", options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is ProductDialog.ProductViewModel model1)
+        if (result is not null && !result.Canceled && result.Data is ProductDialog.ProductViewModel model1)
         {
             var model = model1;
             var command = new CreateProductCommand
@@ -368,10 +368,10 @@
         });
 
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dialog = DialogService.Show<ProductDialog>("Editar Producto", parameters, options);
+        var dialog = await DialogService.ShowAsync<ProductDialog>("Editar Producto", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is ProductDialog.ProductViewModel model2)
+        if (result is not null && !result.Canceled && result.Data is ProductDialog.ProductViewModel model2)
         {
             var model = model2;
             var command = new UpdateProductCommand

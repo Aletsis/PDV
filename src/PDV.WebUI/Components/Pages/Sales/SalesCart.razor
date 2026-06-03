@@ -291,7 +291,7 @@
     {
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
-        var dialog = DialogService.Show<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
         return result != null && !result.Canceled && result.Data is bool authorized && authorized;
     }

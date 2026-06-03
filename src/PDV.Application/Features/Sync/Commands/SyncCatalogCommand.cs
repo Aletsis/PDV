@@ -216,7 +216,7 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
         var ids = dtos.Select(d => d.Id).ToList();
         var existingDict = await _context.Departments
             .Where(d => d.ClasificacionId.HasValue && ids.Contains(d.ClasificacionId.Value))
-            .ToDictionaryAsync(d => d.ClasificacionId.Value, d => d, cancellationToken);
+            .ToDictionaryAsync(d => d.ClasificacionId!.Value, d => d, cancellationToken);
 
         foreach (var dto in dtos)
         {
@@ -250,7 +250,7 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
         var ids = dtos.Select(d => d.Id).ToList();
         var existingDict = await _context.Categories
             .Where(c => c.ClasificacionId.HasValue && ids.Contains(c.ClasificacionId.Value))
-            .ToDictionaryAsync(c => c.ClasificacionId.Value, c => c, cancellationToken);
+            .ToDictionaryAsync(c => c.ClasificacionId!.Value, c => c, cancellationToken);
 
         foreach (var dto in dtos)
         {
@@ -295,7 +295,7 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
 
         while (hasMore && !cancellationToken.IsCancellationRequested)
         {
-            var endpoint = $"{config.ComercialApiUrl.TrimEnd('/')}/api/Productos?page={page}&pageSize={pageSize}&onlyActive=false";
+            var endpoint = $"{config.ComercialApiUrl!.TrimEnd('/')}/api/Productos?page={page}&pageSize={pageSize}&onlyActive=false";
             progress.Report($"Obteniendo página {page} de productos desde Comercial...");
 
             var response = await httpClient.GetAsync(endpoint, cancellationToken);
@@ -325,11 +325,11 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
         // Carga previa en diccionarios para evitar consultas N+1
         var categoryDict = await _context.Categories
             .Where(c => c.ClasificacionId.HasValue && c.ClasificacionId.Value > 0)
-            .ToDictionaryAsync(c => c.ClasificacionId.Value, c => c.Name, cancellationToken);
+            .ToDictionaryAsync(c => c.ClasificacionId!.Value, c => c.Name, cancellationToken);
 
         var departmentDict = await _context.Departments
             .Where(d => d.ClasificacionId.HasValue && d.ClasificacionId.Value > 0)
-            .ToDictionaryAsync(d => d.ClasificacionId.Value, d => d.Name, cancellationToken);
+            .ToDictionaryAsync(d => d.ClasificacionId!.Value, d => d.Name, cancellationToken);
 
         var codes = dtos.Select(d => d.Codigo).Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
         var existingProductsDict = await _context.Products
@@ -490,7 +490,7 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
 
         while (hasMore && !cancellationToken.IsCancellationRequested)
         {
-            var endpoint = $"{config.ComercialApiUrl.TrimEnd('/')}/api/Clientes?page={page}&pageSize={pageSize}&onlyActive=false";
+            var endpoint = $"{config.ComercialApiUrl!.TrimEnd('/')}/api/Clientes?page={page}&pageSize={pageSize}&onlyActive=false";
             progress.Report($"Obteniendo página {page} de clientes desde Comercial...");
 
             var response = await httpClient.GetAsync(endpoint, cancellationToken);

@@ -833,10 +833,10 @@ else
         }
     }
 
-    private void OpenSyncDialog()
+    private async Task OpenSyncDialog()
     {
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        DialogService.Show<SyncDialog>("Sincronización Manual", options);
+        await DialogService.ShowAsync<SyncDialog>("Sincronización Manual", options);
     }
 
     private string FormatBytes(long bytes)

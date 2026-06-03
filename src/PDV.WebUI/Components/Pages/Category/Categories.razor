@@ -111,7 +111,7 @@
                             EmptyIcon="@Icons.Material.Filled.Category"
                             SkeletonRows="5"
                             SkeletonColumns="4">
-            <MudDataGrid T="CategoryDto" Items="@filteredCategories" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+            <MudDataGrid T="CategoryDto" Items="@filteredCategories" Filterable="false" Hover="true" Striped="true" 
                          Dense="false" Elevation="0" Class="border border-solid rounded-lg">
                 <Columns>
                     <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />

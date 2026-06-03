@@ -5,7 +5,7 @@ namespace PDV.Domain.Entities;
 
 public class Category : BaseEntity, IAggregateRoot
 {
-    public string Name { get; private set; }
+    public string Name { get; private set; } = null!;
     public string? Description { get; private set; }
     public int? ClasificacionId { get; private set; } // ID de clasificación de CONTPAQi Comercial
     public bool IsActive { get; private set; }

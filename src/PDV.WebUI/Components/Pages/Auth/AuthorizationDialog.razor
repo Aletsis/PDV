@@ -3,7 +3,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject ISnackbar Snackbar
 
-<MudDialog MaxWidth="MaxWidth.Small" FullWidth="true" Class="glass-card" Style="background: linear-gradient(135deg, rgba(20, 24, 46, 0.9) 0%, rgba(8, 10, 20, 0.9) 100%) !important; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;">
+<MudDialog Class="glass-card" Style="background: linear-gradient(135deg, rgba(20, 24, 46, 0.9) 0%, rgba(8, 10, 20, 0.9) 100%) !important; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;">
     <TitleContent>
         <div class="d-flex flex-column align-center gap-2 pt-4">
             <div class="lock-icon-container d-flex align-center justify-center mb-2" style="background: rgba(244, 67, 54, 0.1); width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(244, 67, 54, 0.3);">
@@ -34,18 +34,15 @@
                           Label="Contraseña"
                           Variant="Variant.Outlined"
                           InputType="@passwordInput"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Lock"
-                          AdornmentIconColor="Color.Secondary"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@passwordIcon"
+                          AdornmentColor="Color.Secondary"
+                          OnAdornmentClick="TogglePasswordVisibility"
                           Required="true"
                           RequiredError="Ingrese la contraseña"
                           Margin="Margin.Dense"
                           Style="background: rgba(255,255,255,0.02); border-radius: 8px;"
-                          OnKeyDown="HandleKeyDown">
-                <AdornmentButton>
-                    <MudIconButton Icon="@passwordIcon" Color="Color.Secondary" OnClick="TogglePasswordVisibility" Edge="Edge.End" Size="Size.Small" />
-                </AdornmentButton>
-            </MudTextField>
+                          OnKeyDown="HandleKeyDown" />
 
             @if (!string.IsNullOrEmpty(errorMessage))
             {

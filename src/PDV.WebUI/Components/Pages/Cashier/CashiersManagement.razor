@@ -61,7 +61,7 @@
                             EmptyIcon="@Icons.Material.Filled.People"
                             SkeletonRows="4"
                             SkeletonColumns="4">
-            <MudDataGrid Items="@cashiers" Filterable="true" Sortable="true" Hover="true" RowClass="cr-table-row" Style="border-radius: 12px; overflow: hidden;" Elevation="0">
+            <MudDataGrid Items="@cashiers" Filterable="true" Hover="true" RowClass="cr-table-row" Style="border-radius: 12px; overflow: hidden;" Elevation="0">
                 <Columns>
                     <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
                     <PropertyColumn Property="x => x.EmployeeId" Title="ID Empleado" />

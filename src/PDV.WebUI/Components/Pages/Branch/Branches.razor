@@ -121,7 +121,7 @@
                             EmptyIcon="@Icons.Material.Filled.Storefront"
                             SkeletonRows="5"
                             SkeletonColumns="6">
-            <MudDataGrid T="BranchDto" Items="@filteredBranches" Filterable="false" Sortable="true" Hover="true" Striped="true" 
+            <MudDataGrid T="BranchDto" Items="@filteredBranches" Filterable="false" Hover="true" Striped="true" 
                          Dense="false" Elevation="0" Class="border border-solid rounded-lg">
                 <Columns>
                     <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
