@@ -8,7 +8,7 @@ using PDV.Application.Common.Interfaces;
 
 namespace PDV.Application.Features.UnidadesMedida;
 
-public record GetUnidadesMedidaQuery : IRequest<List<UnidadMedidaDto>>;
+public record GetUnidadesMedidaQuery(DateTime? SinceUtc = null) : IRequest<List<UnidadMedidaDto>>;
 
 public class GetUnidadesMedidaQueryHandler : IRequestHandler<GetUnidadesMedidaQuery, List<UnidadMedidaDto>>
 {
@@ -21,7 +21,15 @@ public class GetUnidadesMedidaQueryHandler : IRequestHandler<GetUnidadesMedidaQu
 
     public async Task<List<UnidadMedidaDto>> Handle(GetUnidadesMedidaQuery request, CancellationToken cancellationToken)
     {
-        return await _context.UnidadesMedida
+        var query = _context.UnidadesMedida.IgnoreQueryFilters();
+
+        if (request.SinceUtc.HasValue)
+        {
+            var since = request.SinceUtc.Value;
+            query = query.Where(u => u.CreatedAt > since || (u.LastModifiedAt != null && u.LastModifiedAt > since));
+        }
+
+        return await query
             .Select(u => new UnidadMedidaDto
             {
                 Id = u.Id,

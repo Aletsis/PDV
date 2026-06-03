@@ -402,7 +402,13 @@ public class SyncWorker : BackgroundService
         await PullBranchesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
         // 4. Pull UnidadesMedida
-        await PullUnidadesMedidaAsync(serverBaseUrl, stoppingToken);
+        await PullUnidadesMedidaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
+        // 5. Pull Cash Registers
+        await PullCashRegistersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
+        // 6. Pull Users
+        await PullUsersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
         SaveLastPullTime(currentSyncStartTime);
     }
@@ -739,9 +745,9 @@ public class SyncWorker : BackgroundService
         }
     }
 
-    private async Task PullUnidadesMedidaAsync(string serverBaseUrl, CancellationToken stoppingToken)
+    private async Task PullUnidadesMedidaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
     {
-        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/unidades-medida";
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/unidades-medida?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
 
         try
         {
@@ -765,7 +771,7 @@ public class SyncWorker : BackgroundService
 
             foreach (var dto in units)
             {
-                var existing = await db.UnidadesMedida.FirstOrDefaultAsync(u => u.ExternalId == dto.ExternalId, stoppingToken);
+                var existing = await db.UnidadesMedida.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.ExternalId == dto.ExternalId, stoppingToken);
                 if (existing == null)
                 {
                     var unit = new UnidadMedida(
@@ -805,6 +811,199 @@ public class SyncWorker : BackgroundService
         }
     }
 
+    private async Task PullCashRegistersDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/cash-registers-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Cash registers pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<CashRegisterSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} cash register deltas from server. Syncing locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            foreach (var dto in deltas)
+            {
+                var existing = await db.CashRegisters.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == dto.Id, stoppingToken);
+                var mode = (PDV.Domain.Enums.CashRegisterMode)dto.Mode;
+
+                if (existing == null)
+                {
+                    var cashRegister = new CashRegister(
+                        name: dto.Name,
+                        location: dto.Location,
+                        branchId: dto.BranchId,
+                        mode: mode
+                    );
+                    cashRegister.SetId(dto.Id);
+                    cashRegister.BindToIp(dto.IpAddress);
+                    cashRegister.AssignEmployee(dto.AssignedEmployeeId);
+                    cashRegister.AssignPrinter(dto.AssignedPrinterId);
+
+                    if (!dto.IsActive)
+                    {
+                        cashRegister.Deactivate();
+                    }
+
+                    cashRegister.ClearDomainEvents();
+                    db.CashRegisters.Add(cashRegister);
+                }
+                else
+                {
+                    existing.Update(dto.Name, dto.Location);
+                    existing.BindToIp(dto.IpAddress);
+                    existing.AssignEmployee(dto.AssignedEmployeeId);
+                    existing.AssignPrinter(dto.AssignedPrinterId);
+
+                    if (dto.IsActive && !existing.IsActive)
+                    {
+                        existing.Activate();
+                    }
+                    else if (!dto.IsActive && existing.IsActive)
+                    {
+                        existing.Deactivate();
+                    }
+
+                    existing.ClearDomainEvents();
+                }
+            }
+
+            await db.SaveChangesAsync(stoppingToken);
+            _logger.LogInformation("Successfully applied {Count} cash register deltas to local SQLite.", deltas.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during cash registers pull synchronization.");
+            if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
+            {
+                _clientDiscoveryService.InvalidateUrl();
+            }
+        }
+    }
+
+    private async Task PullUsersDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/users-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Users pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<UserSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} user deltas from server. Syncing locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<PDV.Infrastructure.Identity.ApplicationUser>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
+
+            foreach (var dto in deltas)
+            {
+                var user = await userManager.FindByIdAsync(dto.Id);
+                if (user == null)
+                {
+                    user = new PDV.Infrastructure.Identity.ApplicationUser
+                    {
+                        Id = dto.Id,
+                        UserName = dto.UserName,
+                        Email = dto.Email,
+                        FullName = dto.FullName,
+                        IsActive = dto.IsActive,
+                        PasswordHash = dto.PasswordHash
+                    };
+
+                    var result = await userManager.CreateAsync(user);
+                    if (result.Succeeded)
+                    {
+                        _logger.LogInformation("Successfully created offline user profile: {Username}", dto.UserName);
+                        
+                        foreach (var role in dto.Roles)
+                        {
+                            if (!await roleManager.RoleExistsAsync(role))
+                            {
+                                await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(role));
+                            }
+                            await userManager.AddToRoleAsync(user, role);
+                        }
+                    }
+                    else
+                    {
+                        var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                        _logger.LogError("Failed to create user {Username} locally: {Errors}", dto.UserName, errors);
+                    }
+                }
+                else
+                {
+                    user.UserName = dto.UserName;
+                    user.Email = dto.Email;
+                    user.FullName = dto.FullName;
+                    user.IsActive = dto.IsActive;
+                    user.PasswordHash = dto.PasswordHash;
+
+                    var result = await userManager.UpdateAsync(user);
+                    if (result.Succeeded)
+                    {
+                        var currentRoles = await userManager.GetRolesAsync(user);
+                        var rolesToRemove = currentRoles.Except(dto.Roles).ToList();
+                        var rolesToAdd = dto.Roles.Except(currentRoles).ToList();
+
+                        if (rolesToRemove.Any())
+                        {
+                            await userManager.RemoveFromRolesAsync(user, rolesToRemove);
+                        }
+
+                        foreach (var role in rolesToAdd)
+                        {
+                            if (!await roleManager.RoleExistsAsync(role))
+                            {
+                                await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(role));
+                            }
+                            await userManager.AddToRoleAsync(user, role);
+                        }
+                        
+                        _logger.LogInformation("Successfully updated offline user profile: {Username}", dto.UserName);
+                    }
+                    else
+                    {
+                        var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                        _logger.LogError("Failed to update user {Username} locally: {Errors}", dto.UserName, errors);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during users pull synchronization.");
+            if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
+            {
+                _clientDiscoveryService.InvalidateUrl();
+            }
+        }
+    }
+
     private class UnidadMedidaSyncDto
     {
         public Guid Id { get; set; }
@@ -814,5 +1013,29 @@ public class SyncWorker : BackgroundService
         public string Despliegue { get; set; } = string.Empty;
         public string ClaveInt { get; set; } = string.Empty;
         public string ClaveSat { get; set; } = string.Empty;
+    }
+
+    private class CashRegisterSyncDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public string? IpAddress { get; set; }
+        public int Mode { get; set; }
+        public Guid BranchId { get; set; }
+        public Guid? AssignedEmployeeId { get; set; }
+        public Guid? AssignedPrinterId { get; set; }
+    }
+
+    private class UserSyncDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public string? PasswordHash { get; set; }
+        public List<string> Roles { get; set; } = new();
     }
 }

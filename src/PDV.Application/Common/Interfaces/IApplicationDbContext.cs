@@ -28,8 +28,25 @@ public interface IApplicationDbContext
     DbSet<FolioSequence> FolioSequences { get; }
     DbSet<TicketSequence> TicketSequences { get; }
     DbSet<SystemConfiguration> SystemConfigurations { get; }
+    DbSet<TEntity> Set<TEntity>() where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     Task BeginTransactionAsync(CancellationToken cancellationToken);
     Task CommitTransactionAsync(CancellationToken cancellationToken);
     Task RollbackTransactionAsync(CancellationToken cancellationToken);
+}
+
+public class UserSyncDataDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public string? PasswordHash { get; set; }
+    public List<string> Roles { get; set; } = new();
+}
+
+public interface IIdentityService
+{
+    Task<List<UserSyncDataDto>> GetUsersDeltaAsync(DateTime sinceUtc, CancellationToken cancellationToken);
 }

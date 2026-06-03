@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<ITicketGenerator, Printing.TicketGenerator>();
         services.AddScoped<IEscPosPrinter, Printing.MultiChannelEscPosPrinter>();
         services.AddScoped<IComercialApiSyncService, Common.ComercialApiSyncService>();
+        services.AddScoped<IIdentityService, IdentityService>();
 
         services.AddIdentity<ApplicationUser, IdentityRole>(options =>
         {

@@ -115,16 +115,49 @@ public class SyncController : ControllerBase
     }
 
     [HttpGet("unidades-medida")]
-    public async Task<IActionResult> GetUnidadesMedida()
+    public async Task<IActionResult> GetUnidadesMedida([FromQuery] DateTime? since)
     {
         try
         {
-            var result = await _mediator.Send(new PDV.Application.Features.UnidadesMedida.GetUnidadesMedidaQuery());
+            var sinceUtc = since?.ToUniversalTime();
+            var result = await _mediator.Send(new PDV.Application.Features.UnidadesMedida.GetUnidadesMedidaQuery(sinceUtc));
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting units of measure");
+            _logger.LogError(ex, "Error getting units of measure since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("cash-registers-delta")]
+    public async Task<IActionResult> GetCashRegistersDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new PDV.Application.Features.CashRegisters.Queries.GetCashRegistersDelta.GetCashRegistersDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cash registers delta since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("users-delta")]
+    public async Task<IActionResult> GetUsersDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new PDV.Application.Features.Sync.Queries.GetUsersDelta.GetUsersDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting users delta since {Since}", since);
             return Problem(ex.Message);
         }
     }
