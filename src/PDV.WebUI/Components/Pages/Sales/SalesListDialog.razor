@@ -1,4 +1,5 @@
 @using MediatR
+@using System.Net.Http.Json
 @using PDV.Application.Features.Sales.Queries.ListSales
 @using PDV.Application.Features.Sales.Queries.GetSale
 @using PDV.Application.Features.Sales.Commands.CancelSale
@@ -28,7 +29,21 @@
         </MudText>
     </TitleContent>
     <DialogContent>
-        <div class="d-flex flex-column gap-4 py-2">
+        <div class="d-flex flex-column gap-4 py-2" style="position: relative;">
+            @if (isWaitingForConnection)
+            {
+                <div class="d-flex flex-column align-center justify-center pa-8 text-center" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(13, 16, 32, 0.95); z-index: 100; border-radius: 12px; backdrop-filter: blur(10px);">
+                    <MudProgressCircular Color="Color.Warning" Size="Size.Large" Indeterminate="true" Class="mb-4" />
+                    <MudText Typo="Typo.h5" Class="font-weight-bold mb-2 mud-text-warning">Esperando Conexión al Servidor Central...</MudText>
+                    <MudText Typo="Typo.body1" Class="mud-text-secondary mb-6" Style="max-width: 400px;">
+                        Se ha pausado la validación del ticket <strong>@searchSeries-@searchFolio</strong>. En cuanto se restablezca la comunicación de red, el ticket se validará automáticamente.
+                    </MudText>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => { isWaitingForConnection = false; })" Style="text-transform: none; border-radius: 8px; font-weight: bold;">
+                        Cancelar Espera
+                    </MudButton>
+                </div>
+            }
+
             <!-- Connection Monitor Alert -->
             <div>
                 @if (ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected)
@@ -69,6 +84,33 @@
                                    FullWidth="true" 
                                    Style="height: 40px; text-transform: none; font-weight: bold; border-radius: 8px;">
                             Filtrar Historial
+                        </MudButton>
+                    </MudItem>
+
+                    <!-- Fila de búsqueda por Ticket (Serie y Folio) -->
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="searchSeries" Label="Serie del Ticket" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="Ej. V" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudNumericField @bind-Value="searchFolio" Label="Folio del Ticket" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="Ej. 123" HideSpinButtons="true" />
+                    </MudItem>
+                    <MudItem xs="12" md="6" Class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled" 
+                                   Color="Color.Warning" 
+                                   StartIcon="@Icons.Material.Filled.Search"
+                                   OnClick="SearchByTicket" 
+                                   FullWidth="true" 
+                                   Style="height: 40px; text-transform: none; font-weight: bold; border-radius: 8px;"
+                                   Disabled="isSearchingTicket">
+                            @if (isSearchingTicket)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Buscando Ticket...</span>
+                            }
+                            else
+                            {
+                                <span>Buscar Ticket Externo / Local</span>
+                            }
                         </MudButton>
                     </MudItem>
                 </MudGrid>
@@ -237,6 +279,11 @@
     private SaleDetailDto? selectedSaleDetail;
     private CashRegisterDto? currentCashRegister;
 
+    private string searchSeries = string.Empty;
+    private int? searchFolio;
+    private bool isSearchingTicket = false;
+    private bool isWaitingForConnection = false;
+
     protected override async Task OnInitializedAsync()
     {
         var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
@@ -264,7 +311,15 @@
     private async void OnConnectionChanged(bool isConnected)
     {
         await InvokeAsync(async () => {
-            await LoadData();
+            if (isConnected && isWaitingForConnection)
+            {
+                isWaitingForConnection = false;
+                await SearchByTicket();
+            }
+            else
+            {
+                await LoadData();
+            }
             StateHasChanged();
         });
     }
@@ -274,16 +329,68 @@
         Guid? cashRegisterFilter = null;
         bool isOffline = ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected;
 
-        if (isOffline && currentCashRegister != null)
+        if (isOffline)
         {
-            cashRegisterFilter = currentCashRegister.Id;
-        }
+            if (currentCashRegister != null)
+            {
+                cashRegisterFilter = currentCashRegister.Id;
+            }
 
-        sales = await Mediator.Send(new ListSalesQuery(
-            StartDate: startDate,
-            EndDate: endDate,
-            IsPaid: filterPaid,
-            CashRegisterId: cashRegisterFilter));
+            sales = await Mediator.Send(new ListSalesQuery(
+                StartDate: startDate,
+                EndDate: endDate,
+                IsPaid: filterPaid,
+                CashRegisterId: cashRegisterFilter));
+        }
+        else
+        {
+            var serverUrl = await ConnectionMonitor.GetResolvedServerUrlAsync();
+            if (!string.IsNullOrWhiteSpace(serverUrl))
+            {
+                try
+                {
+                    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    var url = $"{serverUrl.TrimEnd('/')}/api/sync/sales";
+                    
+                    var queryParams = new List<string>();
+                    if (startDate.HasValue) queryParams.Add($"startDate={Uri.EscapeDataString(startDate.Value.ToString("o"))}");
+                    if (endDate.HasValue) queryParams.Add($"endDate={Uri.EscapeDataString(endDate.Value.ToString("o"))}");
+                    if (filterPaid.HasValue) queryParams.Add($"isPaid={filterPaid.Value}");
+                    
+                    if (queryParams.Any())
+                    {
+                        url += "?" + string.Join("&", queryParams);
+                    }
+
+                    var response = await httpClient.GetAsync(url);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        sales = await response.Content.ReadFromJsonAsync<List<SaleDto>>() ?? new();
+                    }
+                    else
+                    {
+                        Snackbar.Add($"Error al consultar el servidor central: {response.ReasonPhrase}", Severity.Warning);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error al conectar al servidor central: {ex.Message}. Cargando datos locales...", Severity.Warning);
+                    sales = await Mediator.Send(new ListSalesQuery(
+                        StartDate: startDate,
+                        EndDate: endDate,
+                        IsPaid: filterPaid,
+                        CashRegisterId: null));
+                }
+            }
+            else
+            {
+                sales = await Mediator.Send(new ListSalesQuery(
+                    StartDate: startDate,
+                    EndDate: endDate,
+                    IsPaid: filterPaid,
+                    CashRegisterId: null));
+            }
+        }
     }
 
     private async Task<bool> RequestAuthorizationAsync(string actionName)
@@ -295,9 +402,13 @@
         return result != null && !result.Canceled && result.Data is bool authorized && authorized;
     }
 
-    private void ViewSale(SaleDto sale)
+    private async Task ViewSale(SaleDto sale)
     {
-        MudDialog.Close(DialogResult.Ok(sale));
+        var exists = await EnsureSaleExistsLocally(sale.Id);
+        if (exists)
+        {
+            MudDialog.Close(DialogResult.Ok(sale));
+        }
     }
 
     private void CloseDetailDialog()
@@ -309,6 +420,9 @@
 
     private async Task ReprintTicket(SaleDto sale)
     {
+        var exists = await EnsureSaleExistsLocally(sale.Id);
+        if (!exists) return;
+
         var authorized = await RequestAuthorizationAsync("Reimprimir ticket anterior");
         if (!authorized) return;
 
@@ -334,6 +448,9 @@
 
     private async Task CancelSale(SaleDto sale)
     {
+        var exists = await EnsureSaleExistsLocally(sale.Id);
+        if (!exists) return;
+
         var authorized = await RequestAuthorizationAsync("Cancelar venta activa o emitida");
         if (!authorized) return;
 
@@ -371,6 +488,9 @@
 
     private async Task OpenReturnItemsDialog(SaleDto sale)
     {
+        var exists = await EnsureSaleExistsLocally(sale.Id);
+        if (!exists) return;
+
         var authorized = await RequestAuthorizationAsync("Procesar devolución de mercancía");
         if (!authorized) return;
 
@@ -393,6 +513,9 @@
 
     private async Task CreateInvoice(SaleDto sale)
     {
+        var exists = await EnsureSaleExistsLocally(sale.Id);
+        if (!exists) return;
+
         var invoiceType = await DialogService.ShowMessageBox(
             "Tipo de Factura",
             "¿Qué tipo de factura desea crear?",
@@ -428,5 +551,149 @@
     public void Dispose()
     {
         ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionChanged;
+    }
+
+    private async Task<bool> EnsureSaleExistsLocally(Guid saleId)
+    {
+        var localSale = await Mediator.Send(new GetSaleQuery(saleId));
+        if (localSale != null)
+        {
+            return true;
+        }
+
+        bool isOffline = ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected;
+        if (isOffline)
+        {
+            Snackbar.Add("No se pudo cargar la información de la venta (Modo Offline).", Severity.Error);
+            return false;
+        }
+
+        try
+        {
+            var serverUrl = await ConnectionMonitor.GetResolvedServerUrlAsync();
+            if (!string.IsNullOrWhiteSpace(serverUrl))
+            {
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                var endpoint = $"{serverUrl.TrimEnd('/')}/api/sync/sales/{saleId}";
+                var response = await httpClient.GetAsync(endpoint);
+                if (response.IsSuccessStatusCode)
+                {
+                    var saleDetail = await response.Content.ReadFromJsonAsync<SaleDetailDto>();
+                    if (saleDetail != null)
+                    {
+                        var importCommand = new PDV.Application.Features.Sales.Commands.ImportSale.ImportSaleCommand(saleDetail);
+                        var importSuccess = await Mediator.Send(importCommand);
+                        return importSuccess;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al importar la venta desde el servidor: {ex.Message}", Severity.Error);
+        }
+
+        return false;
+    }
+
+    private async Task SearchByTicket()
+    {
+        if (string.IsNullOrWhiteSpace(searchSeries) || !searchFolio.HasValue)
+        {
+            Snackbar.Add("Debe ingresar la serie y el folio del ticket.", Severity.Warning);
+            return;
+        }
+
+        bool isOffline = ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected;
+
+        if (isOffline)
+        {
+            bool? confirm = await DialogService.ShowMessageBox(
+                "Sin Conexión al Servidor",
+                "No hay conexión con el servidor central para validar tickets externos de otras cajas. ¿Deseas esperar a que regrese la conexión para validar automáticamente?",
+                yesText: "Esperar Conexión",
+                noText: "Cancelar"
+            );
+
+            if (confirm == true)
+            {
+                isWaitingForConnection = true;
+                StateHasChanged();
+            }
+            return;
+        }
+
+        isSearchingTicket = true;
+        StateHasChanged();
+
+        try
+        {
+            var serverUrl = await ConnectionMonitor.GetResolvedServerUrlAsync();
+            SaleDetailDto? saleDetail = null;
+
+            if (!string.IsNullOrWhiteSpace(serverUrl))
+            {
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                var endpoint = $"{serverUrl.TrimEnd('/')}/api/sync/sales/by-ticket?series={Uri.EscapeDataString(searchSeries)}&folio={searchFolio.Value}";
+                
+                var response = await httpClient.GetAsync(endpoint);
+                if (response.IsSuccessStatusCode)
+                {
+                    saleDetail = await response.Content.ReadFromJsonAsync<SaleDetailDto>();
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Snackbar.Add("Ticket no encontrado en el Servidor Central.", Severity.Error);
+                }
+                else
+                {
+                    Snackbar.Add($"Error del servidor ({response.StatusCode}) al buscar el ticket.", Severity.Error);
+                }
+            }
+            else
+            {
+                saleDetail = await Mediator.Send(new PDV.Application.Features.Sales.Queries.GetSaleByTicket.GetSaleByTicketQuery(searchSeries, searchFolio.Value));
+            }
+
+            if (saleDetail != null)
+            {
+                if (ConnectionMonitor.IsLocalMode)
+                {
+                    var importCommand = new PDV.Application.Features.Sales.Commands.ImportSale.ImportSaleCommand(saleDetail);
+                    var importSuccess = await Mediator.Send(importCommand);
+                    if (importSuccess)
+                    {
+                        Snackbar.Add($"Ticket #{searchSeries}-{searchFolio} importado localmente con éxito.", Severity.Success);
+                    }
+                }
+
+                var mappedSale = new SaleDto
+                {
+                    Id = saleDetail.Id,
+                    SaleNumber = saleDetail.SaleNumber,
+                    Date = saleDetail.Date,
+                    TotalAmount = saleDetail.TotalAmount,
+                    PaymentMethod = saleDetail.PaymentMethod,
+                    ClientId = saleDetail.ClientId,
+                    ClientName = saleDetail.ClientName,
+                    IsPaid = saleDetail.IsPaid,
+                    IsCancelled = saleDetail.IsCancelled,
+                    IsReturned = saleDetail.IsReturned,
+                    ItemCount = saleDetail.Items.Count
+                };
+
+                sales = new List<SaleDto> { mappedSale };
+                Snackbar.Add($"Ticket encontrado: {mappedSale.SaleNumber}", Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al buscar ticket: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSearchingTicket = false;
+            StateHasChanged();
+        }
     }
 }

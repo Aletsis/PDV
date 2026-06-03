@@ -177,6 +177,71 @@ public class SyncController : ControllerBase
             return Problem(ex.Message);
         }
     }
-}
 
+    [HttpGet("sales")]
+    public async Task<IActionResult> GetSales(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] bool? isPaid,
+        [FromQuery] Guid? cashRegisterId)
+    {
+        try
+        {
+            var query = new PDV.Application.Features.Sales.Queries.ListSales.ListSalesQuery(
+                StartDate: startDate,
+                EndDate: endDate,
+                IsPaid: isPaid,
+                CashRegisterId: cashRegisterId);
+                
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing sales from sync controller");
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("sales/by-ticket")]
+    public async Task<IActionResult> GetSaleByTicket(
+        [FromQuery] string series,
+        [FromQuery] int folio)
+    {
+        try
+        {
+            var query = new PDV.Application.Features.Sales.Queries.GetSaleByTicket.GetSaleByTicketQuery(series, folio);
+            var result = await _mediator.Send(query);
+            if (result == null)
+            {
+                return NotFound("Venta no encontrada con la serie y folio especificados.");
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting sale by ticket: {Series}-{Folio}", series, folio);
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("sales/{id}")]
+    public async Task<IActionResult> GetSaleById(Guid id)
+    {
+        try
+        {
+            var result = await _mediator.Send(new PDV.Application.Features.Sales.Queries.GetSale.GetSaleQuery(id));
+            if (result == null)
+            {
+                return NotFound();
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting sale by id: {Id}", id);
+            return Problem(ex.Message);
+        }
+    }
+}
 

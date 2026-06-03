@@ -48,9 +48,15 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
         var qtyToReturn = Math.Min(request.Quantity, remainingQuantity);
         if (qtyToReturn <= 0) return false;
 
-        // Buscar turno activo
+        // Buscar turno activo del cajero que realiza la devolución
         var activeShift = await _context.Shifts
-            .FirstOrDefaultAsync(s => s.CashRegisterId == sale.CashRegisterId && s.Status == ShiftStatus.Open, cancellationToken);
+            .FirstOrDefaultAsync(s => s.UserId == request.CashierUserId && s.Status == ShiftStatus.Open, cancellationToken);
+
+        if (activeShift == null)
+        {
+            activeShift = await _context.Shifts
+                .FirstOrDefaultAsync(s => s.CashRegisterId == sale.CashRegisterId && s.Status == ShiftStatus.Open, cancellationToken);
+        }
 
         if (activeShift == null)
         {
@@ -70,7 +76,7 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
             folio: 0,
             saleId: sale.Id,
             clientId: sale.ClientId,
-            cashRegisterId: sale.CashRegisterId,
+            cashRegisterId: activeShift.CashRegisterId,
             employeeId: null
         );
 

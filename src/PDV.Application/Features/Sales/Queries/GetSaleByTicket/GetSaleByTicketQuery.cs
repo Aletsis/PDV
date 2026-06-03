@@ -3,26 +3,26 @@ using PDV.Application.Common.Interfaces;
 using PDV.Application.Features.Sales.Dtos;
 using Microsoft.EntityFrameworkCore;
 
-namespace PDV.Application.Features.Sales.Queries.GetSale;
+namespace PDV.Application.Features.Sales.Queries.GetSaleByTicket;
 
-public record GetSaleQuery(Guid Id) : IRequest<SaleDetailDto?>;
+public record GetSaleByTicketQuery(string Series, int Folio) : IRequest<SaleDetailDto?>;
 
-public class GetSaleQueryHandler : IRequestHandler<GetSaleQuery, SaleDetailDto?>
+public class GetSaleByTicketQueryHandler : IRequestHandler<GetSaleByTicketQuery, SaleDetailDto?>
 {
     private readonly IApplicationDbContext _context;
 
-    public GetSaleQueryHandler(IApplicationDbContext context)
+    public GetSaleByTicketQueryHandler(IApplicationDbContext context)
     {
         _context = context;
     }
 
-    public async Task<SaleDetailDto?> Handle(GetSaleQuery request, CancellationToken cancellationToken)
+    public async Task<SaleDetailDto?> Handle(GetSaleByTicketQuery request, CancellationToken cancellationToken)
     {
         var sale = await _context.Sales
             .Include(s => s.Items)
             .ThenInclude(i => i.Product)
             .Include(s => s.Client)
-            .FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.Series == request.Series && s.Folio == request.Folio, cancellationToken);
 
         if (sale == null)
             return null;

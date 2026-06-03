@@ -17,6 +17,11 @@ public class ReturnConfiguration : IEntityTypeConfiguration<Return>
               .HasForeignKey(e => e.EmployeeId)
               .OnDelete(DeleteBehavior.Restrict);
 
+        entity.HasOne<Shift>()
+              .WithMany()
+              .HasForeignKey(e => e.ShiftId)
+              .OnDelete(DeleteBehavior.Restrict);
+
         entity.OwnsMany(e => e.Taxes, a =>
         {
             a.ToTable("ReturnTaxBreakdowns");

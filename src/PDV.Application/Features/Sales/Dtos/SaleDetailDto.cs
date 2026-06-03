@@ -14,5 +14,6 @@ public class SaleDetailDto
     public bool IsReturned { get; set; }
     public string? Series { get; set; }
     public int Folio { get; set; }
+    public Guid ShiftId { get; set; }
     public List<SaleItemDto> Items { get; set; } = new();
 }

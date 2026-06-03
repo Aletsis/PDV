@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 using PDV.Domain.Repositories;
@@ -37,17 +38,32 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
             throw new InvalidOperationException("No se puede hacer devolución de una venta cancelada.");
         }
 
+        // Buscar turno activo del cajero que realiza la devolución
+        var activeShift = await _context.Shifts
+            .FirstOrDefaultAsync(s => s.UserId == request.CashierUserId && s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
+
+        if (activeShift == null)
+        {
+            activeShift = await _context.Shifts
+                .FirstOrDefaultAsync(s => s.CashRegisterId == sale.CashRegisterId && s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
+        }
+
+        if (activeShift == null)
+        {
+            throw new InvalidOperationException("No se puede registrar una devolución si no hay un turno de caja activo.");
+        }
+
         // Crear registro de devolución de venta completa
         var ret = new Return(
             request.Reason,
             PDV.Domain.Enums.RefundMethod.Cash,
             request.CashierUserId,
-            sale.ShiftId,
+            activeShift.Id,
             null,
             0,
             sale.Id,
             sale.ClientId,
-            sale.CashRegisterId,
+            activeShift.CashRegisterId,
             null // employeeId
         );
 

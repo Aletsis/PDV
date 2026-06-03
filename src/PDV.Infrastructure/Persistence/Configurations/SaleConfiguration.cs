@@ -35,5 +35,10 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
               .WithMany()
               .HasForeignKey(e => e.BranchId)
               .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasOne<Shift>()
+              .WithMany()
+              .HasForeignKey(e => e.ShiftId)
+              .OnDelete(DeleteBehavior.Restrict);
     }
 }
