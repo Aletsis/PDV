@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PDV.Application.Features.Sync.Commands;
 using PDV.Application.Features.Sync.Dtos;
 using PDV.Application.Features.Clients.Queries.GetClientsDelta;
+using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId;
 
 namespace PDV.WebUI.Controllers;
 
@@ -161,4 +162,21 @@ public class SyncController : ControllerBase
             return Problem(ex.Message);
         }
     }
+
+    [HttpGet("active-shift-by-user/{userId}")]
+    public async Task<IActionResult> GetActiveShiftByUserId([FromRoute] string userId)
+    {
+        try
+        {
+            var result = await _mediator.Send(new GetActiveShiftByUserIdQuery(userId));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking active shift for user {UserId}", userId);
+            return Problem(ex.Message);
+        }
+    }
 }
+
+

@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace PDV.WebUI.Services;
@@ -13,6 +14,7 @@ public class ConnectionMonitor : IDisposable
     private readonly string _serverBaseUrl;
     private readonly bool _isLocalMode;
     private readonly ILogger<ConnectionMonitor> _logger;
+    private readonly IServiceProvider _serviceProvider;
     private readonly Timer _timer;
     
     private bool _isConnected = true;
@@ -23,9 +25,10 @@ public class ConnectionMonitor : IDisposable
 
     public event Action<bool>? OnConnectionStatusChanged;
 
-    public ConnectionMonitor(IConfiguration configuration, ILogger<ConnectionMonitor> logger)
+    public ConnectionMonitor(IConfiguration configuration, ILogger<ConnectionMonitor> logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
+        _serviceProvider = serviceProvider;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
         var runMode = configuration["RunMode"] ?? "Server";
@@ -48,6 +51,23 @@ public class ConnectionMonitor : IDisposable
         }
     }
 
+    public async Task<string?> GetResolvedServerUrlAsync()
+    {
+        if (!_isLocalMode) return null;
+
+        var discoveryService = _serviceProvider.GetService<PDV.Infrastructure.Local.Discovery.IClientDiscoveryService>();
+        if (discoveryService != null)
+        {
+            return await discoveryService.GetServerUrlAsync(CancellationToken.None);
+        }
+
+        return !string.IsNullOrWhiteSpace(_serverBaseUrl) &&
+               !_serverBaseUrl.Equals("auto", StringComparison.OrdinalIgnoreCase) &&
+               !_serverBaseUrl.Equals("discover", StringComparison.OrdinalIgnoreCase)
+               ? _serverBaseUrl
+               : null;
+    }
+
     public async Task CheckConnectionAsync()
     {
         if (_isChecking) return;
@@ -56,13 +76,22 @@ public class ConnectionMonitor : IDisposable
         bool currentlyConnected = false;
         try
         {
-            var pingUrl = $"{_serverBaseUrl}/api/sync/ping";
-            var response = await _httpClient.GetAsync(pingUrl);
-            
-            if (response.IsSuccessStatusCode)
+            var baseUrl = await GetResolvedServerUrlAsync();
+            if (!string.IsNullOrWhiteSpace(baseUrl))
             {
-                var content = await response.Content.ReadAsStringAsync();
-                currentlyConnected = content.Trim().Equals("pong", StringComparison.OrdinalIgnoreCase);
+                var pingUrl = $"{baseUrl}/api/sync/ping";
+                var response = await _httpClient.GetAsync(pingUrl);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    currentlyConnected = content.Trim().Equals("pong", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            else if (!_isLocalMode)
+            {
+                // In server mode we are always connected to self
+                currentlyConnected = true;
             }
         }
         catch (Exception)
@@ -73,6 +102,7 @@ public class ConnectionMonitor : IDisposable
         {
             _isChecking = false;
         }
+
 
         if (currentlyConnected != _isConnected)
         {

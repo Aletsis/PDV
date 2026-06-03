@@ -12,6 +12,8 @@
 @using PDV.Application.Features.Cashiers.Queries.ListCashiers
 @using PDV.Domain.Enums
 @using PDV.Application.Common.Helpers
+@using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId
+@using PDV.Application.Features.Shifts.Dtos
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -19,6 +21,7 @@
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 
 <PageTitle>Apertura de Caja — PDV</PageTitle>
 
@@ -194,6 +197,24 @@
                     </MudStack>
                 </MudPaper>
             }
+            else if (hasGlobalActiveShift && globalActiveShift != null)
+            {
+                <MudPaper Class="os-card text-center pulse-glow">
+                    <MudStack Spacing="3" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Color="Color.Error" Style="font-size: 64px;" />
+                        <MudText Typo="Typo.h4" Class="text-white font-weight-bold">Turno Activo en Otro Equipo</MudText>
+                        <MudText Typo="Typo.body1" Class="text-white-50 px-4">
+                            Tu usuario cuenta actualmente con un turno activo abierto en la caja: <strong class="mud-text-primary">@globalActiveShift.CashRegisterName</strong>.
+                        </MudText>
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-2 text-left" Style="border-radius: 12px; width: 100%;">
+                            El sistema central detectó que ya tienes un turno iniciado desde el día/hora <strong>@globalActiveShift.StartTime.ToLocalTime().ToString("g")</strong> en otra caja. Debes cerrar ese turno antes de poder abrir uno nuevo aquí.
+                        </MudAlert>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/" Class="mt-4 py-3 px-6" Style="border-radius: 12px; font-weight: 600;">
+                            Regresar al Dashboard
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
             else
             {
                 <MudPaper Class="os-card pulse-glow">
@@ -276,6 +297,8 @@
     private bool hasAlreadyOpenShift = false;
     private bool isRoleAuthorized = true;
     private bool hasForeignOpenShift = false;
+    private bool hasGlobalActiveShift = false;
+    private ShiftDto? globalActiveShift;
     private string shiftOwnerName = string.Empty;
     private string clientIp = string.Empty;
     private string currentUserName = string.Empty;
@@ -378,6 +401,48 @@
                     }
                 }
             }
+
+            // 5. Validación Centralizada Global (Online) - Verificar si el usuario tiene otro turno activo globalmente
+            if (cashRegister != null && !hasAlreadyOpenShift && !hasForeignOpenShift && ConnectionMonitor.IsConnected)
+            {
+                if (!ConnectionMonitor.IsLocalMode)
+                {
+                    globalActiveShift = await Mediator.Send(new GetActiveShiftByUserIdQuery(currentUserId));
+                }
+                else
+                {
+                    var serverUrl = await ConnectionMonitor.GetResolvedServerUrlAsync();
+                    if (!string.IsNullOrWhiteSpace(serverUrl))
+                    {
+                        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                        var endpoint = $"{serverUrl.TrimEnd('/')}/api/sync/active-shift-by-user/{currentUserId}";
+                        try
+                        {
+                            var response = await httpClient.GetAsync(endpoint);
+                            if (response.IsSuccessStatusCode)
+                            {
+                                var body = await response.Content.ReadAsStringAsync();
+                                if (!string.IsNullOrWhiteSpace(body) && !body.Trim().Equals("null", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    globalActiveShift = System.Text.Json.JsonSerializer.Deserialize<ShiftDto>(body, new System.Text.Json.JsonSerializerOptions
+                                    {
+                                        PropertyNameCaseInsensitive = true
+                                    });
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error querying central server for active shift: {ex.Message}");
+                        }
+                    }
+                }
+
+                if (globalActiveShift != null && globalActiveShift.CashRegisterId != cashRegister.Id)
+                {
+                    hasGlobalActiveShift = true;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -402,6 +467,12 @@
         if (string.IsNullOrWhiteSpace(currentUserId))
         {
             Snackbar.Add("No se pudo obtener la identidad del usuario para abrir el turno.", Severity.Error);
+            return;
+        }
+
+        if (hasGlobalActiveShift)
+        {
+            Snackbar.Add("No es posible abrir el turno porque ya tienes otro turno activo en otro equipo.", Severity.Error);
             return;
         }
 
@@ -440,3 +511,4 @@
         }
     }
 }
+
