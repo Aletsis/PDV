@@ -35,6 +35,11 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
             TypeInfoResolver = new DefaultJsonTypeInfoResolver
             {
                 Modifiers = { ConfigureEntityDeserializationModifier }
+            },
+            Converters =
+            {
+                new DateTimeUtcConverter(),
+                new NullableDateTimeUtcConverter()
             }
         };
     }
@@ -247,5 +252,41 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                 }
             }
         }
+    }
+}
+
+public class DateTimeUtcConverter : JsonConverter<DateTime>
+{
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var dt = reader.GetDateTime();
+        return dt.Kind == DateTimeKind.Unspecified 
+            ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) 
+            : dt.ToUniversalTime();
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToUniversalTime().ToString("o"));
+    }
+}
+
+public class NullableDateTimeUtcConverter : JsonConverter<DateTime?>
+{
+    public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        var dt = reader.GetDateTime();
+        return dt.Kind == DateTimeKind.Unspecified 
+            ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) 
+            : dt.ToUniversalTime();
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue)
+            writer.WriteStringValue(value.Value.ToUniversalTime().ToString("o"));
+        else
+            writer.WriteNullValue();
     }
 }
