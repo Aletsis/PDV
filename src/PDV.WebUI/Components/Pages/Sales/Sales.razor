@@ -11,6 +11,7 @@
 @using PDV.Application.Features.Sales.Queries.GetNextFolio
 @using PDV.Application.Features.Sales.Dtos
 @using PDV.Application.Features.Clients.Queries.ListClients
+@using PDV.Application.Features.Clients.Queries.GetClient
 @using PDV.Application.Features.Clients.Dtos
 
 @using PDV.Domain.Entities
@@ -147,7 +148,7 @@ else
                     <SalesScanner @ref="scannerComponent"
                                   ActiveSaleId="@activeSaleId"
                                   SelectedClientId="@selectedClientId"
-                                  Clients="@clients"
+                                  SelectedClientType="@selectedClient?.ClientType"
                                   CashRegisterId="@ShiftSession.ActiveCashRegisterId"
                                   UserId="@currentUserId"
                                   PaymentMethod="@paymentMethod"
@@ -202,7 +203,7 @@ else
     private decimal receivedAmount = 0;
     private Guid? selectedClientId = null;
 
-    private List<ClientDto> clients = new();
+    private ClientDto? selectedClient;
     private CashRegisterDto? currentCashRegister;
     private ShiftDto? currentShift;
 
@@ -233,7 +234,7 @@ else
     // Concurrency control
     private readonly System.Threading.SemaphoreSlim _persistSemaphore = new(1, 1);
 
-    private string SelectedClientName => clients.FirstOrDefault(c => c.Id == selectedClientId)?.Name ?? "Público General (Menudeo)";
+    private string SelectedClientName => selectedClient?.Name ?? "Público General (Menudeo)";
 
     protected override async Task OnInitializedAsync()
     {
@@ -289,7 +290,6 @@ else
         }
 
         await LoadFolioProjection();
-        await LoadClients();
 
 
 
@@ -320,10 +320,6 @@ else
         }
     }
 
-    private async Task LoadClients()
-    {
-        clients = await Mediator.Send(new ListClientsQuery(IncludeInactive: false));
-    }
 
     private async Task RefreshSuspendedSales()
     {
@@ -374,6 +370,14 @@ else
             {
                 cart = draft.Items;
                 selectedClientId = draft.ClientId;
+                if (selectedClientId.HasValue)
+                {
+                    selectedClient = await Mediator.Send(new GetClientQuery(selectedClientId.Value));
+                }
+                else
+                {
+                    selectedClient = null;
+                }
                 
                 // Recalcular subtotales, IVA e importes a partir de la fotografía de base de datos
                 subtotal = cart.Sum(i => i.Total);
@@ -400,6 +404,8 @@ else
                 activeSaleId = null;
                 await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
                 cart.Clear();
+                selectedClientId = null;
+                selectedClient = null;
                 subtotal = 0;
                 totalTax = 0;
                 totalAmount = 0;
@@ -408,6 +414,8 @@ else
         else
         {
             cart.Clear();
+            selectedClientId = null;
+            selectedClient = null;
             subtotal = 0;
             totalTax = 0;
             totalAmount = 0;
@@ -495,7 +503,7 @@ else
 
     private async Task OpenClientSearchDialog()
     {
-        var parameters = new DialogParameters { ["Clients"] = clients };
+        var parameters = new DialogParameters();
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
         var dialog = await DialogService.ShowAsync<ClientSearchDialog>("Buscar Cliente", parameters, options);
         var result = await dialog.Result;
@@ -513,6 +521,7 @@ else
         
         if (!clientId.HasValue)
         {
+            selectedClient = null;
             foreach (var item in cart)
             {
                 item.PriceOverride = null;
@@ -521,7 +530,8 @@ else
         }
         else
         {
-            var client = clients.FirstOrDefault(c => c.Id == clientId.Value);
+            selectedClient = await Mediator.Send(new GetClientQuery(clientId.Value));
+            var client = selectedClient;
             if (client != null)
             {
                 if (client.ClientType == ClientType.Wholesale)
@@ -599,6 +609,7 @@ else
                 activeSaleId = null;
                 await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_sale_id");
                 selectedClientId = null;
+                selectedClient = null;
                 subtotal = 0;
                 totalTax = 0;
                 totalAmount = 0;
@@ -630,6 +641,7 @@ else
             
             cart.Clear();
             selectedClientId = null;
+            selectedClient = null;
             paymentMethod = "Cash";
             receivedAmount = 0;
             subtotal = 0;
@@ -748,7 +760,6 @@ else
                 return;
             }
 
-            var selectedClient = clients.FirstOrDefault(c => c.Id == selectedClientId.Value);
             if (selectedClient == null || string.IsNullOrWhiteSpace(selectedClient.TaxId))
             {
                 Snackbar.Add("El cliente seleccionado no tiene datos fiscales completos. Por favor, actualice la información del cliente.", Severity.Warning);

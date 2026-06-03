@@ -1,5 +1,8 @@
 @using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Clients.Queries.GetClientsWithPagination
 @using PDV.Domain.Enums
+@using MediatR
+@inject IMediator Mediator
 
 <MudDialog>
     <TitleContent>
@@ -12,16 +15,19 @@
     <DialogContent>
         <MudStack Spacing="3">
             <MudTextField @ref="searchField"
-                          @bind-Value="searchQuery"
+                          T="string"
+                          Value="searchQuery"
+                          ValueChanged="OnSearchChanged"
                           Label="Buscar por Nombre, RFC o Teléfono"
                           Variant="Variant.Outlined"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Search"
                           Immediate="true"
                           Placeholder="Escribe para buscar..."
+                          DebounceInterval="300"
                           OnKeyDown="HandleKeyDown" />
 
-            <MudTable Items="@FilteredClients" Hover="true" Dense="true" Bordered="false"
+            <MudTable ServerData="ReloadServerData" @ref="table" Hover="true" Dense="true" Bordered="false"
                       Elevation="0" Height="300px" Style="background: transparent; overflow-y: auto;"
                       RowClass="client-row" OnRowClick="OnRowClicked" T="ClientDto">
                 <HeaderContent>
@@ -67,6 +73,9 @@
                         }
                     </MudTd>
                 </RowTemplate>
+                <PagerContent>
+                    <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+                </PagerContent>
             </MudTable>
         </MudStack>
     </DialogContent>
@@ -95,27 +104,35 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    [Parameter]
-    public List<ClientDto> Clients { get; set; } = new();
-
+    private MudTable<ClientDto> table = default!;
     private MudTextField<string> searchField = null!;
     private string searchQuery = "";
+    private IEnumerable<ClientDto> currentClients = Array.Empty<ClientDto>();
 
-    private IEnumerable<ClientDto> FilteredClients
+    private async Task<TableData<ClientDto>> ReloadServerData(TableState state, CancellationToken cancellationToken)
     {
-        get
+        var result = await Mediator.Send(new GetClientsWithPaginationQuery
         {
-            if (string.IsNullOrWhiteSpace(searchQuery))
-            {
-                return Clients.Where(c => c.IsActive);
-            }
+            PageNumber = state.Page + 1,
+            PageSize = state.PageSize,
+            SearchQuery = searchQuery
+        }, cancellationToken);
 
-            var query = searchQuery.Trim();
-            return Clients.Where(c => c.IsActive && (
-                c.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                c.TaxId.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                c.Phone.Contains(query, StringComparison.OrdinalIgnoreCase)
-            ));
+        currentClients = result.Items;
+
+        return new TableData<ClientDto>
+        {
+            TotalItems = result.TotalCount,
+            Items = result.Items
+        };
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        searchQuery = value;
+        if (table != null)
+        {
+            await table.ReloadServerData();
         }
     }
 
@@ -144,7 +161,7 @@
     {
         if (e.Key == "Enter")
         {
-            var first = FilteredClients.FirstOrDefault();
+            var first = currentClients.FirstOrDefault();
             if (first != null)
             {
                 MudDialog.Close(DialogResult.Ok<ClientDto?>(first));

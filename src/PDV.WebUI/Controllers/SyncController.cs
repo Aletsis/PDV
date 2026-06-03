@@ -5,6 +5,8 @@ using PDV.Application.Features.Sync.Dtos;
 using PDV.Application.Features.Clients.Queries.GetClientsDelta;
 using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId;
 using PDV.Application.Features.Printers.Queries.GetPrintersDelta;
+using PDV.Application.Features.TicketSequences.Queries.GetTicketSequencesDelta;
+using PDV.Application.Features.FolioSequences.Queries.GetFolioSequencesDelta;
 
 namespace PDV.WebUI.Controllers;
 
@@ -160,6 +162,38 @@ public class SyncController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting printers delta since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("ticket-sequences-delta")]
+    public async Task<IActionResult> GetTicketSequencesDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new GetTicketSequencesDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting ticket sequences delta since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
+    [HttpGet("folio-sequences-delta")]
+    public async Task<IActionResult> GetFolioSequencesDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new GetFolioSequencesDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting folio sequences delta since {Since}", since);
             return Problem(ex.Message);
         }
     }

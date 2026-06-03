@@ -2,7 +2,7 @@
 @using PDV.Application.Features.Sales.Commands.CreateInvoice
 @using PDV.Application.Features.Sales.Queries.GetSale
 @using PDV.Application.Features.Sales.Dtos
-@using PDV.Application.Features.Clients.Queries.ListClients
+@using PDV.Application.Features.Clients.Queries.GetClient
 @using PDV.Application.Features.Clients.Dtos
 @using PDV.Domain.Enums
 @inject IMediator Mediator
@@ -204,12 +204,7 @@
                 };
 
                 // Recuperar RFC real desde la consulta de clientes del PDV
-                var clients = await Mediator.Send(new ListClientsQuery());
-                var matched = clients.FirstOrDefault(c => c.Id == saleDetail.ClientId.Value);
-                if (matched != null)
-                {
-                    selectedClient = matched;
-                }
+                selectedClient = await Mediator.Send(new GetClientQuery(saleDetail.ClientId.Value));
             }
 
             // Mapeo inteligente Forma de Pago
@@ -235,8 +230,7 @@
     {
         try
         {
-            var clients = await Mediator.Send(new ListClientsQuery());
-            var parameters = new DialogParameters { ["Clients"] = clients };
+            var parameters = new DialogParameters();
             var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
             
             var dialog = await DialogService.ShowAsync<ClientSearchDialog>("Seleccionar Cliente", parameters, options);

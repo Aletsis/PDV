@@ -14,6 +14,8 @@ using PDV.Application.Features.Sync.Dtos;
 using PDV.Application.Features.Clients.Queries.GetClientsDelta;
 using PDV.Application.Features.Branches.Queries.GetBranchesDelta;
 using PDV.Application.Features.Printers.Queries.GetPrintersDelta;
+using PDV.Application.Features.TicketSequences.Queries.GetTicketSequencesDelta;
+using PDV.Application.Features.FolioSequences.Queries.GetFolioSequencesDelta;
 using System.IO;
 using PDV.Infrastructure.Local.Discovery;
 using System.Net.Sockets;
@@ -402,6 +404,9 @@ public class SyncWorker : BackgroundService
         // 3. Pull Branches
         await PullBranchesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
+        // 3.5. Pull Folio Sequences
+        await PullFolioSequencesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
         // 4. Pull UnidadesMedida
         await PullUnidadesMedidaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
@@ -410,6 +415,9 @@ public class SyncWorker : BackgroundService
 
         // 6. Pull Cash Registers
         await PullCashRegistersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
+        // 6.5. Pull Ticket Sequences
+        await PullTicketSequencesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
         // 7. Pull Users
         await PullUsersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
@@ -1091,6 +1099,161 @@ public class SyncWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred during users pull synchronization.");
+            if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
+            {
+                _clientDiscoveryService.InvalidateUrl();
+            }
+        }
+    }
+
+    private async Task PullTicketSequencesDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/ticket-sequences-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Ticket sequences pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<TicketSequenceSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} ticket sequence deltas from server. Syncing locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            foreach (var dto in deltas)
+            {
+                var existing = await db.TicketSequences.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == dto.Id, stoppingToken);
+
+                if (existing == null)
+                {
+                    var entity = new TicketSequence(dto.CashRegisterId, dto.SequenceType, dto.Series);
+                    entity.SetId(dto.Id);
+                    entity.ResetTo(dto.LastTicketNumber);
+                    
+                    db.Entry(entity).Property(x => x.ResetOnNewShift).CurrentValue = dto.ResetOnNewShift;
+
+                    if (dto.IsDeleted)
+                    {
+                        entity.SoftDelete("SystemSync");
+                    }
+                    entity.ClearDomainEvents();
+                    db.TicketSequences.Add(entity);
+                }
+                else
+                {
+                    existing.UpdateSeries(dto.Series);
+                    existing.ResetTo(dto.LastTicketNumber);
+                    db.Entry(existing).Property(x => x.ResetOnNewShift).CurrentValue = dto.ResetOnNewShift;
+                    db.Entry(existing).Property(x => x.CashRegisterId).CurrentValue = dto.CashRegisterId;
+                    db.Entry(existing).Property(x => x.SequenceType).CurrentValue = dto.SequenceType;
+
+                    if (dto.IsDeleted && !existing.IsDeleted)
+                    {
+                        existing.SoftDelete("SystemSync");
+                    }
+                    else if (!dto.IsDeleted && existing.IsDeleted)
+                    {
+                        existing.Restore();
+                    }
+
+                    existing.ClearDomainEvents();
+                }
+            }
+
+            await db.SaveChangesAsync(stoppingToken);
+            _logger.LogInformation("Successfully applied {Count} ticket sequence deltas to local SQLite.", deltas.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during ticket sequences pull synchronization.");
+            if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
+            {
+                _clientDiscoveryService.InvalidateUrl();
+            }
+        }
+    }
+
+    private async Task PullFolioSequencesDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/folio-sequences-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Folio sequences pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<FolioSequenceSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} folio sequence deltas from server. Syncing locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            foreach (var dto in deltas)
+            {
+                var existing = await db.FolioSequences.IgnoreQueryFilters().FirstOrDefaultAsync(f => f.Id == dto.Id, stoppingToken);
+
+                if (existing == null)
+                {
+                    var entity = new FolioSequence(dto.BranchId, dto.SeriesType, dto.Series, dto.FolioDigits);
+                    entity.SetId(dto.Id);
+                    entity.ResetTo(dto.LastFolio);
+                    if (dto.ConceptCode != null)
+                    {
+                        entity.UpdateConcept(dto.ConceptCode, dto.Series, dto.LastFolio);
+                    }
+
+                    if (dto.IsDeleted)
+                    {
+                        entity.SoftDelete("SystemSync");
+                    }
+                    entity.ClearDomainEvents();
+                    db.FolioSequences.Add(entity);
+                }
+                else
+                {
+                    existing.UpdateConcept(dto.ConceptCode, dto.Series, dto.LastFolio);
+                    db.Entry(existing).Property(x => x.BranchId).CurrentValue = dto.BranchId;
+                    db.Entry(existing).Property(x => x.SeriesType).CurrentValue = dto.SeriesType;
+                    db.Entry(existing).Property(x => x.FolioDigits).CurrentValue = dto.FolioDigits;
+
+                    if (dto.IsDeleted && !existing.IsDeleted)
+                    {
+                        existing.SoftDelete("SystemSync");
+                    }
+                    else if (!dto.IsDeleted && existing.IsDeleted)
+                    {
+                        existing.Restore();
+                    }
+
+                    existing.ClearDomainEvents();
+                }
+            }
+
+            await db.SaveChangesAsync(stoppingToken);
+            _logger.LogInformation("Successfully applied {Count} folio sequence deltas to local SQLite.", deltas.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during folio sequences pull synchronization.");
             if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
             {
                 _clientDiscoveryService.InvalidateUrl();

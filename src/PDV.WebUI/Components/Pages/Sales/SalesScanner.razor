@@ -98,7 +98,7 @@
 @code {
     [Parameter] public Guid? ActiveSaleId { get; set; }
     [Parameter] public Guid? SelectedClientId { get; set; }
-    [Parameter] public List<ClientDto> Clients { get; set; } = new();
+    [Parameter] public ClientType? SelectedClientType { get; set; }
     [Parameter] public Guid? CashRegisterId { get; set; }
     [Parameter] public string UserId { get; set; } = "Anonymous";
     [Parameter] public string PaymentMethod { get; set; } = "Cash";
@@ -124,8 +124,7 @@
             decimal? priceOverride = null;
             if (SelectedClientId.HasValue)
             {
-                var client = Clients.FirstOrDefault(c => c.Id == SelectedClientId.Value);
-                if (client?.ClientType == ClientType.Wholesale && product.WholesalePrice.HasValue)
+                if (SelectedClientType == ClientType.Wholesale && product.WholesalePrice.HasValue)
                 {
                     priceOverride = product.WholesalePrice.Value;
                 }

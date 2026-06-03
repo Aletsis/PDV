@@ -1,6 +1,6 @@
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
-@using PDV.Application.Features.Products.Queries.GetProducts
+@using PDV.Application.Features.Products.Queries.GetProductsWithPagination
 @using PDV.Application.Features.Products.Queries.GetProductByCode
 @using PDV.Application.Features.Products.Dtos
 @using MediatR
@@ -16,17 +16,20 @@
     </TitleContent>
     <DialogContent>
         <div class="d-flex flex-column gap-4">
-            <MudTextField @bind-Value="searchQuery"
+            <MudTextField T="string"
+                          Value="searchQuery"
+                          ValueChanged="OnSearchChanged"
                           Placeholder="Buscar por nombre, código interno, SKU o categoría..."
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Search"
                           Variant="Variant.Outlined"
                           Immediate="true"
                           Clearable="true"
+                          DebounceInterval="300"
                           Class="flex-grow-1" />
 
             <div style="max-height: 400px; overflow-y: auto;">
-                <MudTable Items="@FilteredProducts" Hover="true" Dense="true" Elevation="0" Bordered="false" Striped="true">
+                <MudTable ServerData="ReloadServerData" @ref="table" Hover="true" Dense="true" Elevation="0" Bordered="false" Striped="true">
                     <HeaderContent>
                         <MudTh>Código</MudTh>
                         <MudTh>Nombre</MudTh>
@@ -89,6 +92,9 @@
                     <NoRecordsContent>
                         <MudText Align="Align.Center" Class="pa-4">No se encontraron productos coincidentes.</MudText>
                     </NoRecordsContent>
+                    <PagerContent>
+                        <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+                    </PagerContent>
                 </MudTable>
             </div>
         </div>
@@ -101,28 +107,39 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
+    private MudTable<ProductDto> table = default!;
     private string searchQuery = "";
-    private List<ProductDto> allProducts = new();
     private Dictionary<Guid, int> quantities = new();
     private Dictionary<Guid, decimal> weights = new();
 
-    private IEnumerable<ProductDto> FilteredProducts =>
-        string.IsNullOrWhiteSpace(searchQuery)
-            ? allProducts.Where(p => p.IsActive)
-            : allProducts.Where(p => p.IsActive && 
-                (p.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
-                 p.Code.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
-                 (p.Category != null && p.Category.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
-                 (p.Plu != null && p.Plu.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))));
-
-    protected override async Task OnInitializedAsync()
+    private async Task<TableData<ProductDto>> ReloadServerData(TableState state, CancellationToken cancellationToken)
     {
-        allProducts = await Mediator.Send(new GetProductsQuery());
-        
-        foreach (var p in allProducts)
+        var result = await Mediator.Send(new GetProductsWithPaginationQuery
         {
-            quantities[p.Id] = 1;
-            weights[p.Id] = 1.0m;
+            PageNumber = state.Page + 1,
+            PageSize = state.PageSize,
+            SearchQuery = searchQuery
+        }, cancellationToken);
+
+        foreach (var p in result.Items)
+        {
+            if (!quantities.ContainsKey(p.Id)) quantities[p.Id] = 1;
+            if (!weights.ContainsKey(p.Id)) weights[p.Id] = 1.0m;
+        }
+
+        return new TableData<ProductDto>
+        {
+            TotalItems = result.TotalCount,
+            Items = result.Items
+        };
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        searchQuery = value;
+        if (table != null)
+        {
+            await table.ReloadServerData();
         }
     }
 
@@ -132,8 +149,8 @@
         if (product != null)
         {
             decimal qty = product.SaleType == SaleType.Bulk 
-                ? weights[productDto.Id] 
-                : (decimal)quantities[productDto.Id];
+                ? (weights.TryGetValue(productDto.Id, out var w) ? w : 1.0m)
+                : (decimal)(quantities.TryGetValue(productDto.Id, out var q) ? q : 1);
 
             MudDialog.Close(DialogResult.Ok(new ProductLookupResult(product, qty)));
         }
