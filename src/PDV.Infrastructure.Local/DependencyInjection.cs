@@ -14,8 +14,18 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         {
             var interceptor = serviceProvider.GetRequiredService<DomainEventsInterceptor>();
+            
+            // Crear la conexión manualmente para configurarle el modo WAL en la base de datos SQLite
+            var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+            connection.Open();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "PRAGMA journal_mode=WAL;";
+                command.ExecuteNonQuery();
+            }
+
             options.UseSqlite(
-                connectionString,
+                connection,
                 b => b.MigrationsAssembly(typeof(DependencyInjection).Assembly.FullName)
                       .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
             .AddInterceptors(interceptor);
