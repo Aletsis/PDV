@@ -142,11 +142,59 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                     }
                 }
 
-                // 4. Save the Sale
-                var exists = await _context.Sales.AnyAsync(s => s.Id == sale.Id, cancellationToken);
-                if (!exists)
+                // 4. Save/Update the Sale
+                var existing = await _context.Sales
+                    .Include(s => s.Items)
+                    .FirstOrDefaultAsync(s => s.Id == sale.Id, cancellationToken);
+
+                if (existing == null)
                 {
                     _context.Sales.Add(sale);
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                else
+                {
+                    // Actualizar propiedades escalares de la venta
+                    ((DbContext)_context).Entry(existing).CurrentValues.SetValues(sale);
+
+                    // Sincronizar colección de artículos (SaleItem)
+                    var targetField = typeof(Sale).GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (targetField != null)
+                    {
+                        var targetList = targetField.GetValue(existing) as List<SaleItem>;
+                        if (targetList != null)
+                        {
+                            // A. Remover artículos que ya no están en la venta entrante
+                            var itemsToRemove = targetList.Where(item => !sale.Items.Any(i => i.Id == item.Id)).ToList();
+                            foreach (var item in itemsToRemove)
+                            {
+                                targetList.Remove(item);
+                                _context.SaleItems.Remove(item);
+                            }
+
+                            // B. Actualizar existentes y agregar nuevos
+                            foreach (var incomingItem in sale.Items)
+                            {
+                                var existingItem = targetList.FirstOrDefault(i => i.Id == incomingItem.Id);
+                                if (existingItem != null)
+                                {
+                                    ((DbContext)_context).Entry(existingItem).CurrentValues.SetValues(incomingItem);
+                                }
+                                else
+                                {
+                                    // Vincular explícitamente el artículo a la venta existente
+                                    var saleIdProp = typeof(SaleItem).GetProperty("SaleId", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                    saleIdProp?.SetValue(incomingItem, existing.Id);
+                                    
+                                    targetList.Add(incomingItem);
+                                }
+                            }
+                        }
+                    }
+
+                    // Copiar desglose de impuestos (owned types)
+                    CopyPrivateCollection(sale, existing, "_taxes");
+
                     await _context.SaveChangesAsync(cancellationToken);
                 }
             }
