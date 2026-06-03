@@ -154,7 +154,14 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
         }
         catch (Exception ex)
         {
-            return SyncProcessResult.Fail($"Event processing error: {ex.Message}");
+            var msg = ex.Message;
+            var inner = ex.InnerException;
+            while (inner != null)
+            {
+                msg += " ---> " + inner.Message;
+                inner = inner.InnerException;
+            }
+            return SyncProcessResult.Fail($"Event processing error: {msg}");
         }
     }
 
