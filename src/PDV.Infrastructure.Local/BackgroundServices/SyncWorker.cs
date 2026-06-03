@@ -741,7 +741,7 @@ public class SyncWorker : BackgroundService
 
     private async Task PullUnidadesMedidaAsync(string serverBaseUrl, CancellationToken stoppingToken)
     {
-        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/UnidadesMedida";
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/unidades-medida";
 
         try
         {
@@ -765,11 +765,11 @@ public class SyncWorker : BackgroundService
 
             foreach (var dto in units)
             {
-                var existing = await db.UnidadesMedida.FirstOrDefaultAsync(u => u.ExternalId == dto.Id, stoppingToken);
+                var existing = await db.UnidadesMedida.FirstOrDefaultAsync(u => u.ExternalId == dto.ExternalId, stoppingToken);
                 if (existing == null)
                 {
                     var unit = new UnidadMedida(
-                        externalId: dto.Id,
+                        externalId: dto.ExternalId,
                         nombreUnidad: dto.NombreUnidad,
                         abreviatura: dto.Abreviatura,
                         despliegue: dto.Despliegue,
@@ -808,6 +808,7 @@ public class SyncWorker : BackgroundService
     private class UnidadMedidaSyncDto
     {
         public int Id { get; set; }
+        public int ExternalId { get; set; }
         public string NombreUnidad { get; set; } = string.Empty;
         public string Abreviatura { get; set; } = string.Empty;
         public string Despliegue { get; set; } = string.Empty;

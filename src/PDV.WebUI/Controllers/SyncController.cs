@@ -113,4 +113,19 @@ public class SyncController : ControllerBase
             return Problem(ex.Message);
         }
     }
+
+    [HttpGet("unidades-medida")]
+    public async Task<IActionResult> GetUnidadesMedida()
+    {
+        try
+        {
+            var result = await _mediator.Send(new PDV.Application.Features.UnidadesMedida.GetUnidadesMedidaQuery());
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting units of measure");
+            return Problem(ex.Message);
+        }
+    }
 }
