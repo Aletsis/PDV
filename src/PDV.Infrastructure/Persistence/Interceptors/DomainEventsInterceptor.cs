@@ -60,7 +60,15 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
             // 2a. Eventos especiales que requieren persistencia de entidad adicional
             HandleSpecialEvents(context, domainEvent);
 
-            // 2b. Todo evento se registra en el Outbox para sincronización offline
+            // 2b. Omitir borradores intermedios y cancelaciones de artículos individuales
+            if (domainEvent is SaleCreatedEvent || 
+                domainEvent is SaleItemAddedEvent || 
+                domainEvent is SaleItemRemovedEvent)
+            {
+                continue;
+            }
+
+            // Registrar en el Outbox para sincronización offline (incluye SalePaymentMadeEvent y SaleCancelledEvent)
             var eventType = domainEvent.GetType().Name;
             var payload = System.Text.Json.JsonSerializer.Serialize(domainEvent, domainEvent.GetType());
             context.Set<OutboxMessage>().Add(new OutboxMessage(eventType, payload));

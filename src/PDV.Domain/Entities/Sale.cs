@@ -123,7 +123,7 @@ public class Sale : BaseEntity, IAggregateRoot
         if (_items.Count == 0) throw new DomainException("No se puede marcar como pagada una venta sin artículos.");
 
         IsPaid = true;
-        AddDomainEvent(new PaymentMadeEvent(Id, TotalAmount, PaymentMethod));
+        AddDomainEvent(new SalePaymentMadeEvent(Id, TotalAmount, PaymentMethod));
     }
 
     public void RequestInvoice()

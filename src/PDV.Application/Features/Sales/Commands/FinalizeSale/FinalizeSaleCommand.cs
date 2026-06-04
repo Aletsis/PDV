@@ -66,7 +66,7 @@ public class FinalizeSaleCommandHandler : IRequestHandler<FinalizeSaleCommand, G
                 var paymentMethod = Enum.TryParse<PaymentMethodType>(request.PaymentMethod, true, out var pm) ? pm : PaymentMethodType.Cash;
                 sale.SetPaymentMethod(paymentMethod);
 
-                // Marcar la venta como pagada (esto dispara el eventoPaymentMadeEvent)
+                // Marcar la venta como pagada (esto dispara el evento SalePaymentMadeEvent)
                 sale.MarkAsPaid();
 
                 // Validar requerimiento de factura
