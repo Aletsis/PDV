@@ -15,24 +15,26 @@
 <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h5" Class="ml-3">CARNICERIA LA BLANQUITA</MudText>
+        <img src="/api/logos/app" alt="Logo" class="ml-2 mr-1" style="height: 38px; width: auto; max-width: 120px; object-fit: contain; border-radius: 4px;" />
+        <MudText Typo="Typo.h6" Class="ml-2 d-none d-md-inline">CARNICERIA LA BLANQUITA</MudText>
+        <MudText Typo="Typo.subtitle1" Class="ml-2 d-inline d-md-none">LA BLANQUITA</MudText>
         <MudSpacer />
         @if (!ConnectionMonitor.IsLocalMode)
         {
             <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CloudDone" Class="mr-4 text-white">
-                Nube (Online)
+                <span class="d-none d-sm-inline">Nube (Online)</span>
             </MudChip>
         }
         else if (ConnectionMonitor.IsConnected)
         {
             <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Wifi" Class="mr-4 px-3" Style="border-radius: 20px;">
-                Caja (Sincronizada)
+                <span class="d-none d-sm-inline">Caja (Sincronizada)</span>
             </MudChip>
         }
         else
         {
             <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.WifiOff" Class="mr-4 px-3 pulse-warning" Style="border-radius: 20px;">
-                Caja (Offline)
+                <span class="d-none d-sm-inline">Caja (Offline)</span>
             </MudChip>
         }
         <AuthorizeView>
@@ -45,42 +47,20 @@
                         @ShiftSession.CashRegisterName
                     </MudChip>
                 }
-                <MudText Class="mr-4">Hola, @context.User.Identity?.Name</MudText>
-                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/Account/Logout">Salir</MudButton>
+                <MudText Class="mr-4 d-none d-sm-inline">Hola, @context.User.Identity?.Name</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/Account/Logout" Class="d-none d-sm-inline-flex">Salir</MudButton>
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Secondary" Variant="Variant.Filled" Href="/Account/Logout" Class="d-inline-flex d-sm-none" Size="Size.Small" />
             </Authorized>
             <NotAuthorized>
                 <MudLink Href="login" Color="Color.Inherit">Login</MudLink>
             </NotAuthorized>
         </AuthorizeView>
     </MudAppBar>
-    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
-        <MudNavMenu>
-            <AuthorizeView Roles="Admin,Manager">
-                <MudNavLink Href="dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-            </AuthorizeView>
-            <AuthorizeView Roles="Admin,Manager,Cashier">
-                <MudNavLink Href="pos" Icon="@Icons.Material.Filled.PointOfSale">Punto de Venta</MudNavLink>
-            </AuthorizeView>
-            <AuthorizeView Roles="Admin,Manager">
-                <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>
-                <MudNavLink Href="products" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
-                <MudNavLink Href="clients" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
-                <MudNavLink Href="invoices" Icon="@Icons.Material.Filled.Description">Facturas</MudNavLink>
-            </AuthorizeView>
-            <AuthorizeView Roles="Admin">
-                <MudDivider />
-                <MudNavGroup Title="Administración" Icon="@Icons.Material.Filled.Settings" Expanded="false">
-                    <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store">Sucursales</MudNavLink>
-                    <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Usuarios</MudNavLink>
-                    <MudNavLink Href="admin/cash-registers" Icon="@Icons.Material.Filled.PointOfSale">Cajas</MudNavLink>
-                    <MudNavLink Href="admin/printers" Icon="@Icons.Material.Filled.Print">Impresoras</MudNavLink>
-                    <MudNavLink Href="admin/settings" Icon="@Icons.Material.Filled.SettingsApplications">Configuración</MudNavLink>
-                </MudNavGroup>
-            </AuthorizeView>
-        </MudNavMenu>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Variant="DrawerVariant.Responsive" Elevation="2">
+        <NavMenu />
     </MudDrawer>
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4 pt-4">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="pa-4 pt-4">
             @Body
         </MudContainer>
     </MudMainContent>

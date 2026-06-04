@@ -6,6 +6,8 @@
 @using PDV.Application.Features.Products.Commands.DeleteProduct
 @using PDV.Application.Features.Products.Dtos
 @using PDV.Application.Features.Sync.Queries
+@using PDV.Application.Features.Categories.Dtos
+@using PDV.Application.Features.Categories.Queries.GetCategories
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -89,14 +91,31 @@
     <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
         <!-- Table Toolbar -->
         <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
-            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 600px;">
+            <div class="d-flex align-center gap-3 flex-grow-1 flex-wrap">
                 <MudTextField @bind-Value="searchString" Placeholder="Buscar por Nombre, Código o Código de Barras..." 
                                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                                IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"
-                               Clearable="true" Class="flex-grow-1" />
+                               Clearable="true" Style="min-width: 250px;" />
                 
+                <MudSelect T="int?" @bind-Value="filterType" Label="Tipo" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 160px; min-width: 140px;">
+                    <MudSelectItem T="int?" Value="@((int?)null)">Todos los Tipos</MudSelectItem>
+                    <MudSelectItem T="int?" Value="@(1)">Productos</MudSelectItem>
+                    <MudSelectItem T="int?" Value="@(2)">Paquetes</MudSelectItem>
+                    <MudSelectItem T="int?" Value="@(3)">Servicios</MudSelectItem>
+                </MudSelect>
+
+                <MudSelect T="string" @bind-Value="filterCategory" Label="Categoría" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 200px; min-width: 160px;">
+                    <MudSelectItem Value="@(string.Empty)">Todas las Categorías</MudSelectItem>
+                    @foreach (var cat in categories)
+                    {
+                        <MudSelectItem Value="@cat.Name">@cat.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
                 <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged" Label="Estado" 
-                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 150px;">
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 130px; min-width: 110px;">
                     <MudSelectItem T="bool?" Value="@((bool?)null)">Todos</MudSelectItem>
                     <MudSelectItem T="bool?" Value="@(true)">Activos</MudSelectItem>
                     <MudSelectItem T="bool?" Value="@(false)">Inactivos</MudSelectItem>
@@ -125,51 +144,9 @@
                     <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600;" />
                     <PropertyColumn Property="x => x.Barcode" Title="Código Barras" />
                     <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
-                    <PropertyColumn Property="x => x.Category" Title="Categoría" />
-                    <PropertyColumn Property="x => x.Price" Title="Precio Venta" Format="C2" />
-                    <PropertyColumn Property="x => x.Cost" Title="Costo" Format="C2" />
+                    <PropertyColumn Property="x => x.Price" Title="Precio Menudeo" Format="C2" />
+                    <PropertyColumn Property="x => x.WholesalePrice" Title="Precio Mayoreo" Format="C2" />
                     
-                    <!-- Stock status column with custom warnings -->
-                    <TemplateColumn Title="Stock">
-                        <CellTemplate>
-                            @{
-                                var p = context.Item;
-                                decimal threshold = 5;
-                                if (decimal.TryParse(Configuration["InventorySettings:DefaultLowStockThreshold"], out var pt))
-                                {
-                                    threshold = pt;
-                                }
-                                var isLow = p.IsActive && (p.MinStock > 0 ? p.Stock <= p.MinStock : p.Stock <= threshold);
-                                var isOut = p.IsActive && p.Stock <= 0;
-                            }
-                            @if (isOut)
-                            {
-                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Error" Class="font-weight-medium">Agotado</MudChip>
-                            }
-                            else if (isLow)
-                            {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.TrendingDown" Class="font-weight-medium">@p.Stock (Bajo)</MudChip>
-                            }
-                            else
-                            {
-                                <MudText Typo="Typo.body2">@p.Stock</MudText>
-                            }
-                        </CellTemplate>
-                    </TemplateColumn>
-
-                    <TemplateColumn Title="Estado">
-                        <CellTemplate>
-                            @if (context.Item.IsActive)
-                            {
-                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="font-weight-medium">Activo</MudChip>
-                            }
-                            else
-                            {
-                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel" Class="font-weight-medium">Inactivo</MudChip>
-                            }
-                        </CellTemplate>
-                    </TemplateColumn>
-
                     @if (!isLocalMode)
                     {
                         <TemplateColumn Title="Acciones" HeaderStyle="width: 120px;" CellClass="d-flex justify-end gap-1">
@@ -192,6 +169,7 @@
 
 @code {
     private List<ProductDto> products = new();
+    private List<CategoryDto> categories = new();
     private bool isLocalMode = false;
     private bool isLoading = false;
 
@@ -204,6 +182,8 @@
     // Search and filter parameters
     private string searchString = "";
     private bool? filterActive = true; // Default to showing only Active products
+    private int? filterType = 1; // Default to products
+    private string filterCategory = string.Empty; // Default to all
 
     private IEnumerable<ProductDto> filteredProducts => products
         .Where(p => 
@@ -215,6 +195,12 @@
             &&
             // Active state filter
             (filterActive == null || p.IsActive == filterActive)
+            &&
+            // Type filter
+            (filterType == null || p.Type == filterType)
+            &&
+            // Category filter
+            (string.IsNullOrEmpty(filterCategory) || p.Category == filterCategory)
         );
 
     protected override async Task OnInitializedAsync()
@@ -222,6 +208,15 @@
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
         await LoadSyncStatus();
         await LoadData();
+        
+        try
+        {
+            categories = await Mediator.Send(new GetCategoriesQuery(IncludeInactive: false));
+        }
+        catch (Exception)
+        {
+            // fallback
+        }
     }
 
     private void OnConnectionStatusChanged(bool isConnected)

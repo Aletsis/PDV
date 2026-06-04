@@ -353,17 +353,6 @@
                 cashRegister = registerByIp ?? registerByUser;
             }
 
-            // Fallback inteligente para Modo Local si no se encontró caja
-            if (cashRegister == null)
-            {
-                var runMode = Configuration["RunMode"] ?? "Server";
-                if (runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
-                {
-                    var cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
-                    cashRegister = cashRegisters.FirstOrDefault(c => c.IsActive);
-                }
-            }
-
             // 4. Validar Turnos Activos
             if (cashRegister != null)
             {

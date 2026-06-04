@@ -37,6 +37,7 @@ public class ActiveShiftDto
     public Guid ShiftId { get; set; }
     public string CashRegisterName { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
+    public string CashierName { get; set; } = string.Empty;
     public decimal InitialCash { get; set; }
     public DateTime StartTime { get; set; }
     public decimal TotalSales { get; set; }
@@ -50,10 +51,12 @@ public class GetDashboardSummaryQueryHandler
     : IRequestHandler<GetDashboardSummaryQuery, DashboardSummaryDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IIdentityService _identityService;
 
-    public GetDashboardSummaryQueryHandler(IApplicationDbContext context)
+    public GetDashboardSummaryQueryHandler(IApplicationDbContext context, IIdentityService identityService)
     {
         _context = context;
+        _identityService = identityService;
     }
 
     public async Task<DashboardSummaryDto> Handle(
@@ -80,17 +83,42 @@ public class GetDashboardSummaryQueryHandler
             .Where(s => s.Status == ShiftStatus.Open)
             .ToListAsync(cancellationToken);
 
+        var usersDict = new Dictionary<string, string>();
+        try
+        {
+            var users = await _identityService.GetUsersAsync(cancellationToken);
+            usersDict = users.ToDictionary(u => u.Id, u => u.FullName);
+        }
+        catch
+        {
+            // Offline/error fallback
+        }
+
         var activeShiftDtos = activeShiftsRaw.Select(s =>
         {
             var shiftSales = todaySales
                 .Where(sale => sale.ShiftId == s.Id)
                 .Sum(sale => sale.TotalAmount);
 
+            var cashierName = "Desconocido";
+            if (!string.IsNullOrEmpty(s.UserId))
+            {
+                if (usersDict.TryGetValue(s.UserId, out var name))
+                {
+                    cashierName = name;
+                }
+                else
+                {
+                    cashierName = s.UserId;
+                }
+            }
+
             return new ActiveShiftDto
             {
                 ShiftId = s.Id,
                 CashRegisterName = s.CashRegister?.Name ?? "Sin nombre",
                 UserId = s.UserId,
+                CashierName = cashierName,
                 InitialCash = s.InitialCash,
                 StartTime = s.StartTime,
                 TotalSales = shiftSales

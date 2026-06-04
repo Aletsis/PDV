@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace PDV.Application.Features.Sales.Queries.ListInvoices;
 
-public record ListInvoicesQuery(DateTime? StartDate = null, DateTime? EndDate = null, bool? IsGlobal = null) : IRequest<List<InvoiceDto>>;
+public record ListInvoicesQuery(DateTime? StartDate = null, DateTime? EndDate = null, bool? IsGlobal = null, Guid? ClientId = null) : IRequest<List<InvoiceDto>>;
 
 public class ListInvoicesQueryHandler : IRequestHandler<ListInvoicesQuery, List<InvoiceDto>>
 {
@@ -54,6 +54,11 @@ public class ListInvoicesQueryHandler : IRequestHandler<ListInvoicesQuery, List<
         if (request.IsGlobal.HasValue)
         {
             query = query.Where(i => i.IsGlobal == request.IsGlobal.Value);
+        }
+
+        if (request.ClientId.HasValue)
+        {
+            query = query.Where(i => i.ClientId == request.ClientId.Value);
         }
 
         return await query

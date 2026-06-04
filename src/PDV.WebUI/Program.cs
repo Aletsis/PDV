@@ -17,9 +17,38 @@ using PDV.WebUI.Health;
 using PDV.WebUI.Middleware;
 using PDV.Infrastructure.Persistence;
 
+System.IO.Directory.SetCurrentDirectory(System.AppContext.BaseDirectory);
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
+if (System.Array.IndexOf(args, "--apply-migrations-only") >= 0)
+{
+    var tempBuilder = WebApplication.CreateBuilder(args);
+    var index = System.Array.IndexOf(args, "--apply-migrations-only");
+    string conn = "";
+    if (index + 1 < args.Length && !args[index + 1].StartsWith("-"))
+    {
+        conn = args[index + 1];
+    }
+    else
+    {
+        conn = tempBuilder.Configuration.GetConnectionString("DefaultConnection")
+               ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+               ?? "Data Source=pdv.db";
+    }
+    tempBuilder.Services.AddLocalInfrastructureServices(conn);
+    var tempApp = tempBuilder.Build();
+    
+    using (var scope = tempApp.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<PDV.Infrastructure.Persistence.AppDbContext>();
+        db.Database.Migrate();
+    }
+    System.Console.WriteLine("Migraciones aplicadas con exito.");
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService();
 
 // Load user secrets in Development for sensitive configuration
 if (builder.Environment.IsDevelopment())

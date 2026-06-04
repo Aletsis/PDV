@@ -247,7 +247,7 @@ else
         }
 
         currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
-        
+
         // Obtener nombre completo del usuario usando UserManager
         var appUser = await UserManager.FindByIdAsync(currentUserId);
         currentUserName = appUser?.FullName ?? user.Identity?.Name ?? "Empleado General";
@@ -259,15 +259,7 @@ else
             currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
         }
 
-        if (currentCashRegister == null)
-        {
-            var runMode = Configuration["RunMode"] ?? "Server";
-            if (runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
-            {
-                var cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
-                currentCashRegister = cashRegisters.FirstOrDefault(c => c.IsActive);
-            }
-        }
+
 
         if (currentCashRegister == null)
         {
@@ -378,12 +370,12 @@ else
                 {
                     selectedClient = null;
                 }
-                
+
                 // Recalcular subtotales, IVA e importes a partir de la fotografía de base de datos
                 subtotal = cart.Sum(i => i.Total);
-                
+
                 totalAmount = subtotal; // EF Core recalculates automatically
-                
+
                 // Para obtener impuestos exactos, sumamos el desglose correspondiente
                 totalTax = cart.Sum(i => {
                     decimal taxRate = 0m;
@@ -396,7 +388,7 @@ else
                     decimal qty = i.Product.SaleType == SaleType.Bulk ? i.Weight : i.Quantity;
                     return i.Product.TaxRate == TaxRateType.Exempt ? 0m : (price * qty) * taxRate;
                 });
-                
+
                 subtotal = totalAmount - totalTax;
             }
             else
@@ -474,9 +466,13 @@ else
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "F2")
+        if (e.Key == "F3")
         {
             await OpenProductLookup();
+        }
+        else if (e.Key == "F4")
+        {
+            await OpenClientSearchDialog();
         }
         else if (e.Key == "F8")
         {

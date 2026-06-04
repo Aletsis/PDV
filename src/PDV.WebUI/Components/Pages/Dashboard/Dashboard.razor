@@ -35,158 +35,160 @@
                         ShowSkeleton="false">
         @if (_summary is not null)
         {
-            <!-- ── KPI Cards ──────────────────────────────────────────── -->
-            <MudGrid>
-                <MudItem xs="12" sm="6" md="3">
-                    <PdvKpiCard Title="VENTAS DEL DÍA"
-                               Value="@_summary.TotalSalesToday.ToString("C2")"
-                               Icon="@Icons.Material.Filled.AttachMoney"
-                               IconColor="Color.Primary"
-                               GradientType="PdvKpiCard.KpiGradientType.Primary" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <PdvKpiCard Title="TRANSACCIONES"
-                               Value="@_summary.TransactionCountToday.ToString()"
-                               Icon="@Icons.Material.Filled.ReceiptLong"
-                               IconColor="Color.Success"
-                               GradientType="PdvKpiCard.KpiGradientType.Success" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <PdvKpiCard Title="CAJAS ACTIVAS"
-                               Value="@_summary.ActiveShiftsCount.ToString()"
-                               Icon="@Icons.Material.Filled.PointOfSale"
-                               IconColor="Color.Info"
-                               GradientType="PdvKpiCard.KpiGradientType.Info" />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <PdvKpiCard Title="BAJO STOCK"
-                               Value="@_summary.LowStockCount.ToString()"
-                               Icon="@Icons.Material.Filled.Inventory"
-                               IconColor="Color.Warning"
-                               GradientType="PdvKpiCard.KpiGradientType.Warning" />
-                </MudItem>
-            </MudGrid>
+            <MudStack Spacing="6">
+                <!-- ── KPI Cards ──────────────────────────────────────────── -->
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="3">
+                        <PdvKpiCard Title="VENTAS DEL DÍA"
+                                   Value="@_summary.TotalSalesToday.ToString("C2")"
+                                   Icon="@Icons.Material.Filled.AttachMoney"
+                                   IconColor="Color.Primary"
+                                   GradientType="PdvKpiCard.KpiGradientType.Primary" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <PdvKpiCard Title="TRANSACCIONES"
+                                   Value="@_summary.TransactionCountToday.ToString()"
+                                   Icon="@Icons.Material.Filled.ReceiptLong"
+                                   IconColor="Color.Success"
+                                   GradientType="PdvKpiCard.KpiGradientType.Success" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <PdvKpiCard Title="CAJAS ACTIVAS"
+                                   Value="@_summary.ActiveShiftsCount.ToString()"
+                                   Icon="@Icons.Material.Filled.PointOfSale"
+                                   IconColor="Color.Info"
+                                   GradientType="PdvKpiCard.KpiGradientType.Info" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <PdvKpiCard Title="BAJO STOCK"
+                                   Value="@_summary.LowStockCount.ToString()"
+                                   Icon="@Icons.Material.Filled.Inventory"
+                                   IconColor="Color.Warning"
+                                   GradientType="PdvKpiCard.KpiGradientType.Warning" />
+                    </MudItem>
+                </MudGrid>
 
-            <!-- ── Segunda fila: Gráfica + Top Productos ─────────────── -->
-            <MudGrid>
-                <!-- Gráfica de ventas por hora -->
-                <MudItem xs="12" md="7">
-                    <MudPaper Class="pa-5" Style="height: 100%;">
-                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-4">
-                            <MudIcon Icon="@Icons.Material.Filled.BarChart" Class="mr-2" Color="Color.Primary" Size="Size.Small" />
-                            Ventas por Hora (últimas 8 horas)
-                        </MudText>
-                        @if (_summary.SalesByHour.Any(h => h.Total > 0))
-                        {
-                            <MudChart ChartType="ChartType.Bar"
-                                      ChartSeries="@_barSeries"
-                                      XAxisLabels="@_hourLabels"
-                                      Width="100%"
-                                      Height="240px"
-                                      ChartOptions="@_chartOptions" />
-                        }
-                        else
-                        {
-                            <div class="d-flex flex-column align-center justify-center" style="height: 200px;">
-                                <MudIcon Icon="@Icons.Material.Filled.BarChart" Size="Size.Large" Color="Color.Secondary" />
-                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Sin ventas en las últimas 8 horas</MudText>
-                            </div>
-                        }
-                    </MudPaper>
-                </MudItem>
+                <!-- ── Segunda fila: Gráfica + Top Productos ─────────────── -->
+                <MudGrid>
+                    <!-- Gráfica de ventas por hora -->
+                    <MudItem xs="12" md="7">
+                        <MudPaper Class="pa-5" Style="height: 100%;">
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-4">
+                                <MudIcon Icon="@Icons.Material.Filled.BarChart" Class="mr-2" Color="Color.Primary" Size="Size.Small" />
+                                Ventas por Hora (últimas 8 horas)
+                            </MudText>
+                            @if (_summary.SalesByHour.Any(h => h.Total > 0))
+                            {
+                                <MudChart ChartType="ChartType.Bar"
+                                          ChartSeries="@_barSeries"
+                                          XAxisLabels="@_hourLabels"
+                                          Width="100%"
+                                          Height="240px"
+                                          ChartOptions="@_chartOptions" />
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-column align-center justify-center" style="height: 200px;">
+                                    <MudIcon Icon="@Icons.Material.Filled.BarChart" Size="Size.Large" Color="Color.Secondary" />
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Sin ventas en las últimas 8 horas</MudText>
+                                </div>
+                            }
+                        </MudPaper>
+                    </MudItem>
 
-                <!-- Top 5 productos -->
-                <MudItem xs="12" md="5">
-                    <MudPaper Class="pa-5" Style="height: 100%;">
-                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-4">
-                            <MudIcon Icon="@Icons.Material.Filled.Star" Class="mr-2" Color="Color.Warning" Size="Size.Small" />
-                            Top 5 Productos del Día
-                        </MudText>
-                        @if (_summary.TopProducts.Any())
-                        {
-                            <div class="d-flex flex-column gap-3">
-                                @foreach (var (product, index) in _summary.TopProducts.Select((p, i) => (p, i + 1)))
-                                {
-                                    <div class="top-product-row">
-                                        <div class="top-product-rank" style="background: @GetRankColor(index);">
-                                            @index
+                    <!-- Top 5 productos -->
+                    <MudItem xs="12" md="5">
+                        <MudPaper Class="pa-5" Style="height: 100%;">
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-4">
+                                <MudIcon Icon="@Icons.Material.Filled.Star" Class="mr-2" Color="Color.Warning" Size="Size.Small" />
+                                Top 5 Productos del Día
+                            </MudText>
+                            @if (_summary.TopProducts.Any())
+                            {
+                                <div class="d-flex flex-column gap-3">
+                                    @foreach (var (product, index) in _summary.TopProducts.Select((p, i) => (p, i + 1)))
+                                    {
+                                        <div class="top-product-row">
+                                            <div class="top-product-rank" style="background: @GetRankColor(index);">
+                                                @index
+                                            </div>
+                                            <div class="flex-grow-1 overflow-hidden">
+                                                <MudText Typo="Typo.body2" Class="font-weight-bold text-truncate">@product.Name</MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">@product.QuantitySold.ToString("N2") uds.</MudText>
+                                            </div>
+                                            <MudText Typo="Typo.body2" Class="font-weight-bold" Color="Color.Success">
+                                                @product.Revenue.ToString("C2")
+                                            </MudText>
                                         </div>
-                                        <div class="flex-grow-1 overflow-hidden">
-                                            <MudText Typo="Typo.body2" Class="font-weight-bold text-truncate">@product.Name</MudText>
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@product.QuantitySold.ToString("N2") uds.</MudText>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-column align-center justify-center" style="height: 160px;">
+                                    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Secondary" />
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Sin ventas hoy</MudText>
+                                </div>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- ── Turnos activos ─────────────────────────────────────── -->
+                <MudPaper Class="pa-5">
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.AccessTime" Class="mr-2" Color="Color.Info" Size="Size.Small" />
+                        Turnos Activos
+                    </MudText>
+
+                    @if (_summary.ActiveShifts.Any())
+                    {
+                        <MudDataGrid T="ActiveShiftDto" Items="@_summary.ActiveShifts" Hover="true" Elevation="0"
+                                     Dense="true"
+                                     Class="border border-solid rounded-lg">
+                            <Columns>
+                                <TemplateColumn Title="Caja">
+                                    <CellTemplate>
+                                        <div class="d-flex align-center gap-2">
+                                            <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Color="Color.Primary" Size="Size.Small" />
+                                            <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Item.CashRegisterName</MudText>
                                         </div>
-                                        <MudText Typo="Typo.body2" Class="font-weight-bold" Color="Color.Success">
-                                            @product.Revenue.ToString("C2")
-                                        </MudText>
-                                    </div>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="d-flex flex-column align-center justify-center" style="height: 160px;">
-                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Secondary" />
-                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Sin ventas hoy</MudText>
-                            </div>
-                        }
-                    </MudPaper>
-                </MudItem>
-            </MudGrid>
-
-            <!-- ── Turnos activos ─────────────────────────────────────── -->
-            <MudPaper Class="pa-5">
-                <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-4">
-                    <MudIcon Icon="@Icons.Material.Filled.AccessTime" Class="mr-2" Color="Color.Info" Size="Size.Small" />
-                    Turnos Activos
-                </MudText>
-
-                @if (_summary.ActiveShifts.Any())
-                {
-                    <MudDataGrid T="ActiveShiftDto" Items="@_summary.ActiveShifts" Hover="true" Elevation="0"
-                                 Dense="true"
-                                 Class="border border-solid rounded-lg">
-                        <Columns>
-                            <TemplateColumn Title="Caja">
-                                <CellTemplate>
-                                    <div class="d-flex align-center gap-2">
-                                        <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Color="Color.Primary" Size="Size.Small" />
-                                        <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Item.CashRegisterName</MudText>
-                                    </div>
-                                </CellTemplate>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Cajero">
-                                <CellTemplate>
-                                    <MudText Typo="Typo.body2">@context.Item.UserId</MudText>
-                                </CellTemplate>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Apertura">
-                                <CellTemplate>
-                                    <MudText Typo="Typo.body2">@context.Item.StartTime.ToLocalTime().ToString("HH:mm")</MudText>
-                                </CellTemplate>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Fondo Inicial">
-                                <CellTemplate>
-                                    <MudText Typo="Typo.body2">@context.Item.InitialCash.ToString("C2")</MudText>
-                                </CellTemplate>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Ventas del Turno">
-                                <CellTemplate>
-                                    <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
-                                        @context.Item.TotalSales.ToString("C2")
-                                    </MudChip>
-                                </CellTemplate>
-                            </TemplateColumn>
-                        </Columns>
-                    </MudDataGrid>
-                }
-                else
-                {
-                    <div class="d-flex align-center gap-3 pa-4" style="background: rgba(255,152,0,0.06); border-radius: 10px; border: 1px dashed rgba(255,152,0,0.3);">
-                        <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" />
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">No hay cajas con turno activo en este momento.</MudText>
-                    </div>
-                }
-            </MudPaper>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                <TemplateColumn Title="Cajero">
+                                    <CellTemplate>
+                                        <MudText Typo="Typo.body2">@context.Item.CashierName</MudText>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                <TemplateColumn Title="Apertura">
+                                    <CellTemplate>
+                                        <MudText Typo="Typo.body2">@context.Item.StartTime.ToLocalTime().ToString("HH:mm")</MudText>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                <TemplateColumn Title="Fondo Inicial">
+                                    <CellTemplate>
+                                        <MudText Typo="Typo.body2">@context.Item.InitialCash.ToString("C2")</MudText>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                <TemplateColumn Title="Ventas del Turno">
+                                    <CellTemplate>
+                                        <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
+                                            @context.Item.TotalSales.ToString("C2")
+                                        </MudChip>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                            </Columns>
+                        </MudDataGrid>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-center gap-3 pa-4" style="background: rgba(255,152,0,0.06); border-radius: 10px; border: 1px dashed rgba(255,152,0,0.3);">
+                            <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">No hay cajas con turno activo en este momento.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudStack>
         }
     </PdvStateContainer>
 </div>

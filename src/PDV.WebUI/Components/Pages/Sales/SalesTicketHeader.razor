@@ -9,6 +9,11 @@
     <MudGrid>
         <!-- Left Info Widgets -->
         <MudItem xs="12" xl="9" Class="d-flex flex-wrap gap-3 align-center">
+            <!-- App Logo Widget -->
+            <div class="d-flex align-center justify-center pa-1 mr-2" style="height: 48px;">
+                <img src="/api/logos/app" alt="App Logo" style="height: 42px; width: auto; max-width: 100px; object-fit: contain; border-radius: 6px;" />
+            </div>
+
             <!-- Cash Register Status Card -->
             <div class="d-flex align-center gap-3 pa-2 px-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.03);">
                 <MudIcon Icon="@Icons.Material.Filled.Dns" Color="Color.Primary" Size="Size.Medium" />
@@ -48,7 +53,7 @@
                            Size="Size.Small" 
                            OnClick="OnClientSearchClicked"
                            Style="text-transform: none; font-weight: bold; border-radius: 4px; padding: 2px 6px; min-width: auto; height: auto;">
-                    @(SelectedClientId.HasValue ? "Cambiar" : "Seleccionar")
+                    @(SelectedClientId.HasValue ? "Cambiar - (F4)" : "Seleccionar (F4)")
                 </MudButton>
             </div>
         </MudItem>
@@ -61,7 +66,7 @@
                        StartIcon="@Icons.Material.Filled.Search"
                        OnClick="OnCatalogClicked"
                        Style="text-transform: none; font-weight: bold; border-radius: 8px; height: 42px;">
-                Catálogo (F2)
+                Catálogo (F3)
             </MudButton>
 
             <!-- Historial / Devoluciones Button -->

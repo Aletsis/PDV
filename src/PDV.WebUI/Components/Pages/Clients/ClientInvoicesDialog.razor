@@ -1,0 +1,104 @@
+@using MediatR
+@using PDV.Application.Features.Sales.Queries.ListInvoices
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Clients.Dtos
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog Class="premium-client-invoices-dialog">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Description" Color="Color.Primary" Size="Size.Medium" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold text-white">Facturas Emitidas: @Client.Name</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4 py-2" style="min-height: 250px;">
+            <PdvStateContainer IsLoading="@isLoading"
+                                IsEmpty="@(!invoices.Any())"
+                                EmptyTitle="Sin facturas"
+                                EmptyMessage="Este cliente no tiene facturas registradas en el sistema."
+                                EmptyIcon="@Icons.Material.Filled.Description"
+                                SkeletonRows="5"
+                                SkeletonColumns="6">
+                <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden; background: rgba(0, 0, 0, 0.2);">
+                    <MudDataGrid Items="@invoices" Filterable="false" Dense="true" Elevation="0" Striped="true" Style="max-height: 350px; overflow-y: auto;">
+                        <Columns>
+                            <PropertyColumn Property="x => x.InvoiceNumber" Title="Folio Factura" CellStyle="font-weight: bold; color: var(--mud-palette-text-primary);" />
+                            <PropertyColumn Property="x => x.InvoiceDate" Title="Fecha" Format="dd/MM/yyyy HH:mm" />
+                            <PropertyColumn Property="x => x.SaleNumber" Title="Ticket Venta" />
+                            <PropertyColumn Property="x => x.Subtotal" Title="Subtotal" Format="C2" />
+                            <PropertyColumn Property="x => x.Tax" Title="IVA" Format="C2" />
+                            <PropertyColumn Property="x => x.Total" Title="Total" Format="C2" CellStyle="font-weight: bold; color: var(--mud-palette-success);" />
+                            <TemplateColumn Title="UUID / Timbre">
+                                <CellTemplate>
+                                    @if (!string.IsNullOrEmpty(context.Item.Uuid))
+                                    {
+                                        <MudTooltip Text="@context.Item.Uuid">
+                                            <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.CloudDone">
+                                                @context.Item.Uuid.Substring(0, Math.Min(8, context.Item.Uuid.Length))...
+                                            </MudChip>
+                                        </MudTooltip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.WatchLater">
+                                            Sin Timbrar
+                                        </MudChip>
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="InvoiceDto" />
+                        </PagerContent>
+                    </MudDataGrid>
+                </MudPaper>
+            </PdvStateContainer>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Variant="Variant.Outlined" Color="Color.Secondary" Style="text-transform: none; border-radius: 8px; font-weight: bold; padding: 6px 20px;">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .premium-client-invoices-dialog {
+        background: rgba(30, 30, 30, 0.96) !important;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px !important;
+    }
+</style>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ClientDto Client { get; set; } = new();
+
+    private List<InvoiceDto> invoices = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInvoices();
+    }
+
+    private async Task LoadInvoices()
+    {
+        isLoading = true;
+        try
+        {
+            invoices = await Mediator.Send(new ListInvoicesQuery(ClientId: Client.Id));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar facturas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    void Close() => MudDialog.Close();
+}

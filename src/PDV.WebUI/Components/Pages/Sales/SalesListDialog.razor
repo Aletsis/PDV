@@ -120,12 +120,12 @@
             <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden;">
                 <MudDataGrid Items="@sales" Filterable="true" Dense="true" Elevation="0" Striped="true" Style="max-height: 400px; overflow-y: auto;">
                     <Columns>
-                        <PropertyColumn Property="x => x.SaleNumber" Title="Ticket / Folio" />
+                        <PropertyColumn Property="x => x.Series" Title="Serie" />
+                        <PropertyColumn Property="x => x.Folio" Title="Folio" />
                         <PropertyColumn Property="x => x.Date" Title="Fecha y Hora" Format="dd/MM/yyyy HH:mm" />
                         <PropertyColumn Property="x => x.ClientName" Title="Cliente" />
                         <PropertyColumn Property="x => x.PaymentMethod" Title="Método Pago" />
                         <PropertyColumn Property="x => x.TotalAmount" Title="Total Venta" Format="C2" CellStyle="font-weight: bold; color: var(--mud-palette-primary);" />
-                        <PropertyColumn Property="x => x.ItemCount" Title="Cant. Artículos" Style="text-align: center;" />
                         <TemplateColumn Title="Estado de Nota">
                             <CellTemplate>
                                 @if (context.Item.IsCancelled)
@@ -222,15 +222,7 @@
             currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
         }
 
-        if (currentCashRegister == null)
-        {
-            var runMode = Configuration["RunMode"] ?? "Server";
-            if (runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
-            {
-                var cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
-                currentCashRegister = cashRegisters.FirstOrDefault(c => c.IsActive);
-            }
-        }
+
 
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionChanged;
         await LoadData();
@@ -592,7 +584,9 @@
                     IsPaid = saleDetail.IsPaid,
                     IsCancelled = saleDetail.IsCancelled,
                     IsReturned = saleDetail.IsReturned,
-                    ItemCount = saleDetail.Items.Count
+                    ItemCount = saleDetail.Items.Count,
+                    Series = saleDetail.Series,
+                    Folio = saleDetail.Folio
                 };
 
                 sales = new List<SaleDto> { mappedSale };

@@ -33,7 +33,6 @@
                     <HeaderContent>
                         <MudTh>Código</MudTh>
                         <MudTh>Nombre</MudTh>
-                        <MudTh>Categoría</MudTh>
                         <MudTh Style="text-align: right;">Stock</MudTh>
                         <MudTh Style="text-align: right;">Precio Menudeo</MudTh>
                         <MudTh Style="text-align: right;">Precio Mayoreo</MudTh>
@@ -48,7 +47,6 @@
                                 <MudChip T="string" Color="Color.Info" Size="Size.Small" Class="ml-2">Granel</MudChip>
                             }
                         </MudTd>
-                        <MudTd>@context.Category</MudTd>
                         <MudTd Style="text-align: right;">
                             <span style="font-weight: bold; color: @(context.Stock > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
                                 @context.Stock.ToString(context.SaleType == "Bulk" ? "N3" : "N0")
@@ -118,7 +116,8 @@
         {
             PageNumber = state.Page + 1,
             PageSize = state.PageSize,
-            SearchQuery = searchQuery
+            SearchQuery = searchQuery,
+            Type = ProductType.Producto
         }, cancellationToken);
 
         foreach (var p in result.Items)

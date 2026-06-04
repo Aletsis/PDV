@@ -13,4 +13,6 @@ public class SaleDto
     public bool IsCancelled { get; set; }
     public bool IsReturned { get; set; }
     public int ItemCount { get; set; }
+    public string? Series { get; set; }
+    public int Folio { get; set; }
 }

@@ -80,7 +80,9 @@ public class ListSalesQueryHandler : IRequestHandler<ListSalesQuery, List<SaleDt
                 IsPaid = s.IsPaid,
                 IsCancelled = s.IsCancelled,
                 IsReturned = s.IsReturned,
-                ItemCount = s.Items.Count
+                ItemCount = s.Items.Count,
+                Series = s.Series,
+                Folio = s.Folio
             })
             .ToListAsync(cancellationToken);
     }

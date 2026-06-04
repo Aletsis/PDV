@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
 using PDV.Application.Common.Models;
 using PDV.Application.Features.Products.Dtos;
+using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Products.Queries.GetProductsWithPagination;
 
@@ -11,6 +12,7 @@ public record GetProductsWithPaginationQuery : IRequest<PaginatedList<ProductDto
     public int PageNumber { get; init; } = 1;
     public int PageSize { get; init; } = 10;
     public string? SearchQuery { get; init; }
+    public ProductType? Type { get; init; }
 }
 
 public class GetProductsWithPaginationQueryHandler : IRequestHandler<GetProductsWithPaginationQuery, PaginatedList<ProductDto>>
@@ -29,14 +31,19 @@ public class GetProductsWithPaginationQueryHandler : IRequestHandler<GetProducts
         // Solo buscar/cargar productos activos
         query = query.Where(x => x.IsActive);
 
+        if (request.Type.HasValue)
+        {
+            query = query.Where(x => x.Type == request.Type.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(request.SearchQuery))
         {
-            var search = request.SearchQuery.Trim();
+            var search = request.SearchQuery.Trim().ToLower();
             query = query.Where(x =>
-                x.Name.Contains(search) ||
-                x.Code.Contains(search) ||
-                (x.Category != null && x.Category.Contains(search)) ||
-                (x.Plu != null && x.Plu.Contains(search))
+                x.Name.ToLower().Contains(search) ||
+                x.Code.ToLower().Contains(search) ||
+                (x.Category != null && x.Category.ToLower().Contains(search)) ||
+                (x.Plu != null && x.Plu.ToLower().Contains(search))
             );
         }
 

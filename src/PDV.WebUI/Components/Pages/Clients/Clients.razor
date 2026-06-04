@@ -125,8 +125,6 @@
                     <PropertyColumn Property="x => x.Name" Title="Nombre" />
                     <PropertyColumn Property="x => x.TaxId" Title="RFC / ID Fiscal" />
                     <PropertyColumn Property="x => x.Phone" Title="Teléfono" />
-                    <PropertyColumn Property="x => x.Email" Title="Email" />
-                    <PropertyColumn Property="x => x.Address" Title="Dirección" />
                     <TemplateColumn Title="Estado">
                         <CellTemplate>
                             @if (context.Item.IsActive)
@@ -139,8 +137,12 @@
                             }
                         </CellTemplate>
                     </TemplateColumn>
-                    <TemplateColumn Title="Acciones" HeaderStyle="width: 120px;" CellClass="d-flex justify-end gap-1">
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 160px;" CellClass="d-flex justify-end gap-1">
                         <CellTemplate>
+                            <MudTooltip Text="Ver Facturas">
+                                <MudIconButton Icon="@Icons.Material.Filled.Description" Color="Color.Info" Size="Size.Small" 
+                                               OnClick="@(() => OpenClientInvoicesDialog(context.Item))" Style="background-color: rgba(0, 188, 212, 0.05);" />
+                            </MudTooltip>
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
                                            OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
@@ -374,6 +376,13 @@
         };
         isEdit = true;
         isDialogVisible = true;
+    }
+
+    private async Task OpenClientInvoicesDialog(ClientDto client)
+    {
+        var parameters = new DialogParameters { ["Client"] = client };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        await DialogService.ShowAsync<ClientInvoicesDialog>($"Facturas de {client.Name}", parameters, options);
     }
 
     private void CloseDialog()

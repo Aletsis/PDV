@@ -2,6 +2,7 @@ using PDV.Application.Common.Interfaces;
 using PDV.Infrastructure.Printing;
 using PDV.HardwareAgent.Endpoints;
 
+System.IO.Directory.SetCurrentDirectory(System.AppContext.BaseDirectory);
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);

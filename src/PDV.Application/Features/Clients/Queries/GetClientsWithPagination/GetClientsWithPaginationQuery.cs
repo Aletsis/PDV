@@ -34,11 +34,11 @@ public class GetClientsWithPaginationQueryHandler : IRequestHandler<GetClientsWi
 
         if (!string.IsNullOrWhiteSpace(request.SearchQuery))
         {
-            var search = request.SearchQuery.Trim();
+            var search = request.SearchQuery.Trim().ToLower();
             query = query.Where(x =>
-                x.Name.Contains(search) ||
-                (x.TaxId != null && x.TaxId.Contains(search)) ||
-                (x.Phone != null && x.Phone.Contains(search))
+                x.Name.ToLower().Contains(search) ||
+                (x.TaxId != null && x.TaxId.ToLower().Contains(search)) ||
+                (x.Phone != null && x.Phone.ToLower().Contains(search))
             );
         }
 
