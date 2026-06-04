@@ -46,6 +46,11 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
 
     public async Task<SyncProcessResult> Handle(ProcessSyncEventCommand request, CancellationToken cancellationToken)
     {
+        if (_context is DbContext dbContext)
+        {
+            dbContext.ChangeTracker.Clear();
+        }
+
         var dto = request.Dto;
         try
         {
