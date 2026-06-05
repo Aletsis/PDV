@@ -19,6 +19,7 @@ using PDV.Application.Features.FolioSequences.Queries.GetFolioSequencesDelta;
 using System.IO;
 using PDV.Infrastructure.Local.Discovery;
 using System.Net.Sockets;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace PDV.Infrastructure.Local.BackgroundServices;
 
@@ -29,6 +30,10 @@ public class SyncWorker : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
     private readonly IClientDiscoveryService _clientDiscoveryService;
+    
+    private HubConnection? _hubConnection;
+    private string? _connectedServerUrl;
+    private volatile bool _forcePullSync = false;
     
     private const int MaxAttempts = 5;
     private const int BatchThreshold = 5; // If pending messages > 5, sync in batches
@@ -90,6 +95,7 @@ public class SyncWorker : BackgroundService
                     continue;
                 }
 
+                await EnsureSignalRConnectedAsync(serverUrl, stoppingToken);
                 await PerformSynchronizationAsync(serverUrl, stoppingToken);
                 await PerformPullSynchronizationAsync(serverUrl, stoppingToken);
             }
@@ -403,10 +409,11 @@ public class SyncWorker : BackgroundService
 
     private async Task PerformPullSynchronizationAsync(string serverBaseUrl, CancellationToken stoppingToken)
     {
-        if (DateTime.UtcNow - _lastPullExecutionTime < TimeSpan.FromSeconds(30))
+        if (!_forcePullSync && DateTime.UtcNow - _lastPullExecutionTime < TimeSpan.FromSeconds(30))
         {
             return;
         }
+        _forcePullSync = false;
         _lastPullExecutionTime = DateTime.UtcNow;
 
         var lastPullTime = GetLastPullTime();
@@ -1313,5 +1320,111 @@ public class SyncWorker : BackgroundService
         public bool IsActive { get; set; }
         public string? PasswordHash { get; set; }
         public List<string> Roles { get; set; } = new();
+    }
+
+    private async Task EnsureSignalRConnectedAsync(string serverBaseUrl, CancellationToken stoppingToken)
+    {
+        if (_hubConnection != null && _connectedServerUrl == serverBaseUrl)
+        {
+            if (_hubConnection.State == HubConnectionState.Disconnected)
+            {
+                try
+                {
+                    _logger.LogInformation("SignalR connection is disconnected. Retrying connection...");
+                    await _hubConnection.StartAsync(stoppingToken);
+                    _logger.LogInformation("SignalR connection re-established.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to reconnect to SignalR hub. Will retry in next cycle.");
+                }
+            }
+            return;
+        }
+
+        if (_hubConnection != null)
+        {
+            _logger.LogInformation("Server URL changed or first initialization. Disposing old SignalR connection...");
+            try
+            {
+                await _hubConnection.StopAsync(CancellationToken.None);
+                await _hubConnection.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Error disposing old SignalR connection.");
+            }
+            _hubConnection = null;
+            _connectedServerUrl = null;
+        }
+
+        var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/sync";
+        _logger.LogInformation("Initializing new SignalR connection to: {HubUrl}", hubUrl);
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUrl, options =>
+            {
+                options.HttpMessageHandlerFactory = handler =>
+                {
+                    if (handler is HttpClientHandler clientHandler)
+                    {
+                        clientHandler.ServerCertificateCustomValidationCallback = 
+                            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                    }
+                    return handler;
+                };
+            })
+            .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
+            .Build();
+
+        _hubConnection.On<string>("ReceiveSyncNotification", (entityName) =>
+        {
+            _logger.LogInformation("Real-time sync notification received for: {EntityName}. Triggering immediate pull.", entityName);
+            _forcePullSync = true;
+        });
+
+        _hubConnection.Closed += async (error) =>
+        {
+            _logger.LogWarning(error, "SignalR connection closed.");
+            await Task.CompletedTask;
+        };
+
+        _hubConnection.Reconnecting += async (error) =>
+        {
+            _logger.LogInformation(error, "SignalR reconnecting...");
+            await Task.CompletedTask;
+        };
+
+        _hubConnection.Reconnected += async (connectionId) =>
+        {
+            _logger.LogInformation("SignalR reconnected. ConnectionId: {ConnectionId}", connectionId);
+            _forcePullSync = true;
+            await Task.CompletedTask;
+        };
+
+        try
+        {
+            await _hubConnection.StartAsync(stoppingToken);
+            _connectedServerUrl = serverBaseUrl;
+            _logger.LogInformation("SignalR connection established successfully. ConnectionId: {ConnectionId}", _hubConnection.ConnectionId);
+            _forcePullSync = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to connect to SignalR hub at {HubUrl}", hubUrl);
+        }
+    }
+
+    public override void Dispose()
+    {
+        if (_hubConnection != null)
+        {
+            try
+            {
+                _hubConnection.DisposeAsync().GetAwaiter().GetResult();
+            }
+            catch { }
+        }
+        base.Dispose();
     }
 }

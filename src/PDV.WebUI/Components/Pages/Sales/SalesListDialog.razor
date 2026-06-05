@@ -70,10 +70,10 @@
                         <MudDatePicker @bind-Date="endDate" Label="Fecha de Fin" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
                     <MudItem xs="12" md="3">
-                        <MudSelect T="bool?" @bind-Value="filterPaid" Label="Estado de Pago" Variant="Variant.Outlined" Margin="Margin.Dense">
-                            <MudSelectItem Value="@((bool?)null)">Todos los Estados</MudSelectItem>
-                            <MudSelectItem Value="@((bool?)true)">Solo Pagadas</MudSelectItem>
-                            <MudSelectItem Value="@((bool?)false)">Solo Pendientes</MudSelectItem>
+                        <MudSelect T="string" @bind-Value="filterStatus" Label="Estado de Nota" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="@("all")">Todos los Estados</MudSelectItem>
+                            <MudSelectItem Value="@("paid")">Solo Pagadas</MudSelectItem>
+                            <MudSelectItem Value="@("cancelled")">Solo Canceladas</MudSelectItem>
                         </MudSelect>
                     </MudItem>
                     <MudItem xs="12" md="3" Class="d-flex gap-2">
@@ -203,7 +203,7 @@
     private List<SaleDto> sales = new();
     private DateTime? startDate = DateTime.Today;
     private DateTime? endDate = DateTime.Today.AddDays(1);
-    private bool? filterPaid = null;
+    private string filterStatus = "all";
 
     private CashRegisterDto? currentCashRegister;
 
@@ -249,6 +249,18 @@
         Guid? cashRegisterFilter = null;
         bool isOffline = ConnectionMonitor.IsLocalMode && !ConnectionMonitor.IsConnected;
 
+        bool? isPaidParam = null;
+        bool? isCancelledParam = null;
+        if (filterStatus == "paid")
+        {
+            isPaidParam = true;
+            isCancelledParam = false;
+        }
+        else if (filterStatus == "cancelled")
+        {
+            isCancelledParam = true;
+        }
+
         if (isOffline)
         {
             if (currentCashRegister != null)
@@ -259,7 +271,8 @@
             sales = await Mediator.Send(new ListSalesQuery(
                 StartDate: startDate,
                 EndDate: endDate,
-                IsPaid: filterPaid,
+                IsPaid: isPaidParam,
+                IsCancelled: isCancelledParam,
                 CashRegisterId: cashRegisterFilter));
         }
         else
@@ -275,7 +288,8 @@
                     var queryParams = new List<string>();
                     if (startDate.HasValue) queryParams.Add($"startDate={Uri.EscapeDataString(startDate.Value.ToString("o"))}");
                     if (endDate.HasValue) queryParams.Add($"endDate={Uri.EscapeDataString(endDate.Value.ToString("o"))}");
-                    if (filterPaid.HasValue) queryParams.Add($"isPaid={filterPaid.Value}");
+                    if (isPaidParam.HasValue) queryParams.Add($"isPaid={isPaidParam.Value}");
+                    if (isCancelledParam.HasValue) queryParams.Add($"isCancelled={isCancelledParam.Value}");
                     
                     if (queryParams.Any())
                     {
@@ -298,7 +312,8 @@
                     sales = await Mediator.Send(new ListSalesQuery(
                         StartDate: startDate,
                         EndDate: endDate,
-                        IsPaid: filterPaid,
+                        IsPaid: isPaidParam,
+                        IsCancelled: isCancelledParam,
                         CashRegisterId: null));
                 }
             }
@@ -307,7 +322,8 @@
                 sales = await Mediator.Send(new ListSalesQuery(
                     StartDate: startDate,
                     EndDate: endDate,
-                    IsPaid: filterPaid,
+                    IsPaid: isPaidParam,
+                    IsCancelled: isCancelledParam,
                     CashRegisterId: null));
             }
         }

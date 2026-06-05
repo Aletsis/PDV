@@ -259,7 +259,9 @@
                                              HideSpinButtons="true"
                                              Class="mt-2 text-white"
                                              Style="font-size: 1.5rem; font-weight: 700; color: #ffffff;"
-                                             Placeholder="0.00" />
+                                             Placeholder="0.00"
+                                             Immediate="true"
+                                             OnKeyDown="HandleKeyDown" />
 
                             <MudButton Variant="Variant.Filled"
                                        ButtonType="ButtonType.Button"
@@ -493,6 +495,21 @@
         finally
         {
             isSaving = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (form != null)
+            {
+                await form.Validate();
+            }
+            if (isValid && !isSaving)
+            {
+                await HandleOpenShift();
+            }
         }
     }
 }

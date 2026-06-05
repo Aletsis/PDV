@@ -8,6 +8,8 @@
 @using PDV.Application.Features.Sync.Queries
 @using PDV.Application.Features.Categories.Dtos
 @using PDV.Application.Features.Categories.Queries.GetCategories
+@using PDV.Application.Features.Departments.Dtos
+@using PDV.Application.Features.Departments.Queries.GetDepartments
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -113,6 +115,15 @@
                         <MudSelectItem Value="@cat.Name">@cat.Name</MudSelectItem>
                     }
                 </MudSelect>
+                
+                <MudSelect T="string" @bind-Value="filterDepartment" Label="Departamento" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 200px; min-width: 160px;">
+                    <MudSelectItem Value="@(string.Empty)">Todos los Departamentos</MudSelectItem>
+                    @foreach (var dept in departments)
+                    {
+                        <MudSelectItem Value="@dept.Name">@dept.Name</MudSelectItem>
+                    }
+                </MudSelect>
 
                 <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged" Label="Estado" 
                            Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 130px; min-width: 110px;">
@@ -170,6 +181,7 @@
 @code {
     private List<ProductDto> products = new();
     private List<CategoryDto> categories = new();
+    private List<DepartmentDto> departments = new();
     private bool isLocalMode = false;
     private bool isLoading = false;
 
@@ -184,6 +196,7 @@
     private bool? filterActive = true; // Default to showing only Active products
     private int? filterType = 1; // Default to products
     private string filterCategory = string.Empty; // Default to all
+    private string filterDepartment = string.Empty; // Default to all
 
     private IEnumerable<ProductDto> filteredProducts => products
         .Where(p => 
@@ -201,6 +214,9 @@
             &&
             // Category filter
             (string.IsNullOrEmpty(filterCategory) || p.Category == filterCategory)
+            &&
+            // Department filter
+            (string.IsNullOrEmpty(filterDepartment) || p.Department == filterDepartment)
         );
 
     protected override async Task OnInitializedAsync()
@@ -212,6 +228,15 @@
         try
         {
             categories = await Mediator.Send(new GetCategoriesQuery(IncludeInactive: false));
+        }
+        catch (Exception)
+        {
+            // fallback
+        }
+
+        try
+        {
+            departments = await Mediator.Send(new GetDepartmentsQuery(IncludeInactive: false));
         }
         catch (Exception)
         {

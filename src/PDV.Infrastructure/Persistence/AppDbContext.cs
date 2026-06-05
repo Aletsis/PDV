@@ -19,13 +19,16 @@ namespace PDV.Infrastructure.Persistence;
 public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbContext
 {
     private readonly ICurrentUserService? _currentUserService;
+    private readonly IRealTimeSyncNotifier? _syncNotifier;
     private IDbContextTransaction? _currentTransaction;
 
     public AppDbContext(
         DbContextOptions<AppDbContext> options,
-        ICurrentUserService? currentUserService = null) : base(options)
+        ICurrentUserService? currentUserService = null,
+        IRealTimeSyncNotifier? syncNotifier = null) : base(options)
     {
         _currentUserService = currentUserService;
+        _syncNotifier = syncNotifier;
     }
 
     // ──────────────────────────────────────────────
@@ -147,13 +150,71 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public override int SaveChanges()
     {
         ApplyAuditInfo();
-        return base.SaveChanges();
+        
+        var modifiedEntities = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+            .Select(e => e.Entity.GetType().Name)
+            .Distinct()
+            .ToList();
+
+        var result = base.SaveChanges();
+
+        if (result > 0 && _syncNotifier != null && modifiedEntities.Any())
+        {
+            var syncEntities = new HashSet<string> { "Product", "Client", "CashRegister", "ApplicationUser", "Printer", "FolioSequence", "TicketSequence", "Branch" };
+            foreach (var entityName in modifiedEntities)
+            {
+                var cleanName = entityName.Split('_').First();
+                if (syncEntities.Contains(cleanName))
+                {
+                    try
+                    {
+                        _syncNotifier.NotifyEntityChangedAsync(cleanName, CancellationToken.None).GetAwaiter().GetResult();
+                    }
+                    catch
+                    {
+                        // Ignorar errores del notificador para no comprometer la transacción persistida
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyAuditInfo();
-        return base.SaveChangesAsync(cancellationToken);
+        
+        var modifiedEntities = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+            .Select(e => e.Entity.GetType().Name)
+            .Distinct()
+            .ToList();
+
+        var result = await base.SaveChangesAsync(cancellationToken);
+
+        if (result > 0 && _syncNotifier != null && modifiedEntities.Any())
+        {
+            var syncEntities = new HashSet<string> { "Product", "Client", "CashRegister", "ApplicationUser", "Printer", "FolioSequence", "TicketSequence", "Branch" };
+            foreach (var entityName in modifiedEntities)
+            {
+                var cleanName = entityName.Split('_').First();
+                if (syncEntities.Contains(cleanName))
+                {
+                    try
+                    {
+                        await _syncNotifier.NotifyEntityChangedAsync(cleanName, cancellationToken);
+                    }
+                    catch
+                    {
+                        // Ignorar errores del notificador para no comprometer la transacción persistida
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     private void ApplyAuditInfo()

@@ -176,6 +176,16 @@
             );
 
             var resultId = await Mediator.Send(command);
+
+            try
+            {
+                await Mediator.Send(new PrintCashCollectionTicketCommand(resultId, CashRegisterId));
+            }
+            catch (Exception)
+            {
+                // Ignorar errores de impresión
+            }
+
             Snackbar.Add($"Movimiento registrado con éxito.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(resultId));
         }

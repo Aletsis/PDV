@@ -243,7 +243,17 @@
                 CashInDrawer: DeclaredAmount
             );
 
-            await Mediator.Send(command);
+            var cutId = await Mediator.Send(command);
+
+            try
+            {
+                await Mediator.Send(new PrintCashCutTicketCommand(cutId, CashRegisterId));
+            }
+            catch (Exception)
+            {
+                // Ignorar errores de impresión
+            }
+
             Snackbar.Add("El turno ha sido cerrado con éxito. Corte de caja registrado.", Severity.Success);
             
             MudDialog.Close(DialogResult.Ok(true));

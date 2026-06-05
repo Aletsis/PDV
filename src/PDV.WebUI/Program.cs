@@ -85,6 +85,8 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IRealTimeSyncNotifier, PDV.WebUI.Services.RealTimeSyncNotifier>();
 
 // Permite a los componentes Blazor Server acceder al HttpContext (ej. para leer IP del cliente)
 builder.Services.AddHttpContextAccessor();
@@ -170,6 +172,7 @@ app.MapRazorComponents<App>()
 
 app.MapRazorPages();
 app.MapControllers();
+app.MapHub<PDV.WebUI.Hubs.SyncHub>("/hubs/sync");
 
 // Health checks
 app.MapHealthChecks("/health/live");

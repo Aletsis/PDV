@@ -308,6 +308,68 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                     }
                 }
             }
+            else if (dto.EventType.Equals("TicketSequenceCreatedEvent"))
+            {
+                var ev = JsonSerializer.Deserialize<TicketSequenceCreatedEvent>(dto.Payload, _jsonOptions);
+                if (ev == null) return SyncProcessResult.Fail("Could not deserialize TicketSequenceCreatedEvent payload.");
+
+                var exists = await _context.TicketSequences.AnyAsync(t => t.Id == ev.TicketSequenceId, cancellationToken);
+                if (!exists)
+                {
+                    string? defaultSeries = ev.SequenceType switch
+                    {
+                        TicketSequenceType.Sale => "V",
+                        TicketSequenceType.Return => "DEV",
+                        TicketSequenceType.Cancellation => "CAN",
+                        TicketSequenceType.CashCollection => "RET",
+                        TicketSequenceType.CashCut => "COR",
+                        TicketSequenceType.Order => "PED",
+                        _ => null
+                    };
+
+                    var entity = new TicketSequence(ev.CashRegisterId, ev.SequenceType, defaultSeries);
+                    entity.SetId(ev.TicketSequenceId);
+                    entity.ClearDomainEvents();
+                    _context.TicketSequences.Add(entity);
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+            }
+            else if (dto.EventType.Equals("TicketIssuedEvent"))
+            {
+                var ev = JsonSerializer.Deserialize<TicketIssuedEvent>(dto.Payload, _jsonOptions);
+                if (ev == null) return SyncProcessResult.Fail("Could not deserialize TicketIssuedEvent payload.");
+
+                var existing = await _context.TicketSequences.FirstOrDefaultAsync(t => t.Id == ev.TicketSequenceId, cancellationToken);
+                if (existing != null)
+                {
+                    if (ev.IssuedTicketNumber > existing.LastTicketNumber)
+                    {
+                        existing.ResetTo(ev.IssuedTicketNumber);
+                        existing.ClearDomainEvents();
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
+                else
+                {
+                    string? defaultSeries = ev.SequenceType switch
+                    {
+                        TicketSequenceType.Sale => "V",
+                        TicketSequenceType.Return => "DEV",
+                        TicketSequenceType.Cancellation => "CAN",
+                        TicketSequenceType.CashCollection => "RET",
+                        TicketSequenceType.CashCut => "COR",
+                        TicketSequenceType.Order => "PED",
+                        _ => null
+                    };
+
+                    var entity = new TicketSequence(ev.CashRegisterId, ev.SequenceType, defaultSeries);
+                    entity.SetId(ev.TicketSequenceId);
+                    entity.ResetTo(ev.IssuedTicketNumber);
+                    entity.ClearDomainEvents();
+                    _context.TicketSequences.Add(entity);
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+            }
 
             return SyncProcessResult.Ok();
         }

@@ -234,6 +234,7 @@ public class SyncController : ControllerBase
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] bool? isPaid,
+        [FromQuery] bool? isCancelled,
         [FromQuery] Guid? cashRegisterId)
     {
         try
@@ -242,6 +243,7 @@ public class SyncController : ControllerBase
                 StartDate: startDate,
                 EndDate: endDate,
                 IsPaid: isPaid,
+                IsCancelled: isCancelled,
                 CashRegisterId: cashRegisterId);
                 
             var result = await _mediator.Send(query);
