@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 using System;
@@ -9,7 +10,15 @@ using System.Threading.Tasks;
 
 namespace PDV.Application.Features.Sales.Commands.RemoveSaleItem;
 
-public record RemoveSaleItemCommand(Guid SaleId, Guid SaleItemId) : IRequest<bool>;
+[AuthorizeCommand("sales.cancel_item")]
+public record RemoveSaleItemCommand(
+    Guid SaleId, 
+    Guid SaleItemId,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class RemoveSaleItemCommandHandler : IRequestHandler<RemoveSaleItemCommand, bool>
 {
@@ -56,10 +65,13 @@ public class RemoveSaleItemCommandHandler : IRequestHandler<RemoveSaleItemComman
                     throw new InvalidOperationException("Artículo no encontrado en la base de datos.");
 
                 var product = await _context.Products.FindAsync(new object[] { saleItem.ProductId }, cancellationToken);
-                if (product != null)
+
+                var branchStock = await _context.ProductBranchStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == saleItem.ProductId && s.BranchId == sale.BranchId, cancellationToken);
+                if (branchStock != null)
                 {
                     // Reintegrar stock (Kardex)
-                    product.ApplyMovement(saleItem.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión por artículo removido en POS");
+                    branchStock.ApplyMovement(saleItem.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión por artículo removido en POS");
                 }
 
                 // Registrar cancelación parcial para auditoría en el servidor
@@ -67,7 +79,7 @@ public class RemoveSaleItemCommandHandler : IRequestHandler<RemoveSaleItemComman
                     branchId: sale.BranchId,
                     type: CancellationType.Product,
                     reason: $"Cancelación Parcial POS - Código: {product?.Code ?? "N/A"} | Nombre: {product?.Name ?? "Desconocido"} | Cantidad: {saleItem.Quantity} | Total Revertido: ${(saleItem.Quantity * (saleItem.PriceOverride ?? saleItem.UnitPrice)).ToString("F2")} | Razón: Eliminado del carrito",
-                    userId: sale.UserId ?? "Anonymous",
+                    userId: request.AuthorizedByUserId ?? sale.UserId ?? "Anonymous",
                     saleId: sale.Id,
                     saleItemId: saleItem.Id
                 );

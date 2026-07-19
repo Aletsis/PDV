@@ -321,8 +321,8 @@
 
     private async Task CancelSale(SaleDto sale)
     {
-        var authorized = await RequestAuthorizationAsync("Cancelar venta emitida o facturada");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Cancelar venta emitida o facturada", "sales.cancel");
+        if (!auth.Success) return;
 
         bool? result = await DialogService.ShowMessageBox(
             "Cancelar Venta",
@@ -340,7 +340,7 @@
                 {
                     var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
                     var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
-                    await Mediator.Send(new CancelSaleCommand(sale.Id, reason, userId));
+                    await Mediator.Send(new CancelSaleCommand(sale.Id, reason, userId, auth.Username, auth.Password));
                     Snackbar.Add("Venta cancelada exitosamente", Severity.Success);
                     await LoadData();
                 }
@@ -359,8 +359,8 @@
     // Open Return Items Dialog for item-by-item refunds
     private async Task OpenReturnItemsDialog(SaleDto sale)
     {
-        var authorized = await RequestAuthorizationAsync("Procesar devolución de mercancía");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Procesar devolución de mercancía", "sales.refund");
+        if (!auth.Success) return;
 
         var detail = await Mediator.Send(new GetSaleQuery(sale.Id));
         if (detail == null)
@@ -369,7 +369,12 @@
             return;
         }
 
-        var parameters = new DialogParameters { ["SaleDetail"] = detail };
+        var parameters = new DialogParameters 
+        { 
+            ["SaleDetail"] = detail,
+            ["SupervisorUsername"] = auth.Username,
+            ["SupervisorPassword"] = auth.Password
+        };
         var dialog = await DialogService.ShowAsync<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
 
@@ -396,8 +401,8 @@
 
     private async Task ReprintTicket(SaleDto sale)
     {
-        var authorized = await RequestAuthorizationAsync("Reimprimir ticket de venta");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Reimprimir ticket de venta", "sales.refund");
+        if (!auth.Success) return;
 
         try
         {
@@ -419,13 +424,26 @@
         }
     }
 
-    private async Task<bool> RequestAuthorizationAsync(string actionName)
+    private async Task<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult> RequestAuthorizationAsync(string actionName, string requiredPermissionCode)
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true && (user.IsInRole("Admin") || user.IsInRole("Manager")))
+        {
+            return new PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult(true, null, null);
+        }
+
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
         var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
-        return result != null && !result.Canceled && result.Data is bool authorized && authorized;
+        
+        if (result != null && !result.Canceled && result.Data is PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult authResult && authResult.Success)
+        {
+            return authResult;
+        }
+
+        return new PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult(false, null, null);
     }
 
     public void Dispose()

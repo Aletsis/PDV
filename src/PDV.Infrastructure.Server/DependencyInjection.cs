@@ -26,6 +26,12 @@ public static class DependencyInjection
         // Registrar el servicio de descubrimiento UDP en el servidor
         services.AddHostedService<ServerDiscoveryHostedService>();
 
+        // Registrar el background worker de integración con CONTPAQi Comercial
+        services.AddHostedService<PDV.Infrastructure.Server.BackgroundServices.ContpaqiSyncBackgroundWorker>();
+
+        // Registrar el background worker de réplica / Inbox Pattern
+        services.AddHostedService<PDV.Infrastructure.Server.BackgroundServices.InboxWorker>();
+
         return services;
     }
 }

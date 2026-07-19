@@ -80,7 +80,7 @@
                 </MudStack>
 
                 <!-- Tipo de Facturación (Cliente vs Global) -->
-                <MudRadioGroup T="bool" @bind-Value="isGlobal" Class="d-flex gap-4">
+                <MudRadioGroup T="bool" Value="isGlobal" ValueChanged="OnIsGlobalChanged" Class="d-flex gap-4">
                     <MudRadio Value="false" Color="Color.Primary">Factura Individual</MudRadio>
                     <MudRadio Value="true" Color="Color.Info">Factura Global (Público General)</MudRadio>
                 </MudRadioGroup>
@@ -94,6 +94,26 @@
                             <MudSelectItem Value="@("S01")">S01 - Sin efectos fiscales (Mandatorio para Global)</MudSelectItem>
                         </MudSelect>
                     </MudItem>
+
+                    @if (!isGlobal)
+                    {
+                        <MudItem xs="6">
+                            <MudSelect T="string" @bind-Value="receiverFiscalRegime" Label="Régimen Fiscal" Variant="Variant.Outlined" Margin="Margin.Dense" Style="color: #ffffff;">
+                                <MudSelectItem Value="@("601")">601 - General de Ley Personas Morales</MudSelectItem>
+                                <MudSelectItem Value="@("603")">603 - Personas Morales con Fines no Lucrativos</MudSelectItem>
+                                <MudSelectItem Value="@("605")">605 - Sueldos y Salarios</MudSelectItem>
+                                <MudSelectItem Value="@("606")">606 - Arrendamiento</MudSelectItem>
+                                <MudSelectItem Value="@("612")">612 - Actividades Empresariales y Profesionales</MudSelectItem>
+                                <MudSelectItem Value="@("616")">616 - Sin obligaciones fiscales</MudSelectItem>
+                                <MudSelectItem Value="@("621")">621 - Incorporación Fiscal</MudSelectItem>
+                                <MudSelectItem Value="@("626")">626 - Simplificado de Confianza (RESICO)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="6">
+                            <MudTextField T="string" @bind-Value="receiverZipCode" Label="Código Postal" Variant="Variant.Outlined" Margin="Margin.Dense" Style="color: #ffffff;" MaxLength="5" HelperText="5 dígitos" />
+                        </MudItem>
+                    }
 
                     <MudItem xs="6">
                         <MudSelect T="string" @bind-Value="formaPago" Label="Forma de Pago" Variant="Variant.Outlined" Margin="Margin.Dense" Style="color: #ffffff;">
@@ -181,6 +201,8 @@
     private string usoCfdi = "G03";
     private string metodoPago = "PUE";
     private string formaPago = "01";
+    private string receiverFiscalRegime = "616";
+    private string receiverZipCode = "00000";
     private bool isProcessing = false;
 
     protected override async Task OnInitializedAsync()
@@ -205,6 +227,11 @@
 
                 // Recuperar RFC real desde la consulta de clientes del PDV
                 selectedClient = await Mediator.Send(new GetClientQuery(saleDetail.ClientId.Value));
+                if (selectedClient != null)
+                {
+                    receiverFiscalRegime = selectedClient.FiscalRegime ?? "616";
+                    receiverZipCode = selectedClient.FiscalZipCode ?? "00000";
+                }
             }
 
             // Mapeo inteligente Forma de Pago
@@ -220,6 +247,31 @@
             if (isGlobal)
             {
                 usoCfdi = "S01";
+                receiverFiscalRegime = "616";
+                receiverZipCode = "00000";
+            }
+        }
+    }
+
+    private void OnIsGlobalChanged(bool value)
+    {
+        isGlobal = value;
+        if (isGlobal)
+        {
+            usoCfdi = "S01";
+            receiverFiscalRegime = "616";
+            receiverZipCode = "00000";
+        }
+        else
+        {
+            if (usoCfdi == "S01")
+            {
+                usoCfdi = "G03";
+            }
+            if (selectedClient != null)
+            {
+                receiverFiscalRegime = selectedClient.FiscalRegime ?? "616";
+                receiverZipCode = selectedClient.FiscalZipCode ?? "00000";
             }
         }
     }
@@ -243,6 +295,8 @@
                 {
                     selectedClient = client;
                     isGlobal = false;
+                    receiverFiscalRegime = client.FiscalRegime ?? "616";
+                    receiverZipCode = client.FiscalZipCode ?? "00000";
                     
                     // Si seleccionó cliente, cambiar Uso de CFDI a Gastos en General (G03) si estaba en Sin Efectos Fiscales (S01)
                     if (usoCfdi == "S01")
@@ -255,6 +309,8 @@
                     selectedClient = null;
                     isGlobal = true;
                     usoCfdi = "S01";
+                    receiverFiscalRegime = "616";
+                    receiverZipCode = "00000";
                 }
             }
         }
@@ -281,6 +337,20 @@
             usoCfdi = "S01";
         }
 
+        if (!isGlobal)
+        {
+            if (string.IsNullOrWhiteSpace(receiverFiscalRegime))
+            {
+                Snackbar.Add("El Régimen Fiscal es obligatorio para facturación individual.", Severity.Warning);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(receiverZipCode) || receiverZipCode.Length != 5 || !receiverZipCode.All(char.IsDigit))
+            {
+                Snackbar.Add("El Código Postal del receptor debe ser de 5 dígitos numéricos.", Severity.Warning);
+                return;
+            }
+        }
+
         isProcessing = true;
         StateHasChanged();
 
@@ -294,7 +364,9 @@
                 UsoCfdi = usoCfdi,
                 MetodoPago = metodoPago,
                 FormaPago = formaPago,
-                TaxRate = 0.16m
+                TaxRate = 0.16m,
+                ReceiverFiscalRegime = isGlobal ? "616" : receiverFiscalRegime,
+                ReceiverZipCode = isGlobal ? "00000" : receiverZipCode
             };
 
             var invoiceId = await Mediator.Send(command);

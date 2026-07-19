@@ -42,7 +42,7 @@ public class AccountController : Controller
         if (user != null && !user.IsActive)
             return Redirect($"/login?error=InactiveAccount&returnUrl={returnUrl}");
 
-        var result = await _signInManager.PasswordSignInAsync(email, password, isPersistent: false, lockoutOnFailure: false);
+        var result = await _signInManager.PasswordSignInAsync(user?.UserName ?? email, password, isPersistent: false, lockoutOnFailure: false);
 
         if (!result.Succeeded)
             return Redirect($"/login?error=InvalidCredentials&returnUrl={returnUrl}");

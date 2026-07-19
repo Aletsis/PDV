@@ -25,6 +25,7 @@ public class ClientSyncDto
     public string? ZipCode { get; set; }
     public string? Country { get; set; }
     public bool IsActive { get; set; }
+    public bool IsDeleted { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastModifiedAt { get; set; }
 }
@@ -59,6 +60,7 @@ public class GetClientsDeltaQueryHandler : IRequestHandler<GetClientsDeltaQuery,
                 ZipCode = c.Address != null ? c.Address.ZipCode : null,
                 Country = c.Address != null ? c.Address.Country : null,
                 IsActive = c.IsActive,
+                IsDeleted = c.IsDeleted,
                 CreatedAt = c.CreatedAt,
                 LastModifiedAt = c.LastModifiedAt
             })

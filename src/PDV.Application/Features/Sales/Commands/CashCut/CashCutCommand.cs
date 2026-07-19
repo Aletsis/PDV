@@ -1,19 +1,26 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
 using PDV.Domain.ValueObjects;
 using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.CashCut;
 
+[AuthorizeCommand("sales.cash_cut")]
 public record CashCutCommand(
     Guid CashRegisterId, 
     string UserId, 
     decimal InitialCash, 
     decimal SalesTotal, 
-    decimal CashInDrawer
-) : IRequest<Guid>;
+    decimal CashInDrawer,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null
+) : IRequest<Guid>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class CashCutCommandHandler : IRequestHandler<CashCutCommand, Guid>
 {
@@ -116,7 +123,7 @@ public class CashCutCommandHandler : IRequestHandler<CashCutCommand, Guid>
         var cut = new PDV.Domain.Entities.CashCut(
             shiftId: activeShift.Id,
             cashRegisterId: request.CashRegisterId,
-            userId: !string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId,
+            userId: request.AuthorizedByUserId ?? (!string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId),
             systemExpectedCash: expectedCash,
             cashDenominations: denominations,
             declaredVouchers: new List<PaymentMethodBreakdown>()

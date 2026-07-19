@@ -1,6 +1,7 @@
 using MediatR;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Repositories;
+using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.PrintSaleTicket;
 
@@ -50,6 +51,15 @@ public class PrintSaleTicketCommandHandler : IRequestHandler<PrintSaleTicketComm
             return;
         }
 
+        // Formatear conexión de impresora local o red
+        string connectionUri = printer.ConnectionType switch
+        {
+            PrinterConnectionType.Network => printer.IpAddress ?? string.Empty,
+            PrinterConnectionType.Usb => $"usb://{printer.DevicePath}",
+            PrinterConnectionType.Serial => $"serial://{printer.DevicePath}?baud={printer.CodePage}",
+            _ => printer.IpAddress ?? string.Empty
+        };
+
         // Generar contenido del ticket
         var ticketContent = await _ticketGenerator.GenerateSaleTicketAsync(request.SaleId, cancellationToken);
 
@@ -57,10 +67,10 @@ public class PrintSaleTicketCommandHandler : IRequestHandler<PrintSaleTicketComm
         try
         {
             await _escPosPrinter.PrintTextAsync(
-                printer.IpAddress ?? string.Empty,
+                connectionUri,
                 printer.Port ?? 9100,
                 ticketContent,
-                encodingCodePage: 28591, // Latin-1 para español
+                encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 28591, // Codepágina configurada o Latin-1
                 cancellationToken: cancellationToken
             );
         }

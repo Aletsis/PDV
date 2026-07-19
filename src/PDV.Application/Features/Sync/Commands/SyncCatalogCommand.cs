@@ -374,12 +374,10 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
                     name: dto.Nombre,
                     code: dto.Codigo,
                     price: (decimal)dto.Precio,
-                    stock: 0, // Inicia en 0 stock localmente
                     saleType: Domain.Enums.SaleType.Piece,
                     taxRate: mappedTax,
                     category: categoryName,
                     cost: 0,
-                    minStock: 0,
                     plu: null,
                     barcode: dto.CodigoAlterno,
                     description: dto.Descripcion,
@@ -403,6 +401,15 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
 
                 product.ClearDomainEvents();
                 _context.Products.Add(product);
+
+                // Inicializar el stock en todas las sucursales
+                var branches = await _context.Branches.ToListAsync(cancellationToken);
+                foreach (var branch in branches)
+                {
+                    var branchStock = new ProductBranchStock(product.Id, branch.Id, 0, 0);
+                    _context.ProductBranchStocks.Add(branchStock);
+                }
+
                 result.CreatedCount++;
                 progress.Report($"[NUEVO] Producto '{dto.Codigo} - {dto.Nombre}' agregado.");
             }
@@ -435,6 +442,19 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
                 else if (!dto.Activo && existing.IsActive)
                 {
                     existing.Deactivate();
+                }
+
+                // Garantizar que existan los registros de stock por sucursal
+                var branches = await _context.Branches.ToListAsync(cancellationToken);
+                foreach (var branch in branches)
+                {
+                    var hasStockRecord = await _context.ProductBranchStocks
+                        .AnyAsync(s => s.ProductId == existing.Id && s.BranchId == branch.Id, cancellationToken);
+                    if (!hasStockRecord)
+                    {
+                        var branchStock = new ProductBranchStock(existing.Id, branch.Id, 0, 0);
+                        _context.ProductBranchStocks.Add(branchStock);
+                    }
                 }
 
                 existing.ClearDomainEvents();

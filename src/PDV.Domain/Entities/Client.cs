@@ -17,6 +17,8 @@ public class Client : BaseEntity, IAggregateRoot
     /// <summary>Clasificación del cliente. Default: Retail (menudeo).</summary>
     public ClientType ClientType { get; private set; }
     public bool IsActive { get; private set; }
+    public string? FiscalRegime { get; private set; }
+    public string? FiscalZipCode { get; private set; }
 
 #pragma warning disable CS8618
     private Client() { } // For EF Core
@@ -28,7 +30,9 @@ public class Client : BaseEntity, IAggregateRoot
         string taxId,
         string phone,
         string email,
-        ClientType clientType = ClientType.Retail)
+        ClientType clientType = ClientType.Retail,
+        string? fiscalRegime = null,
+        string? fiscalZipCode = null)
     {
         if (string.IsNullOrWhiteSpace(code)) 
             throw new DomainException("El código del cliente es obligatorio.");
@@ -46,6 +50,8 @@ public class Client : BaseEntity, IAggregateRoot
         Email = email?.Trim() ?? string.Empty;
         ClientType = clientType;
         IsActive = true;
+
+        UpdateFiscalProfile(fiscalRegime, fiscalZipCode);
 
         AddDomainEvent(new ClientRegisteredEvent(Id, Name));
     }
@@ -116,6 +122,33 @@ public class Client : BaseEntity, IAggregateRoot
     }
 
 
+
+    public void UpdateFiscalProfile(string? fiscalRegime, string? fiscalZipCode)
+    {
+        if (!string.IsNullOrWhiteSpace(fiscalRegime))
+        {
+            var regime = fiscalRegime.Trim();
+            if (regime.Length < 3 || regime.Length > 4 || !regime.All(char.IsDigit))
+                throw new DomainException("El régimen fiscal debe ser un código numérico de 3 o 4 dígitos.");
+            FiscalRegime = regime;
+        }
+        else
+        {
+            FiscalRegime = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fiscalZipCode))
+        {
+            var zip = fiscalZipCode.Trim();
+            if (zip.Length != 5 || !zip.All(char.IsDigit))
+                throw new DomainException("El código postal fiscal debe tener exactamente 5 dígitos.");
+            FiscalZipCode = zip;
+        }
+        else
+        {
+            FiscalZipCode = null;
+        }
+    }
 
     public void Deactivate()
     {

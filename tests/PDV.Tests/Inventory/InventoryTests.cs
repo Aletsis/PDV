@@ -29,32 +29,28 @@ public class InventoryTests
     }
 
     [Fact]
-    public void Product_ApplyMovement_UpdatesStockAndTracksMovements()
+    public void ProductBranchStock_ApplyMovement_UpdatesStockAndTracksMovements()
     {
         // Arrange
-        var product = new Product(
-            name: "Coca Cola 600ml",
-            code: "CC-600",
-            price: 18.50m,
-            stock: 10,
-            saleType: SaleType.Piece,
-            taxRate: TaxRateType.Rate16,
-            category: "Refrescos"
-        );
+        var productId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var branchStock = new ProductBranchStock(productId, branchId, 10m, 2m);
 
         // Act - Simular venta de 3 piezas
-        product.ApplyMovement(-3m, InventoryMovementType.Sale, Guid.NewGuid(), "Venta POS");
+        branchStock.ApplyMovement(-3m, InventoryMovementType.Sale, Guid.NewGuid(), "Venta POS");
 
         // Assert
-        Assert.Equal(7m, product.Stock);
+        Assert.Equal(7m, branchStock.Stock);
 
         // La colección Movements es de solo lectura desde BD; el movimiento
         // se verifica a través del evento de dominio levantado
-        var domainEvent = product.DomainEvents
+        var domainEvent = branchStock.DomainEvents
             .OfType<InventoryMovementRegisteredEvent>()
             .FirstOrDefault();
         Assert.NotNull(domainEvent);
-        Assert.Equal(-3m, domainEvent!.Quantity);
+        Assert.Equal(productId, domainEvent!.ProductId);
+        Assert.Equal(branchId, domainEvent.BranchId);
+        Assert.Equal(-3m, domainEvent.Quantity);
         Assert.Equal(InventoryMovementType.Sale, domainEvent.Type);
         Assert.Equal("Venta POS", domainEvent.Remarks);
     }
@@ -70,7 +66,6 @@ public class InventoryTests
             name: "Sabritas Sal 40g",
             code: "SAB-SAL",
             price: 15m,
-            stock: 100,
             saleType: SaleType.Piece,
             taxRate: TaxRateType.Rate16,
             category: "Botanas"
@@ -79,6 +74,9 @@ public class InventoryTests
 
         var branch = new Branch("Sucursal Centro", "SC001", null, "5551234567");
         context.Branches.Add(branch);
+
+        var branchStock = new ProductBranchStock(product.Id, branch.Id, 100m, 0m);
+        context.ProductBranchStocks.Add(branchStock);
 
         var cashRegister = new CashRegister("Caja 1", "CR01", branch.Id);
         context.CashRegisters.Add(cashRegister);
@@ -111,10 +109,11 @@ public class InventoryTests
         // Assert
         Assert.NotEqual(Guid.Empty, saleId);
 
-        // Validar que el stock del producto disminuyó
-        var updatedProduct = await context.Products.FindAsync(new object[] { product.Id }, CancellationToken.None);
-        Assert.NotNull(updatedProduct);
-        Assert.Equal(95m, updatedProduct!.Stock);
+        // Validar que el stock del producto disminuyó en la sucursal
+        var updatedStock = await context.ProductBranchStocks
+            .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == branch.Id, CancellationToken.None);
+        Assert.NotNull(updatedStock);
+        Assert.Equal(95m, updatedStock!.Stock);
 
         // Validar que se guardó el movimiento transaccional de inventario en DB
         var movement = await context.InventoryMovements

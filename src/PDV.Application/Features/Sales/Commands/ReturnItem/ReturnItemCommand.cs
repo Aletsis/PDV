@@ -1,12 +1,23 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.ReturnItem;
 
-public record ReturnItemCommand(Guid SaleItemId, decimal Quantity, string Reason, string CashierUserId) : IRequest<bool>;
+[AuthorizeCommand("sales.refund")]
+public record ReturnItemCommand(
+    Guid SaleItemId, 
+    decimal Quantity, 
+    string Reason, 
+    string CashierUserId,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
 {
@@ -50,11 +61,13 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
 
         // Buscar turno activo del cajero que realiza la devolución
         var activeShift = await _context.Shifts
+            .Include(s => s.CashRegister)
             .FirstOrDefaultAsync(s => s.UserId == request.CashierUserId && s.Status == ShiftStatus.Open, cancellationToken);
 
         if (activeShift == null)
         {
             activeShift = await _context.Shifts
+                .Include(s => s.CashRegister)
                 .FirstOrDefaultAsync(s => s.CashRegisterId == sale.CashRegisterId && s.Status == ShiftStatus.Open, cancellationToken);
         }
 
@@ -93,7 +106,13 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
         _context.Returns.Add(ret);
 
         // Incrementar el inventario (a la inversa de una venta)
-        product.IncreaseStock(qtyToReturn);
+        var branchId = activeShift?.CashRegister?.BranchId ?? sale.BranchId;
+        var branchStock = await _context.ProductBranchStocks
+            .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == branchId, cancellationToken);
+        if (branchStock != null)
+        {
+            branchStock.IncreaseStock(qtyToReturn);
+        }
 
         // Marcar el ítem como devuelto si ya se devolvió por completo
         if (alreadyReturned + qtyToReturn >= item.Quantity)

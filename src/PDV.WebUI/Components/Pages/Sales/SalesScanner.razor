@@ -8,9 +8,14 @@
 @using PDV.Application.Features.Clients.Dtos
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
+@using PDV.Application.Common.Interfaces
+@using Microsoft.EntityFrameworkCore
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
+@inject IApplicationDbContext DbContext
 @inject IJSRuntime JSRuntime
+@inject IScaleService ScaleService
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 <MudPaper Elevation="3" Class="pa-4 d-flex flex-column gap-4 flex-grow-1" Style="height: 100%;">
     <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
@@ -42,8 +47,8 @@
                     <MudChip T="string" Size="Size.Small" Color="@(searchedProduct.SaleType == SaleType.Bulk ? Color.Info : Color.Default)">
                         @(searchedProduct.SaleType == SaleType.Bulk ? "A Granel" : "Por Pieza")
                     </MudChip>
-                    <MudText Color="@(searchedProduct.Stock > 0 ? Color.Success : Color.Error)" Class="font-weight-bold">
-                        Stock: @searchedProduct.Stock.ToString(searchedProduct.SaleType == SaleType.Bulk ? "N3" : "N0")
+                    <MudText Color="@(searchedProductStock > 0 ? Color.Success : Color.Error)" Class="font-weight-bold">
+                        Stock: @searchedProductStock.ToString(searchedProduct.SaleType == SaleType.Bulk ? "N3" : "N0")
                     </MudText>
                 </div>
                 <MudText Typo="Typo.h6" Class="font-weight-bold">@searchedProduct.Name</MudText>
@@ -56,14 +61,24 @@
             <MudCardActions Class="flex-column gap-3 w-100 pa-4">
                 @if (searchedProduct.SaleType == SaleType.Bulk)
                 {
-                    <MudNumericField @bind-Value="weightToAdd" 
-                                   Label="Peso a Agregar (kg)" 
-                                   Variant="Variant.Outlined" 
-                                   Min="0.001m" 
-                                   Step="0.1m"
-                                   Format="N3"
-                                   Class="w-100 font-weight-bold text-lg"
-                                   HideSpinButtons="true" />
+                    <div class="d-flex align-center gap-2 w-100">
+                        <MudNumericField @bind-Value="weightToAdd" 
+                                       Label="Peso a Agregar (kg)" 
+                                       Variant="Variant.Outlined" 
+                                       Min="0.001m" 
+                                       Step="0.1m"
+                                       Format="N3"
+                                       Class="flex-grow-1 font-weight-bold text-lg"
+                                       HideSpinButtons="true" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Scale" 
+                                       Color="Color.Secondary" 
+                                       Variant="Variant.Filled" 
+                                       Size="Size.Large"
+                                       OnClick="ReadFromScale" 
+                                       title="Leer Báscula (F9)" 
+                                       Style="height: 56px;" 
+                                       Disabled="readingScale" />
+                    </div>
                 }
                 else
                 {
@@ -109,6 +124,7 @@
     private MudTextField<string>? barcodeField;
     private string searchCode = "";
     private Product? searchedProduct;
+    private decimal searchedProductStock;
     private bool notFound = false;
     private int quantityToAdd = 1;
     private decimal weightToAdd = 1.0m;
@@ -208,6 +224,53 @@
         {
             await SearchProduct();
         }
+        else if (e.Key == "F9")
+        {
+            await TriggerScaleRead();
+        }
+    }
+
+    private bool readingScale = false;
+
+    public async Task TriggerScaleRead()
+    {
+        if (searchedProduct != null && searchedProduct.SaleType == SaleType.Bulk)
+        {
+            await ReadFromScale();
+        }
+    }
+
+    private async Task ReadFromScale()
+    {
+        if (readingScale) return;
+        readingScale = true;
+        StateHasChanged();
+        try
+        {
+            var port = Configuration["Hardware:Scale:Port"] ?? "MOCK";
+            var baud = int.TryParse(Configuration["Hardware:Scale:BaudRate"], out var b) ? b : 9600;
+            var protocol = Configuration["Hardware:Scale:Protocol"] ?? "Mock";
+
+            var result = await ScaleService.ReadWeightAsync(port, baud, protocol);
+            if (result.Success)
+            {
+                weightToAdd = result.Weight;
+                Snackbar.Add($"Peso leído: {result.Weight} {result.Unit}", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Error de báscula: {result.ErrorMessage}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al leer báscula: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            readingScale = false;
+            StateHasChanged();
+        }
     }
 
     private async Task SearchProduct()
@@ -270,6 +333,20 @@
             {
                 searchedProduct = foundProduct;
                 weightToAdd = 1.0m;
+                searchedProductStock = 0;
+                if (CashRegisterId.HasValue)
+                {
+                    var cashReg = await DbContext.CashRegisters.FindAsync(new object[] { CashRegisterId.Value });
+                    if (cashReg != null)
+                    {
+                        var branchStock = await DbContext.ProductBranchStocks
+                            .FirstOrDefaultAsync(s => s.ProductId == foundProduct.Id && s.BranchId == cashReg.BranchId);
+                        if (branchStock != null)
+                        {
+                            searchedProductStock = branchStock.Stock;
+                        }
+                    }
+                }
             }
         }
     }

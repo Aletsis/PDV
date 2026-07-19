@@ -4,6 +4,8 @@ using MediatR;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 
+using Microsoft.EntityFrameworkCore;
+
 namespace PDV.Application.Features.Products.Commands.CreateProduct;
 
 public record CreateProductCommand : IRequest<Guid>
@@ -32,6 +34,7 @@ public record CreateProductCommand : IRequest<Guid>
     public string Department { get; set; } = string.Empty;
     public int? Clasificacion1Id { get; set; }
     public int? Clasificacion5Id { get; set; }
+    public Guid? BranchId { get; set; }
 }
 
 public class CreateProductCommandValidator : AbstractValidator<CreateProductCommand>
@@ -91,12 +94,10 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
             name: request.Name,
             code: request.Code,
             price: request.Price,
-            stock: request.Stock,
             saleType: saleType,
             taxRate: taxRate,
             category: request.Category,
             cost: request.Cost,
-            minStock: request.MinStock,
             plu: request.Plu,
             barcode: request.Barcode,
             description: request.Description,
@@ -114,20 +115,46 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
 
         _context.Products.Add(entity);
 
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // Sincronizar en tiempo real con Comercial previa verificación de existencia
-        try
+        // Resolver sucursal activa/actual
+        var activeBranchId = request.BranchId;
+        if (activeBranchId == null || activeBranchId == Guid.Empty)
         {
-            var exists = await _comercialSyncService.ProductExistsInComercialAsync(entity.Code, cancellationToken);
-            if (!exists)
+            var activeShift = await _context.Shifts
+                .Include(s => s.CashRegister)
+                .FirstOrDefaultAsync(s => s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
+            activeBranchId = activeShift?.CashRegister?.BranchId;
+
+            if (activeBranchId == null || activeBranchId == Guid.Empty)
             {
-                await _comercialSyncService.SendProductToComercialAsync(entity, cancellationToken);
+                var firstBranch = await _context.Branches.FirstOrDefaultAsync(cancellationToken);
+                activeBranchId = firstBranch?.Id;
             }
         }
-        catch (Exception)
+
+        // Inicializar stock en todas las sucursales
+        var branches = await _context.Branches.ToListAsync(cancellationToken);
+        foreach (var b in branches)
         {
-            // Resiliencia: Si falla el API Comercial, no detenemos la operación local del PDV.
+            decimal stockVal = (b.Id == activeBranchId) ? request.Stock : 0m;
+            var branchStock = new ProductBranchStock(entity.Id, b.Id, stockVal, request.MinStock);
+            _context.ProductBranchStocks.Add(branchStock);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Sincronizar de forma diferida con Comercial si estamos en el servidor (no SQLite)
+        if (_context is DbContext dbContext && dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == false)
+        {
+            try
+            {
+                var queueItem = new ContpaqiSyncQueue(entity.Id, "Product", "Create");
+                _context.ContpaqiSyncQueues.Add(queueItem);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Resiliencia
+            }
         }
 
         return entity.Id;

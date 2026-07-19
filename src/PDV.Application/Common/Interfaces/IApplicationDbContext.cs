@@ -6,6 +6,7 @@ namespace PDV.Application.Common.Interfaces;
 public interface IApplicationDbContext
 {
     DbSet<Product> Products { get; }
+    DbSet<ProductBranchStock> ProductBranchStocks { get; }
     DbSet<Category> Categories { get; }
     DbSet<Department> Departments { get; }
     DbSet<Sale> Sales { get; }
@@ -28,6 +29,15 @@ public interface IApplicationDbContext
     DbSet<FolioSequence> FolioSequences { get; }
     DbSet<TicketSequence> TicketSequences { get; }
     DbSet<SystemConfiguration> SystemConfigurations { get; }
+    DbSet<ContpaqiSyncQueue> ContpaqiSyncQueues { get; }
+    DbSet<Company> Companies { get; }
+    DbSet<Permission> Permissions { get; }
+    DbSet<RolePermission> RolePermissions { get; }
+    DbSet<PriceList> PriceLists { get; }
+    DbSet<PriceListProduct> PriceListProducts { get; }
+    DbSet<InboxMessage> InboxMessages { get; }
+    DbSet<SyncConflict> SyncConflicts { get; }
+    DbSet<AuditLog> AuditLogs { get; }
     DbSet<TEntity> Set<TEntity>() where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     Task BeginTransactionAsync(CancellationToken cancellationToken);

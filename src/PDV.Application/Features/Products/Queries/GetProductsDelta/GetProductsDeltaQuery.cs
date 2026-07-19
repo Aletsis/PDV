@@ -41,6 +41,7 @@ public class ProductSyncDto
     public string Department { get; set; } = string.Empty;
     public int? Clasificacion1Id { get; set; }
     public int? Clasificacion5Id { get; set; }
+    public bool IsDeleted { get; set; }
 }
 
 public class GetProductsDeltaQueryHandler : IRequestHandler<GetProductsDeltaQuery, List<ProductSyncDto>>
@@ -71,12 +72,13 @@ public class GetProductsDeltaQueryHandler : IRequestHandler<GetProductsDeltaQuer
                 WholesalePrice = p.WholesalePrice,
                 WholesaleMinQuantity = p.WholesaleMinQuantity,
                 Cost = p.Cost,
-                Stock = p.Stock,
-                MinStock = p.MinStock,
+                Stock = 0,
+                MinStock = 0,
                 Category = p.Category,
                 SaleType = p.SaleType.ToString(),
                 TaxRate = p.TaxRate.ToString(),
                 IsActive = p.IsActive,
+                IsDeleted = p.IsDeleted,
                 CreatedAt = p.CreatedAt,
                 LastModifiedAt = p.LastModifiedAt,
                 SatCode = p.SatCode,

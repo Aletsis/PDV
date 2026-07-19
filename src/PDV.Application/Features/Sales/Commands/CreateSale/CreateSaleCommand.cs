@@ -42,17 +42,17 @@ public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
 
     public async Task<Guid> Handle(CreateSaleCommand request, CancellationToken cancellationToken)
     {
-        if (_context is DbContext dbContext)
-        {
-            dbContext.ChangeTracker.Clear();
-        }
-
         const int maxRetries = 3;
         int attempt = 0;
 
         while (true)
         {
             attempt++;
+
+            if (_context is DbContext dbContext)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
 
             await _context.BeginTransactionAsync(cancellationToken);
 
@@ -133,11 +133,20 @@ public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
                         quantity = item.Quantity;
                     }
 
-                    // Verificar stock usando el método de dominio
-                    if (!product.HasStock(quantity))
+                    // Verificar stock usando el método de dominio de existencias por sucursal
+                    var branchStock = await _context.ProductBranchStocks
+                        .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == sale.BranchId, cancellationToken);
+                    
+                    if (branchStock == null)
                     {
                         throw new InvalidOperationException(
-                            $"Stock insuficiente para el producto {product.Name}. Disponible: {product.Stock}, Requerido: {quantity}");
+                            $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                    }
+
+                    if (!branchStock.HasStock(quantity))
+                    {
+                        throw new InvalidOperationException(
+                            $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {quantity}");
                     }
 
                     // Determinar decimal de taxRate e isTaxExempt a partir de product.TaxRate
@@ -172,7 +181,7 @@ public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
                     sale.AddItem(saleItem);
 
                     // Registrar movimiento de inventario transaccional (Kardex)
-                    product.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
+                    branchStock.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
                 }
 
                 // Marcar como pagada si es necesario

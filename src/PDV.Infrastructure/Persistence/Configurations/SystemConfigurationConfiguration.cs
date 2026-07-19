@@ -60,5 +60,11 @@ public class SystemConfigurationConfiguration : IEntityTypeConfiguration<SystemC
 
         builder.Property(c => c.ComercialApiKey)
             .HasMaxLength(500);
+
+        builder.Property(c => c.CsdPassword)
+            .HasMaxLength(200);
+
+        builder.Property(c => c.PacApiKey)
+            .HasMaxLength(200);
     }
 }

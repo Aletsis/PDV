@@ -11,4 +11,6 @@ public class ClientDto
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public PDV.Domain.Enums.ClientType ClientType { get; set; }
+    public string? FiscalRegime { get; set; }
+    public string? FiscalZipCode { get; set; }
 }

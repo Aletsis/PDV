@@ -30,12 +30,11 @@ public class CreateSaleCommandHandlerTests
 
         await using var context = new AppDbContext(options);
 
-        // 1. Crear producto con stock inicial usando constructor de dominio
+        // 1. Crear producto usando constructor de dominio (sin parámetros obsoletos de stock)
         var product = new Product(
             name: "Test Product",
             code: "TP-001",
             price: 10m,
-            stock: 10,
             saleType: SaleType.Piece,
             taxRate: TaxRateType.Rate16,
             category: "General"
@@ -46,6 +45,10 @@ public class CreateSaleCommandHandlerTests
         var address = Address.Create("Calle Falsa 123", "Centro", "CDMX", "06000", "México");
         var branch = new Branch("Sucursal Centro", "SC001", address, "5551234567");
         context.Branches.Add(branch);
+
+        // Registrar stock por sucursal
+        var branchStock = new ProductBranchStock(product.Id, branch.Id, 10m, 0m);
+        context.ProductBranchStocks.Add(branchStock);
 
         var cashRegister = new CashRegister("Caja 1", "CR01", branch.Id);
         context.CashRegisters.Add(cashRegister);
@@ -83,10 +86,11 @@ public class CreateSaleCommandHandlerTests
         // Assert
         Assert.NotEqual(Guid.Empty, saleId);
 
-        // Recargar producto y validar reducción de stock
-        var updatedProduct = await context.Products.FindAsync(new object[] { product.Id }, CancellationToken.None);
-        Assert.NotNull(updatedProduct);
-        Assert.Equal(8, updatedProduct!.Stock);
+        // Recargar stock y validar reducción de stock en la sucursal
+        var updatedStock = await context.ProductBranchStocks
+            .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == branch.Id, CancellationToken.None);
+        Assert.NotNull(updatedStock);
+        Assert.Equal(8m, updatedStock!.Stock);
 
         // Validar que la venta y sus ítems existan
         var sale = await context.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == saleId, CancellationToken.None);

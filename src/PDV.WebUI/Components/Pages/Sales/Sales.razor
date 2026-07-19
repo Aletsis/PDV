@@ -26,6 +26,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegister
 @using PDV.Application.Common.Helpers
 @using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
 @using PDV.Application.Features.CashRegisters.Dtos
@@ -252,11 +253,26 @@ else
         var appUser = await UserManager.FindByIdAsync(currentUserId);
         currentUserName = appUser?.FullName ?? user.Identity?.Name ?? "Empleado General";
 
-        var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
-        var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
-        if (!string.IsNullOrEmpty(clientIp))
+        Guid? cookieRegisterId = null;
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr) && Guid.TryParse(idStr, out var id))
         {
-            currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+            cookieRegisterId = id;
+        }
+
+        if (cookieRegisterId.HasValue)
+        {
+            currentCashRegister = await Mediator.Send(new GetCashRegisterQuery(cookieRegisterId.Value));
+        }
+
+        if (currentCashRegister == null)
+        {
+            var rawIp = httpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+            var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
+            if (!string.IsNullOrEmpty(clientIp))
+            {
+                currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+            }
         }
 
 
@@ -298,6 +314,7 @@ else
                 return;
             }
 
+            await SyncTerminalCookiesAndLocalStorage();
             await LoadPersistedCarts();
         }
     }
@@ -478,11 +495,23 @@ else
         {
             await OpenSplitPayment();
         }
+        else if (e.Key == "F9")
+        {
+            if (scannerComponent != null)
+            {
+                await scannerComponent.TriggerScaleRead();
+            }
+        }
     }
 
     private async Task OpenProductLookup()
     {
-        var dialog = await DialogService.ShowAsync<ProductLookupDialog>("Buscar Producto", new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+        var parameters = new DialogParameters<ProductLookupDialog>();
+        if (currentCashRegister != null)
+        {
+            parameters.Add(x => x.BranchId, currentCashRegister.BranchId);
+        }
+        var dialog = await DialogService.ShowAsync<ProductLookupDialog>("Buscar Producto", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
         var result = await dialog.Result;
         if (result != null && !result.Canceled && result.Data is ProductLookupDialog.ProductLookupResult lookupResult)
         {
@@ -582,8 +611,8 @@ else
 
     private async Task ClearCart()
     {
-        var authorized = await RequestAuthorizationAsync("Cancelar venta completa activa");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Cancelar venta completa activa", "sales.cancel");
+        if (!auth.Success) return;
 
         bool? confirm = await DialogService.ShowMessageBox(
             "Confirmar",
@@ -598,7 +627,7 @@ else
             {
                 if (activeSaleId.HasValue)
                 {
-                    await Mediator.Send(new CancelSaleCommand(activeSaleId.Value, "Cancelada por cajera desde POS", currentUserId));
+                    await Mediator.Send(new CancelSaleCommand(activeSaleId.Value, "Cancelada por cajera desde POS", currentUserId, auth.Username, auth.Password));
                 }
 
                 cart.Clear();
@@ -680,14 +709,16 @@ else
         }
 
         var actionName = isInflow ? "Entrega Morralla (Entrada Morralla)" : "Recolección de Efectivo (Salida)";
-        var authorized = await RequestAuthorizationAsync(actionName);
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync(actionName, "sales.cash_collection");
+        if (!auth.Success) return;
 
         var parameters = new DialogParameters 
         { 
             ["CashRegisterId"] = currentCashRegister.Id,
             ["UserId"] = currentUserId,
-            ["IsInflow"] = isInflow
+            ["IsInflow"] = isInflow,
+            ["SupervisorUsername"] = auth.Username,
+            ["SupervisorPassword"] = auth.Password
         };
 
         await DialogService.ShowAsync<CashActionDialog>(
@@ -705,14 +736,16 @@ else
             return;
         }
 
-        var authorized = await RequestAuthorizationAsync("Corte de Caja (Cierre de Turno)");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Corte de Caja (Cierre de Turno)", "sales.cash_cut");
+        if (!auth.Success) return;
 
         var parameters = new DialogParameters
         {
             ["ShiftId"] = currentShift.Id,
             ["CashRegisterId"] = currentCashRegister.Id,
-            ["UserId"] = currentUserId
+            ["UserId"] = currentUserId,
+            ["SupervisorUsername"] = auth.Username,
+            ["SupervisorPassword"] = auth.Password
         };
 
         var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
@@ -835,13 +868,26 @@ else
         StateHasChanged();
     }
 
-    private async Task<bool> RequestAuthorizationAsync(string actionName)
+    private async Task<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult> RequestAuthorizationAsync(string actionName, string requiredPermissionCode)
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true && (user.IsInRole("Admin") || user.IsInRole("Manager")))
+        {
+            return new PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult(true, null, null);
+        }
+
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
         var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
-        return result != null && !result.Canceled && result.Data is bool authorized && authorized;
+        
+        if (result != null && !result.Canceled && result.Data is PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult authResult && authResult.Success)
+        {
+            return authResult;
+        }
+
+        return new PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult(false, null, null);
     }
 
     private async Task OpenNotesHistory()
@@ -923,10 +969,15 @@ else
     {
         if (historicalSaleDetail == null) return;
         
-        var authorized = await RequestAuthorizationAsync("Procesar devolución de mercancía");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Procesar devolución de mercancía", "sales.refund");
+        if (!auth.Success) return;
 
-        var parameters = new DialogParameters { ["SaleDetail"] = historicalSaleDetail };
+        var parameters = new DialogParameters 
+        { 
+            ["SaleDetail"] = historicalSaleDetail,
+            ["SupervisorUsername"] = auth.Username,
+            ["SupervisorPassword"] = auth.Password
+        };
         var dialog = await DialogService.ShowAsync<ReturnItemsDialog>("Procesar Devolución", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
 
@@ -943,8 +994,8 @@ else
     {
         if (historicalSaleId == null) return;
         
-        var authorized = await RequestAuthorizationAsync("Reimprimir ticket anterior");
-        if (!authorized) return;
+        var auth = await RequestAuthorizationAsync("Reimprimir ticket anterior", "sales.refund");
+        if (!auth.Success) return;
 
         try
         {
@@ -955,6 +1006,43 @@ else
         catch (Exception ex)
         {
             Snackbar.Add($"Error al imprimir: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SyncTerminalCookiesAndLocalStorage()
+    {
+        try
+        {
+            var localIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_cash_register_id");
+            string? cookieIdStr = null;
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr))
+            {
+                cookieIdStr = idStr;
+            }
+
+            if (Guid.TryParse(localIdStr, out var localId))
+            {
+                if (cookieIdStr != localIdStr)
+                {
+                    await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={localIdStr}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+                    if (currentCashRegister?.Id != localId)
+                    {
+                        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+                        return;
+                    }
+                }
+            }
+            else if (currentCashRegister != null)
+            {
+                var regId = currentCashRegister.Id.ToString();
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_cash_register_id", regId);
+                await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={regId}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error syncing terminal storage: {ex.Message}");
         }
     }
 }

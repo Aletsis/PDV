@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PDV.Infrastructure.Identity;
 using PDV.Infrastructure.Persistence;
@@ -16,7 +17,13 @@ public static class DependencyInjection
     public static IServiceCollection AddCommonInfrastructureServices(this IServiceCollection services)
     {
         // Registrar interceptor de eventos de dominio (Singleton: no tiene estado mutable)
-        services.AddSingleton<DomainEventsInterceptor>();
+        services.AddSingleton<DomainEventsInterceptor>(provider =>
+        {
+            var configuration = provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var runMode = configuration["RunMode"] ?? "Server";
+            bool isServerMode = string.Equals(runMode, "Server", System.StringComparison.OrdinalIgnoreCase);
+            return new DomainEventsInterceptor(isServerMode);
+        });
 
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
@@ -34,16 +41,44 @@ public static class DependencyInjection
         services.AddScoped<ITicketGenerator, Printing.TicketGenerator>();
         services.AddScoped<IEscPosPrinter, Printing.MultiChannelEscPosPrinter>();
         services.AddScoped<IComercialApiSyncService, Common.ComercialApiSyncService>();
+        services.AddScoped<ICsdCertificateService, CsdCertificateService>();
+        services.AddScoped<ICfdiXmlGenerator, CfdiXmlGenerator>();
+        services.AddScoped<IPacService, MockPacService>();
         services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IPermissionService, PermissionService>();
+
+        // Registrar Event Bus (in-memory de forma predeterminada)
+        services.AddSingleton<IEventBus, Common.InMemoryEventBus>();
+
+        // Configurar Caché Distribuido (Redis en modo Server, In-Memory en modo Local)
+        var sp = services.BuildServiceProvider();
+        var configuration = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+        var runMode = configuration["RunMode"] ?? "Server";
+        
+        if (string.Equals(runMode, "Server", System.StringComparison.OrdinalIgnoreCase))
+        {
+            var redisConnectionString = configuration.GetConnectionString("RedisConnection") ?? "localhost:6379";
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnectionString;
+                options.InstanceName = "PDV_";
+            });
+        }
+        else
+        {
+            services.AddDistributedMemoryCache();
+        }
+
+        services.AddScoped<ICacheService, Common.RedisCacheService>();
 
         services.AddIdentity<ApplicationUser, IdentityRole>(options =>
         {
-            options.Password.RequireDigit = false;
-            options.Password.RequireLowercase = false;
-            options.Password.RequireNonAlphanumeric = false;
-            options.Password.RequireUppercase = false;
-            options.Password.RequiredLength = 4;
-            options.User.RequireUniqueEmail = false; 
+            options.Password.RequireDigit = true;
+            options.Password.RequireLowercase = true;
+            options.Password.RequireNonAlphanumeric = true;
+            options.Password.RequireUppercase = true;
+            options.Password.RequiredLength = 8;
+            options.User.RequireUniqueEmail = true; 
         })
         .AddEntityFrameworkStores<AppDbContext>()
         .AddDefaultTokenProviders();

@@ -58,6 +58,12 @@ public class SyncWorker : BackgroundService
         var handler = new HttpClientHandler();
         handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         _httpClient = new HttpClient(handler);
+
+        var apiKey = _configuration["SyncSettings:SyncApiKey"];
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Add("X-Sync-Api-Key", apiKey);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -517,33 +523,52 @@ public class SyncWorker : BackgroundService
                         client.Deactivate();
                     }
 
+                    if (dto.IsDeleted)
+                    {
+                        client.SoftDelete("SystemSync");
+                    }
+
                     client.ClearDomainEvents();
                     db.Clients.Add(client);
                 }
                 else
                 {
-                    existing.ChangeCode(dto.Code);
-                    existing.UpdateProfile(dto.Name, taxId);
-                    existing.UpdateContactInfo(phone, email);
-
-                    if (!string.IsNullOrWhiteSpace(dto.Street))
+                    if (dto.IsDeleted)
                     {
-                        var address = Domain.ValueObjects.Address.Create(
-                            dto.Street, 
-                            dto.City ?? "N/A", 
-                            dto.State ?? "N/A", 
-                            dto.ZipCode ?? "00000", 
-                            dto.Country ?? "México");
-                        existing.UpdateAddress(address);
+                        if (!existing.IsDeleted)
+                        {
+                            existing.SoftDelete("SystemSync");
+                        }
                     }
+                    else
+                    {
+                        if (existing.IsDeleted)
+                        {
+                            existing.Restore();
+                        }
+                        existing.ChangeCode(dto.Code);
+                        existing.UpdateProfile(dto.Name, taxId);
+                        existing.UpdateContactInfo(phone, email);
 
-                    if (dto.IsActive && !existing.IsActive)
-                    {
-                        existing.Activate();
-                    }
-                    else if (!dto.IsActive && existing.IsActive)
-                    {
-                        existing.Deactivate();
+                        if (!string.IsNullOrWhiteSpace(dto.Street))
+                        {
+                            var address = Domain.ValueObjects.Address.Create(
+                                dto.Street, 
+                                dto.City ?? "N/A", 
+                                dto.State ?? "N/A", 
+                                dto.ZipCode ?? "00000", 
+                                dto.Country ?? "México");
+                            existing.UpdateAddress(address);
+                        }
+
+                        if (dto.IsActive && !existing.IsActive)
+                        {
+                            existing.Activate();
+                        }
+                        else if (!dto.IsActive && existing.IsActive)
+                        {
+                            existing.Deactivate();
+                        }
                     }
 
                     existing.ClearDomainEvents();
@@ -599,12 +624,10 @@ public class SyncWorker : BackgroundService
                         name: dto.Name,
                         code: dto.Code,
                         price: dto.Price,
-                        stock: dto.Stock,
                         saleType: saleType,
                         taxRate: taxRate,
                         category: dto.Category,
                         cost: dto.Cost,
-                        minStock: dto.MinStock,
                         plu: dto.Plu,
                         barcode: dto.Barcode,
                         description: dto.Description,
@@ -630,46 +653,83 @@ public class SyncWorker : BackgroundService
                         product.Deactivate();
                     }
 
+                    if (dto.IsDeleted)
+                    {
+                        product.SoftDelete("SystemSync");
+                    }
+
                     product.ClearDomainEvents();
                     db.Products.Add(product);
+
+                    // Inicializar el stock en la sucursal local
+                    var localBranch = await db.Branches.FirstOrDefaultAsync(stoppingToken);
+                    if (localBranch != null)
+                    {
+                        var branchStock = new ProductBranchStock(dto.Id, localBranch.Id, 0, 0);
+                        db.ProductBranchStocks.Add(branchStock);
+                    }
                 }
                 else
                 {
-                    existing.UpdateInfo(
-                        name: dto.Name, 
-                        description: dto.Description, 
-                        category: dto.Category,
-                        satCode: dto.SatCode,
-                        type: (PDV.Domain.Enums.ProductType)dto.Type,
-                        controlExistencia: (PDV.Domain.Enums.ControlExistencia)dto.ControlExistencia,
-                        saleUnitId: dto.SaleUnitId,
-                        saleUnitName: dto.SaleUnitName,
-                        xmlUnitId: dto.XmlUnitId,
-                        department: dto.Department,
-                        clasificacion1Id: dto.Clasificacion1Id,
-                        clasificacion5Id: dto.Clasificacion5Id
-                    );
-                    if (existing.Code != dto.Code)
+                    if (dto.IsDeleted)
                     {
-                        existing.ChangeCode(dto.Code);
+                        if (!existing.IsDeleted)
+                        {
+                            existing.SoftDelete("SystemSync");
+                        }
                     }
-                    existing.UpdatePrice(dto.Price);
-                    existing.UpdateWholesalePrice(dto.WholesalePrice, dto.WholesaleMinQuantity);
-                    existing.AdjustStock(dto.Stock);
-                    existing.UpdatePlu(dto.Plu);
-                    existing.UpdateBarcode(dto.Barcode);
-                    existing.UpdateCost(dto.Cost);
-                    existing.UpdateMinStock(dto.MinStock);
-                    existing.ChangeSaleType(saleType);
-                    existing.UpdateTaxRate(taxRate);
+                    else
+                    {
+                        if (existing.IsDeleted)
+                        {
+                            existing.Restore();
+                        }
+                        existing.UpdateInfo(
+                            name: dto.Name, 
+                            description: dto.Description, 
+                            category: dto.Category,
+                            satCode: dto.SatCode,
+                            type: (PDV.Domain.Enums.ProductType)dto.Type,
+                            controlExistencia: (PDV.Domain.Enums.ControlExistencia)dto.ControlExistencia,
+                            saleUnitId: dto.SaleUnitId,
+                            saleUnitName: dto.SaleUnitName,
+                            xmlUnitId: dto.XmlUnitId,
+                            department: dto.Department,
+                            clasificacion1Id: dto.Clasificacion1Id,
+                            clasificacion5Id: dto.Clasificacion5Id
+                        );
+                        if (existing.Code != dto.Code)
+                        {
+                            existing.ChangeCode(dto.Code);
+                        }
+                        existing.UpdatePrice(dto.Price);
+                        existing.UpdateWholesalePrice(dto.WholesalePrice, dto.WholesaleMinQuantity);
+                        existing.UpdatePlu(dto.Plu);
+                        existing.UpdateBarcode(dto.Barcode);
+                        existing.UpdateCost(dto.Cost);
+                        existing.ChangeSaleType(saleType);
+                        existing.UpdateTaxRate(taxRate);
 
-                    if (dto.IsActive && !existing.IsActive)
-                    {
-                        existing.Activate();
-                    }
-                    else if (!dto.IsActive && existing.IsActive)
-                    {
-                        existing.Deactivate();
+                        // Garantizar que exista el registro de stock local
+                        var localBranch = await db.Branches.FirstOrDefaultAsync(stoppingToken);
+                        if (localBranch != null)
+                        {
+                            var hasStockRecord = await db.ProductBranchStocks.AnyAsync(s => s.ProductId == existing.Id && s.BranchId == localBranch.Id, stoppingToken);
+                            if (!hasStockRecord)
+                            {
+                                var branchStock = new ProductBranchStock(existing.Id, localBranch.Id, 0, 0);
+                                db.ProductBranchStocks.Add(branchStock);
+                            }
+                        }
+
+                        if (dto.IsActive && !existing.IsActive)
+                        {
+                            existing.Activate();
+                        }
+                        else if (!dto.IsActive && existing.IsActive)
+                        {
+                            existing.Deactivate();
+                        }
                     }
 
                     existing.ClearDomainEvents();
@@ -745,25 +805,44 @@ public class SyncWorker : BackgroundService
                         branch.Deactivate();
                     }
 
+                    if (dto.IsDeleted)
+                    {
+                        branch.SoftDelete("SystemSync");
+                    }
+
                     branch.ClearDomainEvents();
                     db.Branches.Add(branch);
                 }
                 else
                 {
-                    existing.Update(dto.Name, address, dto.Phone, dto.Email);
-
-                    if (dto.IsMainBranch && !existing.IsMainBranch)
+                    if (dto.IsDeleted)
                     {
-                        existing.SetAsMainBranch();
+                        if (!existing.IsDeleted)
+                        {
+                            existing.SoftDelete("SystemSync");
+                        }
                     }
+                    else
+                    {
+                        if (existing.IsDeleted)
+                        {
+                            existing.Restore();
+                        }
+                        existing.Update(dto.Name, address, dto.Phone, dto.Email);
 
-                    if (dto.IsActive && !existing.IsActive)
-                    {
-                        existing.Activate();
-                    }
-                    else if (!dto.IsActive && existing.IsActive)
-                    {
-                        existing.Deactivate();
+                        if (dto.IsMainBranch && !existing.IsMainBranch)
+                        {
+                            existing.SetAsMainBranch();
+                        }
+
+                        if (dto.IsActive && !existing.IsActive)
+                        {
+                            existing.Activate();
+                        }
+                        else if (!dto.IsActive && existing.IsActive)
+                        {
+                            existing.Deactivate();
+                        }
                     }
 
                     existing.ClearDomainEvents();
@@ -979,30 +1058,49 @@ public class SyncWorker : BackgroundService
                         printer.Deactivate();
                     }
 
+                    if (dto.IsDeleted)
+                    {
+                        printer.SoftDelete("SystemSync");
+                    }
+
                     printer.ClearDomainEvents();
                     db.Printers.Add(printer);
                 }
                 else
                 {
-                    existing.Update(
-                        name: dto.Name,
-                        codePage: dto.CodePage,
-                        maxWidth: dto.MaxWidth,
-                        ipAddress: dto.IpAddress,
-                        port: dto.Port,
-                        devicePath: dto.DevicePath
-                    );
-
-                    db.Entry(existing).Property(x => x.ConnectionType).CurrentValue = dto.ConnectionType;
-                    db.Entry(existing).Property(x => x.BranchId).CurrentValue = dto.BranchId;
-
-                    if (dto.IsActive && !existing.IsActive)
+                    if (dto.IsDeleted)
                     {
-                        existing.Activate();
+                        if (!existing.IsDeleted)
+                        {
+                            existing.SoftDelete("SystemSync");
+                        }
                     }
-                    else if (!dto.IsActive && existing.IsActive)
+                    else
                     {
-                        existing.Deactivate();
+                        if (existing.IsDeleted)
+                        {
+                            existing.Restore();
+                        }
+                        existing.Update(
+                            name: dto.Name,
+                            codePage: dto.CodePage,
+                            maxWidth: dto.MaxWidth,
+                            ipAddress: dto.IpAddress,
+                            port: dto.Port,
+                            devicePath: dto.DevicePath
+                        );
+
+                        db.Entry(existing).Property(x => x.ConnectionType).CurrentValue = dto.ConnectionType;
+                        db.Entry(existing).Property(x => x.BranchId).CurrentValue = dto.BranchId;
+
+                        if (dto.IsActive && !existing.IsActive)
+                        {
+                            existing.Activate();
+                        }
+                        else if (!dto.IsActive && existing.IsActive)
+                        {
+                            existing.Deactivate();
+                        }
                     }
 
                     existing.ClearDomainEvents();
@@ -1361,6 +1459,7 @@ public class SyncWorker : BackgroundService
         var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/sync";
         _logger.LogInformation("Initializing new SignalR connection to: {HubUrl}", hubUrl);
 
+        var apiKey = _configuration["SyncSettings:SyncApiKey"];
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
             {
@@ -1373,6 +1472,10 @@ public class SyncWorker : BackgroundService
                     }
                     return handler;
                 };
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                {
+                    options.Headers.Add("X-Sync-Api-Key", apiKey);
+                }
             })
             .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
             .Build();

@@ -100,7 +100,17 @@ public class GetSystemConfigurationQueryHandler : IRequestHandler<GetSystemConfi
 
             // API Comercial
             ComercialApiUrl = config.ComercialApiUrl,
-            ComercialApiKey = config.ComercialApiKey
+            ComercialApiKey = config.ComercialApiKey,
+
+            // Facturación / CSD / PAC
+            CsdSerialNumber = config.CsdSerialNumber,
+            CsdExpiresAt = config.CsdExpiresAt,
+            PacUrl = config.PacUrl,
+            PacApiUser = config.PacApiUser,
+            PacApiKey = config.PacApiKey,
+            CsdPassword = config.CsdPassword,
+            HasCsdCertificate = config.CsdCertificateData != null && config.CsdCertificateData.Length > 0,
+            HasCsdPrivateKey = config.CsdPrivateKeyData != null && config.CsdPrivateKeyData.Length > 0
         };
     }
 }

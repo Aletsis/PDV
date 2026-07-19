@@ -195,6 +195,8 @@
     [Parameter] public Guid ShiftId { get; set; }
     [Parameter] public Guid CashRegisterId { get; set; }
     [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public string? SupervisorUsername { get; set; }
+    [Parameter] public string? SupervisorPassword { get; set; }
 
     private ShiftTotalsDto totals = null!;
     private List<UnpaidSaleDto> unpaidSales = new();
@@ -240,7 +242,9 @@
                 UserId: UserId,
                 InitialCash: totals.InitialCash,
                 SalesTotal: totals.SalesTotal,
-                CashInDrawer: DeclaredAmount
+                CashInDrawer: DeclaredAmount,
+                SupervisorUsername: SupervisorUsername,
+                SupervisorPassword: SupervisorPassword
             );
 
             var cutId = await Mediator.Send(command);

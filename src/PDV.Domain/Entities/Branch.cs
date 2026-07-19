@@ -14,6 +14,14 @@ public class Branch : BaseEntity, IAggregateRoot
     public string? Email { get; private set; }
     public bool IsActive { get; private set; }
     public bool IsMainBranch { get; private set; }
+    
+    public Guid? CompanyId { get; private set; }
+    public Company? Company { get; private set; }
+
+    public void AssignCompany(Guid companyId)
+    {
+        CompanyId = companyId;
+    }
 
 #pragma warning disable CS8618
     private Branch() { } // For EF Core

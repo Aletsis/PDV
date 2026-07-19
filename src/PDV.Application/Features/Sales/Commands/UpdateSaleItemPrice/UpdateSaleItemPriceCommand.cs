@@ -1,13 +1,20 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PDV.Application.Features.Sales.Commands.UpdateSaleItemPrice;
 
-public record UpdateSaleItemPriceCommand(Guid SaleId, Guid SaleItemId, decimal? NewPriceOverride) : IRequest<bool>;
+[AuthorizeCommand("sales.override_price")]
+public record UpdateSaleItemPriceCommand(
+    Guid SaleId, 
+    Guid SaleItemId, 
+    decimal? NewPriceOverride,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand;
 
 public class UpdateSaleItemPriceCommandHandler : IRequestHandler<UpdateSaleItemPriceCommand, bool>
 {

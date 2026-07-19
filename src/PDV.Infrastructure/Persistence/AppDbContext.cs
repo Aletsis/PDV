@@ -20,21 +20,31 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
 {
     private readonly ICurrentUserService? _currentUserService;
     private readonly IRealTimeSyncNotifier? _syncNotifier;
+    private readonly IDateTimeService? _dateTimeService;
+    private readonly IAuditService? _auditService;
+    private readonly Microsoft.AspNetCore.Http.IHttpContextAccessor? _httpContextAccessor;
     private IDbContextTransaction? _currentTransaction;
 
     public AppDbContext(
         DbContextOptions<AppDbContext> options,
         ICurrentUserService? currentUserService = null,
-        IRealTimeSyncNotifier? syncNotifier = null) : base(options)
+        IRealTimeSyncNotifier? syncNotifier = null,
+        IDateTimeService? dateTimeService = null,
+        IAuditService? auditService = null,
+        Microsoft.AspNetCore.Http.IHttpContextAccessor? httpContextAccessor = null) : base(options)
     {
         _currentUserService = currentUserService;
         _syncNotifier = syncNotifier;
+        _dateTimeService = dateTimeService;
+        _auditService = auditService;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     // ──────────────────────────────────────────────
     // DbSets
     // ──────────────────────────────────────────────
     public DbSet<Product> Products { get; set; }
+    public DbSet<ProductBranchStock> ProductBranchStocks { get; set; }
     public DbSet<Category> Categories { get; set; }
     public DbSet<Department> Departments { get; set; }
     public DbSet<Sale> Sales { get; set; }
@@ -57,6 +67,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public DbSet<OutboxMessage> OutboxMessages { get; set; }
     public DbSet<InventoryMovement> InventoryMovements { get; set; }
     public DbSet<UnidadMedida> UnidadesMedida { get; set; }
+    public DbSet<ContpaqiSyncQueue> ContpaqiSyncQueues { get; set; }
+    public DbSet<Company> Companies { get; set; }
+    public DbSet<Permission> Permissions { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
+    public DbSet<PriceList> PriceLists { get; set; }
+    public DbSet<PriceListProduct> PriceListProducts { get; set; }
+    public DbSet<InboxMessage> InboxMessages { get; set; }
+    public DbSet<SyncConflict> SyncConflicts { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
 
     // ──────────────────────────────────────────────
     // Configuración del modelo
@@ -64,6 +83,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // Registrar extensión pg_trgm para búsquedas de texto predictivo con GIN en PostgreSQL
+        builder.HasAnnotation("Npgsql:PostgresExtension:pg_trgm", ",,");
 
         // Configurar convertidores de valor en SQLite para evitar problemas con BLOBs y sensibilidad a mayúsculas en GUIDs
         if (Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
@@ -149,8 +171,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
 
     public override int SaveChanges()
     {
+        // 1. Validar inmutabilidad de AuditLog
+        var hasAuditLogChanges = ChangeTracker.Entries<AuditLog>()
+            .Any(e => e.State == EntityState.Modified || e.State == EntityState.Deleted);
+        if (hasAuditLogChanges)
+        {
+            throw new InvalidOperationException("Los registros de auditoría son inmutables y no se pueden modificar ni eliminar.");
+        }
+
         ApplyAuditInfo();
         
+        // 2. Extraer entradas de auditoría ANTES de persistir
+        var auditEntries = OnBeforeSaveChanges();
+
         var modifiedEntities = ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
             .Select(e => e.Entity.GetType().Name)
@@ -158,6 +191,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
             .ToList();
 
         var result = base.SaveChanges();
+
+        // 3. Escribir y guardar auditoría DESPUÉS de guardar cambios
+        OnAfterSaveChangesSync(auditEntries);
 
         if (result > 0 && _syncNotifier != null && modifiedEntities.Any())
         {
@@ -184,8 +220,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        // 1. Validar inmutabilidad de AuditLog
+        var hasAuditLogChanges = ChangeTracker.Entries<AuditLog>()
+            .Any(e => e.State == EntityState.Modified || e.State == EntityState.Deleted);
+        if (hasAuditLogChanges)
+        {
+            throw new InvalidOperationException("Los registros de auditoría son inmutables y no se pueden modificar ni eliminar.");
+        }
+
         ApplyAuditInfo();
         
+        // 2. Extraer entradas de auditoría ANTES de persistir
+        var auditEntries = OnBeforeSaveChanges();
+
         var modifiedEntities = ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
             .Select(e => e.Entity.GetType().Name)
@@ -193,6 +240,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
             .ToList();
 
         var result = await base.SaveChangesAsync(cancellationToken);
+
+        // 3. Escribir y guardar auditoría DESPUÉS de guardar cambios
+        await OnAfterSaveChanges(auditEntries, cancellationToken);
 
         if (result > 0 && _syncNotifier != null && modifiedEntities.Any())
         {
@@ -217,6 +267,112 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
         return result;
     }
 
+    private List<AuditEntry> OnBeforeSaveChanges()
+    {
+        ChangeTracker.DetectChanges();
+        var auditEntries = new List<AuditEntry>();
+        var userId = _currentUserService?.UserId ?? "System";
+        var ipAddress = _httpContextAccessor?.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is AuditLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
+                continue;
+
+            // Evitar auditar tablas técnicas o de sincronización interna
+            var entityName = entry.Entity.GetType().Name;
+            if (entityName == "OutboxMessage" || entityName == "InboxMessage" || entityName == "SyncConflict")
+                continue;
+
+            var auditEntry = new AuditEntry(entry)
+            {
+                UserId = userId,
+                IpAddress = ipAddress,
+                TableName = entityName,
+                Action = entry.State.ToString()
+            };
+
+            auditEntries.Add(auditEntry);
+
+            foreach (var property in entry.Properties)
+            {
+                string propertyName = property.Metadata.Name;
+                if (property.Metadata.IsPrimaryKey())
+                {
+                    auditEntry.KeyValues[propertyName] = property.CurrentValue;
+                    continue;
+                }
+
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        auditEntry.NewValues[propertyName] = property.CurrentValue;
+                        break;
+
+                    case EntityState.Deleted:
+                        auditEntry.OldValues[propertyName] = property.OriginalValue;
+                        break;
+
+                    case EntityState.Modified:
+                        if (property.IsModified)
+                        {
+                            auditEntry.OldValues[propertyName] = property.OriginalValue;
+                            auditEntry.NewValues[propertyName] = property.CurrentValue;
+                        }
+                        break;
+                }
+            }
+        }
+
+        return auditEntries;
+    }
+
+    private async Task OnAfterSaveChanges(List<AuditEntry> auditEntries, CancellationToken cancellationToken)
+    {
+        if (auditEntries == null || auditEntries.Count == 0) return;
+
+        var timestamp = _dateTimeService?.UtcNow ?? DateTime.UtcNow;
+
+        foreach (var auditEntry in auditEntries)
+        {
+            foreach (var prop in auditEntry.Entry.Properties)
+            {
+                if (prop.Metadata.IsPrimaryKey())
+                {
+                    auditEntry.KeyValues[prop.Metadata.Name] = prop.CurrentValue;
+                }
+            }
+
+            var log = auditEntry.ToAuditLog(timestamp, _auditService?.CurrentAction);
+            AuditLogs.Add(log);
+        }
+
+        await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void OnAfterSaveChangesSync(List<AuditEntry> auditEntries)
+    {
+        if (auditEntries == null || auditEntries.Count == 0) return;
+
+        var timestamp = _dateTimeService?.UtcNow ?? DateTime.UtcNow;
+
+        foreach (var auditEntry in auditEntries)
+        {
+            foreach (var prop in auditEntry.Entry.Properties)
+            {
+                if (prop.Metadata.IsPrimaryKey())
+                {
+                    auditEntry.KeyValues[prop.Metadata.Name] = prop.CurrentValue;
+                }
+            }
+
+            var log = auditEntry.ToAuditLog(timestamp, _auditService?.CurrentAction);
+            AuditLogs.Add(log);
+        }
+
+        base.SaveChanges();
+    }
+
     private void ApplyAuditInfo()
     {
         var userName = _currentUserService?.UserName ?? "System";
@@ -227,26 +383,26 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
             {
                 case EntityState.Added:
                     entry.Entity.SetCreationAudit(userName);
-                    if (entry.Entity is Product pAdd)
+                    if (entry.Entity is ProductBranchStock pbsAdd)
                     {
-                        pAdd.RowVersion = Guid.NewGuid().ToByteArray();
+                        pbsAdd.RowVersion = Guid.NewGuid().ToByteArray();
                     }
                     break;
 
                 case EntityState.Modified:
                     entry.Entity.SetModificationAudit(userName);
-                    if (entry.Entity is Product pMod)
+                    if (entry.Entity is ProductBranchStock pbsMod)
                     {
-                        pMod.RowVersion = Guid.NewGuid().ToByteArray();
+                        pbsMod.RowVersion = Guid.NewGuid().ToByteArray();
                     }
                     break;
 
                 case EntityState.Deleted:
                     entry.State = EntityState.Modified;
                     entry.Entity.SoftDelete(userName);
-                    if (entry.Entity is Product pDel)
+                    if (entry.Entity is ProductBranchStock pbsDel)
                     {
-                        pDel.RowVersion = Guid.NewGuid().ToByteArray();
+                        pbsDel.RowVersion = Guid.NewGuid().ToByteArray();
                     }
                     break;
             }

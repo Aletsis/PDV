@@ -9,6 +9,9 @@ public class InventoryMovement : BaseEntity
 {
     public Guid ProductId { get; private set; }
     public Product Product { get; private set; } = null!;
+
+    public Guid BranchId { get; private set; }
+    public Branch Branch { get; private set; } = null!;
     
     public decimal Quantity { get; private set; }
     public InventoryMovementType Type { get; private set; }
@@ -22,6 +25,7 @@ public class InventoryMovement : BaseEntity
 
     public InventoryMovement(
         Guid productId,
+        Guid branchId,
         decimal quantity,
         InventoryMovementType type,
         Guid? referenceId = null,
@@ -29,10 +33,13 @@ public class InventoryMovement : BaseEntity
     {
         if (productId == Guid.Empty)
             throw new DomainException("El ID de producto es requerido.");
+        if (branchId == Guid.Empty)
+            throw new DomainException("El ID de sucursal es requerido.");
         if (quantity == 0)
             throw new DomainException("La cantidad del movimiento de inventario no puede ser cero.");
 
         ProductId = productId;
+        BranchId = branchId;
         Quantity = quantity;
         Type = type;
         ReferenceId = referenceId;

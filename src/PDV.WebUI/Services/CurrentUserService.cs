@@ -1,18 +1,25 @@
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using PDV.Application.Common.Interfaces;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace PDV.WebUI.Services;
 
 /// <summary>
-/// Implementación de ICurrentUserService para Blazor usando AuthenticationStateProvider
+/// Implementación de ICurrentUserService para Blazor usando AuthenticationStateProvider y HttpContextAccessor
 /// </summary>
 public class CurrentUserService : ICurrentUserService
 {
     private readonly AuthenticationStateProvider _authenticationStateProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public CurrentUserService(AuthenticationStateProvider authenticationStateProvider)
+    public CurrentUserService(
+        AuthenticationStateProvider authenticationStateProvider,
+        IHttpContextAccessor httpContextAccessor)
     {
         _authenticationStateProvider = authenticationStateProvider;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public string? UserId
@@ -63,6 +70,44 @@ public class CurrentUserService : ICurrentUserService
             catch (System.InvalidOperationException)
             {
                 return false;
+            }
+        }
+    }
+
+    public List<string> Roles
+    {
+        get
+        {
+            try
+            {
+                var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
+                if (authState.User?.Identity?.IsAuthenticated == true)
+                {
+                    return authState.User.FindAll(System.Security.Claims.ClaimTypes.Role)
+                        .Select(c => c.Value)
+                        .ToList();
+                }
+                return new List<string>();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+    }
+
+    public string? IpAddress
+    {
+        get
+        {
+            try
+            {
+                var context = _httpContextAccessor.HttpContext;
+                return context?.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+            }
+            catch
+            {
+                return "127.0.0.1";
             }
         }
     }

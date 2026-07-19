@@ -17,6 +17,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         entity.Property(e => e.NoCertificadoEmisor).HasMaxLength(20);
         entity.Property(e => e.NoCertificadoSAT).HasMaxLength(20);
         entity.Property(e => e.CadenaOriginal);
+        entity.Property(e => e.ReceiverFiscalRegime).HasMaxLength(10).IsRequired().HasDefaultValue("616");
+        entity.Property(e => e.ReceiverZipCode).HasMaxLength(10).IsRequired().HasDefaultValue("00000");
 
         entity.OwnsMany(e => e.TaxBreakdowns, a =>
         {

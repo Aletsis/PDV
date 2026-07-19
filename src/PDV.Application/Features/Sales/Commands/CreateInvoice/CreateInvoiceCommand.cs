@@ -6,6 +6,12 @@ using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 using PDV.Domain.Repositories;
 using PDV.Domain.ValueObjects;
+using System;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace PDV.Application.Features.Sales.Commands.CreateInvoice;
 
@@ -18,6 +24,8 @@ public record CreateInvoiceCommand : IRequest<Guid>
     public string UsoCfdi { get; set; } = "G03";
     public string MetodoPago { get; set; } = "PUE";
     public string FormaPago { get; set; } = "01";
+    public string? ReceiverFiscalRegime { get; set; }
+    public string? ReceiverZipCode { get; set; }
 }
 
 public class CreateInvoiceCommandValidator : AbstractValidator<CreateInvoiceCommand>
@@ -47,16 +55,22 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
 {
     private readonly ISaleRepository _saleRepository;
     private readonly IApplicationDbContext _context;
-    private readonly IComercialApiSyncService _comercialApiSyncService;
+    private readonly ICsdCertificateService _csdCertificateService;
+    private readonly ICfdiXmlGenerator _cfdiXmlGenerator;
+    private readonly IPacService _pacService;
 
     public CreateInvoiceCommandHandler(
         ISaleRepository saleRepository,
         IApplicationDbContext context,
-        IComercialApiSyncService comercialApiSyncService)
+        ICsdCertificateService csdCertificateService,
+        ICfdiXmlGenerator cfdiXmlGenerator,
+        IPacService pacService)
     {
         _saleRepository = saleRepository;
         _context = context;
-        _comercialApiSyncService = comercialApiSyncService;
+        _csdCertificateService = csdCertificateService;
+        _cfdiXmlGenerator = cfdiXmlGenerator;
+        _pacService = pacService;
     }
 
     public async Task<Guid> Handle(CreateInvoiceCommand request, CancellationToken cancellationToken)
@@ -80,13 +94,29 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
             throw new InvalidOperationException("No se puede crear factura de una venta cancelada");
         }
 
-        // Obtener la secuencia de folios para determinar el código de concepto en CONTPAQi
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        if (config == null)
+        {
+            throw new InvalidOperationException("No se han configurado los parámetros fiscales del sistema.");
+        }
+
+        if (!config.IsCsdValid() || config.CsdCertificateData == null || config.CsdPrivateKeyData == null || string.IsNullOrEmpty(config.CsdPassword))
+        {
+            throw new InvalidOperationException("El Certificado de Sello Digital (CSD) del emisor no está configurado o ya ha expirado.");
+        }
+
+        if (string.IsNullOrEmpty(config.PacUrl) || string.IsNullOrEmpty(config.PacApiUser))
+        {
+            throw new InvalidOperationException("Las credenciales de acceso al PAC no están configuradas.");
+        }
+
+        // Obtener la secuencia de folios de facturación
         var folioSequence = await _context.FolioSequences
             .FirstOrDefaultAsync(fs => fs.BranchId == sale.BranchId && fs.SeriesType == (request.IsGlobal ? InvoiceType.Global : InvoiceType.Customer), cancellationToken);
 
-        if (folioSequence == null || string.IsNullOrWhiteSpace(folioSequence.ConceptCode))
+        if (folioSequence == null)
         {
-            throw new InvalidOperationException("No se ha configurado la secuencia de folios y el código de concepto de facturación para esta sucursal.");
+            throw new InvalidOperationException("No se ha configurado la secuencia de folios de facturación para esta sucursal.");
         }
 
         // Si es factura por cliente, validar que tengamos un cliente seleccionado o asignado
@@ -98,7 +128,8 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
 
         string rfc = "XAXX010101000";
         string nombre = "PUBLICO EN GENERAL";
-        string codigoCliente = "PUBLICOGENERAL";
+        string receiverFiscalRegime = request.ReceiverFiscalRegime ?? "616";
+        string receiverZipCode = request.ReceiverZipCode ?? "00000";
         var cfdiUsage = CfdiUsage.ToDefine;
 
         if (!request.IsGlobal && finalClientId.HasValue && finalClientId.Value != Guid.Empty)
@@ -108,47 +139,21 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
             {
                 rfc = cliente.TaxId;
                 nombre = cliente.Name;
-                codigoCliente = cliente.Code;
                 cfdiUsage = Enum.TryParse<CfdiUsage>(request.UsoCfdi, true, out var u) ? u : CfdiUsage.GeneralExpense;
+                
+                receiverFiscalRegime = request.ReceiverFiscalRegime ?? cliente.FiscalRegime ?? "616";
+                receiverZipCode = request.ReceiverZipCode ?? cliente.FiscalZipCode ?? "00000";
+
+                // Si cambiaron o se añadieron los valores fiscales, guardarlos en el perfil del cliente
+                if (request.ReceiverFiscalRegime != null || request.ReceiverZipCode != null)
+                {
+                    cliente.UpdateFiscalProfile(
+                        request.ReceiverFiscalRegime ?? cliente.FiscalRegime,
+                        request.ReceiverZipCode ?? cliente.FiscalZipCode
+                    );
+                    _context.Clients.Update(cliente);
+                }
             }
-        }
-
-        // Obtener códigos de producto en Comercial
-        var productIds = sale.Items.Select(i => i.ProductId).Distinct().ToList();
-        var products = await _context.Products
-            .Where(p => productIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, p => p, cancellationToken);
-
-        // Mapear partidas
-        var partidasDto = sale.Items.Select(item => new FacturaPartidaDto
-        {
-            CodigoProducto = products.TryGetValue(item.ProductId, out var product) ? product.Code : string.Empty,
-            Unidades = (double)item.Quantity,
-            PrecioUnitario = (double)item.UnitPrice,
-            CodigoAlmacen = "1"
-        }).ToList();
-
-        // Enviar petición de timbrado a la API Comercial
-        var apiCommand = new GenerarFacturaComercialDto
-        {
-            CodigoConcepto = folioSequence.ConceptCode,
-            Serie = folioSequence.Series,
-            CodigoCliente = codigoCliente,
-            Referencia = $"Venta POS {sale.SaleNumber}",
-            NumeroMoneda = 1,
-            TipoCambio = 1.0,
-            UsoCfdi = request.UsoCfdi,
-            MetodoPago = request.MetodoPago,
-            FormaPago = request.FormaPago,
-            CsdPassword = string.Empty, // El servidor usará la contraseña configurada en ServerManager
-            AutoTimbrar = true,
-            Partidas = partidasDto
-        };
-
-        var apiResult = await _comercialApiSyncService.GenerarFacturaComercialAsync(apiCommand, cancellationToken);
-        if (apiResult == null || !apiResult.Timbrado || apiResult.DatosFiscales == null)
-        {
-            throw new InvalidOperationException($"No se pudo timbrar la factura ante el PAC: {apiResult?.Mensaje ?? "Error desconocido en el servidor"}");
         }
 
         // Generar desglose de impuestos local
@@ -161,48 +166,83 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
                 IsExempt: g.Key.IsTaxExempt
             )).ToList();
 
-        // Crear la factura usando constructor de dominio con la Serie y Folio reales del SAT/CONTPAQi
+        int nextFolioNum = folioSequence.LastFolio + 1;
+        string folioStr = nextFolioNum.ToString();
+        string seriesStr = folioSequence.Series;
+
+        // Crear la factura en estado Draft
         var invoice = Invoice.CreateCustomerInvoice(
             branchId: sale.BranchId,
-            series: apiResult.Serie,
-            folio: apiResult.Folio,
+            series: seriesStr,
+            folio: folioStr,
             saleId: sale.Id,
             clientId: finalClientId,
             receiverTaxId: rfc,
             receiverName: nombre,
             cfdiUsage: cfdiUsage,
             subtotal: sale.Items.Sum(i => i.Quantity * i.UnitPrice),
-            taxBreakdowns: taxBreakdowns
+            taxBreakdowns: taxBreakdowns,
+            receiverFiscalRegime: receiverFiscalRegime,
+            receiverZipCode: receiverZipCode
         );
 
-        // Registrar sello digital y datos del SAT
-        DateTime fechaTimbrado = DateTime.UtcNow;
-        if (DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var ft))
+        // Generar XML CFDI 4.0 sin firmar
+        string unsignedXml = _cfdiXmlGenerator.GenerateCfdi40Xml(invoice, config, request.MetodoPago, request.FormaPago);
+
+        // Generar Cadena Original
+        string cadenaOriginal = _cfdiXmlGenerator.GenerateCadenaOriginal(unsignedXml);
+
+        // Firmar Cadena Original usando la llave privada CSD
+        string sello = _csdCertificateService.SignCadenaOriginal(cadenaOriginal, config.CsdPrivateKeyData, config.CsdPassword);
+
+        // Insertar sello en el XML
+        var doc = XDocument.Parse(unsignedXml);
+        doc.Root?.SetAttributeValue("Sello", sello);
+        using var sw = new Utf8StringWriter();
+        doc.Save(sw);
+        string signedXml = sw.ToString();
+
+        // Enviar XML al PAC para timbrado
+        var stampResult = await _pacService.StampXmlAsync(
+            signedXml,
+            config.PacApiUser,
+            config.PacApiKey ?? string.Empty,
+            config.PacUrl ?? string.Empty,
+            cancellationToken
+        );
+
+        if (!stampResult.Success || stampResult.Uuid == null)
         {
-            fechaTimbrado = ft.ToUniversalTime();
+            throw new InvalidOperationException($"Error al timbrar la factura ante el PAC: {stampResult.ErrorMessage}");
         }
 
+        // Estampar la factura con los datos fiscales recibidos del PAC
         invoice.Stamp(
-            uuid: apiResult.DatosFiscales.UUID,
-            stampedAt: fechaTimbrado,
-            selloDigitalEmisor: apiResult.DatosFiscales.SelloDigitalEmisor,
-            selloDigitalSAT: apiResult.DatosFiscales.SelloDigitalSAT,
-            noCertificadoEmisor: apiResult.DatosFiscales.NoCertificadoEmisor,
-            noCertificadoSAT: apiResult.DatosFiscales.NoCertificadoSAT,
-            cadenaOriginal: apiResult.DatosFiscales.CadenaOriginal
+            uuid: stampResult.Uuid,
+            stampedAt: stampResult.StampedAt ?? DateTime.UtcNow,
+            selloDigitalEmisor: sello,
+            selloDigitalSAT: stampResult.SelloSAT ?? "",
+            noCertificadoEmisor: config.CsdSerialNumber ?? "",
+            noCertificadoSAT: stampResult.CertificadoSAT ?? "",
+            cadenaOriginal: stampResult.CadenaOriginalTfd ?? ""
         );
 
         // Guardar factura
         _context.Invoices.Add(invoice);
 
-        // Actualizar atómicamente la secuencia de folios
-        if (int.TryParse(apiResult.Folio, out var newFolio))
-        {
-            folioSequence.ResetTo(newFolio);
-        }
+        // Actualizar secuencia de folios
+        folioSequence.ResetTo(nextFolioNum);
+
+        // Marcar la venta original como facturada
+        sale.MarkAsInvoiced(invoice.Id.ToString());
 
         await _context.SaveChangesAsync(cancellationToken);
 
         return invoice.Id;
+    }
+
+    private class Utf8StringWriter : StringWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
     }
 }

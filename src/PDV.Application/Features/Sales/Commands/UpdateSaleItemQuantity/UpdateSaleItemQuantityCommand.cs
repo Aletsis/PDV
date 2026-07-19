@@ -1,14 +1,26 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Enums;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PDV.Application.Features.Sales.Commands.UpdateSaleItemQuantity;
 
-public record UpdateSaleItemQuantityCommand(Guid SaleId, Guid SaleItemId, decimal NewQuantity) : IRequest<bool>;
+[AuthorizeCommand("sales.cancel_item")]
+public record UpdateSaleItemQuantityCommand(
+    Guid SaleId, 
+    Guid SaleItemId, 
+    decimal NewQuantity,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null
+) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class UpdateSaleItemQuantityCommandHandler : IRequestHandler<UpdateSaleItemQuantityCommand, bool>
 {
@@ -61,20 +73,29 @@ public class UpdateSaleItemQuantityCommandHandler : IRequestHandler<UpdateSaleIt
                 // Calcular delta (diferencia)
                 decimal delta = request.NewQuantity - saleItem.Quantity;
 
+                var branchStock = await _context.ProductBranchStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == saleItem.ProductId && s.BranchId == sale.BranchId, cancellationToken);
+                
+                if (branchStock == null)
+                {
+                    throw new InvalidOperationException(
+                        $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                }
+
                 if (delta > 0)
                 {
                     // Validar si hay stock disponible para el incremento
-                    if (!product.HasStock(delta))
+                    if (!branchStock.HasStock(delta))
                     {
                         throw new InvalidOperationException(
-                            $"Stock insuficiente para el incremento del producto {product.Name}. Disponible: {product.Stock}, Requerido: {delta}");
+                            $"Stock insuficiente para el incremento del producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {delta}");
                     }
                 }
 
                 // Aplicar movimiento de stock proporcional (Kardex)
                 if (delta != 0)
                 {
-                    product.ApplyMovement(-delta, InventoryMovementType.Sale, sale.Id, $"Ajuste de cantidad a {request.NewQuantity} piezas");
+                    branchStock.ApplyMovement(-delta, InventoryMovementType.Sale, sale.Id, $"Ajuste de cantidad a {request.NewQuantity} piezas");
                 }
 
                 // Actualizar cantidad e importes en dominio

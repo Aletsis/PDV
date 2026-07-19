@@ -10,9 +10,8 @@ namespace PDV.Domain.Entities;
 /// </summary>
 public class Product : BaseEntity, IAggregateRoot
 {
-    private readonly List<InventoryMovement> _movements = new();
-    /// <summary>Movimientos de inventario cargados desde la base de datos. No incluye movimientos pendientes de guardado.</summary>
-    public IReadOnlyCollection<InventoryMovement> Movements => _movements.AsReadOnly();
+    private readonly List<PriceListProduct> _priceListProducts = new();
+    public IReadOnlyCollection<PriceListProduct> PriceListProducts => _priceListProducts.AsReadOnly();
 
     public string Name { get; private set; }
     public string Code { get; private set; }
@@ -24,9 +23,6 @@ public class Product : BaseEntity, IAggregateRoot
     public decimal? WholesalePrice { get; private set; }            // Precio a mayoreo (Price2)
     public decimal? WholesaleMinQuantity { get; private set; }     // Cantidad mínima para mayoreo
     public decimal Cost { get; private set; }       // Costo de adquisición (para margen)
-
-    public decimal Stock { get; private set; }      // decimal para soportar granel (kg/lt)
-    public decimal MinStock { get; private set; }   // Stock mínimo para alerta de reorden
 
     public string Category { get; private set; }
     public SaleType SaleType { get; private set; }
@@ -46,9 +42,6 @@ public class Product : BaseEntity, IAggregateRoot
     public Guid? BranchId { get; private set; }
     public Branch? Branch { get; private set; }
 
-    /// <summary>Token de concurrencia para evitar actualizaciones de stock simultáneas.</summary>
-    public byte[]? RowVersion { get; set; }
-
 #pragma warning disable CS8618
     private Product() { } // Para EF Core
 #pragma warning restore CS8618
@@ -57,12 +50,10 @@ public class Product : BaseEntity, IAggregateRoot
         string name,
         string code,
         decimal price,
-        decimal stock = 0,
         SaleType saleType = SaleType.Piece,
         TaxRateType taxRate = TaxRateType.Rate16,
         string category = "",
         decimal cost = 0,
-        decimal minStock = 0,
         string? plu = null,
         string? barcode = null,
         string? description = null,
@@ -83,8 +74,6 @@ public class Product : BaseEntity, IAggregateRoot
         if (string.IsNullOrWhiteSpace(code)) throw new DomainException("El código del producto es requerido.");
         if (price < 0) throw new DomainException("El precio no puede ser negativo.");
         if (cost < 0) throw new DomainException("El costo no puede ser negativo.");
-        if (stock < 0) throw new DomainException("El stock inicial no puede ser negativo.");
-        if (minStock < 0) throw new DomainException("El stock mínimo no puede ser negativo.");
         if (wholesalePrice.HasValue && wholesalePrice.Value < 0) throw new DomainException("El precio de mayoreo no puede ser negativo.");
         if (wholesaleMinQuantity.HasValue && wholesaleMinQuantity.Value <= 0) throw new DomainException("La cantidad mínima de mayoreo debe ser mayor a cero.");
 
@@ -92,8 +81,6 @@ public class Product : BaseEntity, IAggregateRoot
         Code = code.Trim();
         Price = price;
         Cost = cost;
-        Stock = stock;
-        MinStock = minStock;
         SaleType = saleType;
         TaxRate = taxRate;
         Category = category?.Trim() ?? string.Empty;
@@ -142,45 +129,6 @@ public class Product : BaseEntity, IAggregateRoot
     }
 
     // ──────────────────────────────────────────────
-    // Stock
-    // ──────────────────────────────────────────────
-
-    public void ReduceStock(decimal quantity)
-    {
-        if (quantity <= 0) throw new DomainException("La cantidad a reducir debe ser mayor a cero.");
-        if (Stock < quantity) throw new DomainException($"Stock insuficiente. Disponible: {Stock}, Requerido: {quantity}.");
-
-        Stock -= quantity;
-        AddDomainEvent(new ProductStockReducedEvent(Id, (int)quantity, (int)Stock));
-    }
-
-    public void IncreaseStock(decimal quantity)
-    {
-        if (quantity <= 0) throw new DomainException("La cantidad a aumentar debe ser mayor a cero.");
-
-        Stock += quantity;
-        AddDomainEvent(new ProductStockIncreasedEvent(Id, (int)quantity, (int)Stock));
-    }
-
-    /// <summary>
-    /// Ajuste manual de inventario (conteo físico, auditoría).
-    /// </summary>
-    public void AdjustStock(decimal newStock)
-    {
-        if (newStock < 0) throw new DomainException("El stock ajustado no puede ser negativo.");
-
-        var oldStock = Stock;
-        Stock = newStock;
-        AddDomainEvent(new ProductStockAdjustedEvent(Id, (int)oldStock, (int)Stock));
-    }
-
-    public bool HasStock(decimal quantity)
-        => quantity > 0 && Stock >= quantity;
-
-    public bool IsLowStock()
-        => MinStock > 0 && Stock <= MinStock;
-
-    // ──────────────────────────────────────────────
     // Información general
     // ──────────────────────────────────────────────
 
@@ -215,8 +163,7 @@ public class Product : BaseEntity, IAggregateRoot
         Clasificacion5Id = clasificacion5Id ?? Clasificacion5Id;
 
         AddDomainEvent(new ProductInfoUpdatedEvent(Id, Name, Category));
-    } // ──────────────────────────────────────────────
-
+    }
 
     public void ChangeCode(string newCode)
     {
@@ -234,12 +181,6 @@ public class Product : BaseEntity, IAggregateRoot
     {
         if (newCost < 0) throw new DomainException("El costo no puede ser negativo.");
         Cost = newCost;
-    }
-
-    public void UpdateMinStock(decimal newMinStock)
-    {
-        if (newMinStock < 0) throw new DomainException("El stock mínimo no puede ser negativo.");
-        MinStock = newMinStock;
     }
 
     public void UpdateTaxRate(TaxRateType newTaxRate)
@@ -268,18 +209,5 @@ public class Product : BaseEntity, IAggregateRoot
     public void ChangeSaleType(SaleType saleType)
     {
         SaleType = saleType;
-    }
-
-    public void ApplyMovement(decimal quantity, InventoryMovementType type, Guid? referenceId = null, string? remarks = null)
-    {
-        if (quantity == 0)
-            throw new DomainException("La cantidad del movimiento no puede ser cero.");
-
-        // Actualizar la caché de lectura del stock
-        Stock += quantity;
-
-        // Levantar el evento — AppDbContext creará y persistirá el InventoryMovement
-        var movementId = Guid.CreateVersion7();
-        AddDomainEvent(new InventoryMovementRegisteredEvent(movementId, Id, quantity, type, referenceId, remarks));
     }
 }

@@ -59,6 +59,8 @@ public class Invoice : BaseEntity, IAggregateRoot
     // ──────────────────────────────────────────────
     public string ReceiverTaxId { get; private set; }   // RFC (XAXX010101000 para global)
     public string ReceiverName { get; private set; }
+    public string ReceiverFiscalRegime { get; private set; }
+    public string ReceiverZipCode { get; private set; }
     public CfdiUsage CfdiUsage { get; private set; }
 
     // ──────────────────────────────────────────────
@@ -108,7 +110,9 @@ public class Invoice : BaseEntity, IAggregateRoot
         string receiverName,
         CfdiUsage cfdiUsage,
         decimal subtotal,
-        IEnumerable<TaxBreakdown> taxBreakdowns)
+        IEnumerable<TaxBreakdown> taxBreakdowns,
+        string receiverFiscalRegime = "616",
+        string receiverZipCode = "00000")
     {
         if (branchId == Guid.Empty) throw new DomainException("El ID de sucursal es requerido.");
         if (string.IsNullOrWhiteSpace(series)) throw new DomainException("La serie es requerida.");
@@ -116,6 +120,8 @@ public class Invoice : BaseEntity, IAggregateRoot
         if (saleId == Guid.Empty) throw new DomainException("El ID de venta es requerido para una factura de cliente.");
         if (string.IsNullOrWhiteSpace(receiverTaxId)) throw new DomainException("El RFC del receptor es requerido.");
         if (string.IsNullOrWhiteSpace(receiverName)) throw new DomainException("El nombre del receptor es requerido.");
+        if (string.IsNullOrWhiteSpace(receiverFiscalRegime)) throw new DomainException("El régimen fiscal del receptor es requerido.");
+        if (string.IsNullOrWhiteSpace(receiverZipCode)) throw new DomainException("El código postal del receptor es requerido.");
         if (subtotal < 0) throw new DomainException("El subtotal no puede ser negativo.");
 
         var breakdowns = taxBreakdowns?.ToList() ?? new List<TaxBreakdown>();
@@ -131,6 +137,8 @@ public class Invoice : BaseEntity, IAggregateRoot
             ClientId = clientId,
             ReceiverTaxId = receiverTaxId.Trim().ToUpperInvariant(),
             ReceiverName = receiverName.Trim(),
+            ReceiverFiscalRegime = receiverFiscalRegime.Trim(),
+            ReceiverZipCode = receiverZipCode.Trim(),
             CfdiUsage = cfdiUsage,
             Subtotal = subtotal,
             InvoiceDate = DateTime.UtcNow
@@ -153,12 +161,14 @@ public class Invoice : BaseEntity, IAggregateRoot
         string folio,
         Guid shiftId,
         decimal subtotal,
-        IEnumerable<TaxBreakdown> taxBreakdowns)
+        IEnumerable<TaxBreakdown> taxBreakdowns,
+        string receiverZipCode = "00000")
     {
         if (branchId == Guid.Empty) throw new DomainException("El ID de sucursal es requerido.");
         if (string.IsNullOrWhiteSpace(series)) throw new DomainException("La serie es requerida.");
         if (string.IsNullOrWhiteSpace(folio)) throw new DomainException("El folio es requerido.");
         if (shiftId == Guid.Empty) throw new DomainException("El ID de turno es requerido para una factura global.");
+        if (string.IsNullOrWhiteSpace(receiverZipCode)) throw new DomainException("El código postal del receptor es requerido para la factura global.");
         if (subtotal < 0) throw new DomainException("El subtotal no puede ser negativo.");
 
         var breakdowns = taxBreakdowns?.ToList() ?? new List<TaxBreakdown>();
@@ -173,6 +183,8 @@ public class Invoice : BaseEntity, IAggregateRoot
             ShiftId = shiftId,
             ReceiverTaxId = "XAXX010101000",   // RFC genérico SAT para público en general
             ReceiverName = "PUBLICO EN GENERAL",
+            ReceiverFiscalRegime = "616",       // 616 - Sin obligaciones fiscales
+            ReceiverZipCode = receiverZipCode.Trim(),
             CfdiUsage = CfdiUsage.ToDefine,     // S01 - obligatorio en facturas globales
             Subtotal = subtotal,
             InvoiceDate = DateTime.UtcNow
@@ -199,7 +211,9 @@ public class Invoice : BaseEntity, IAggregateRoot
         string receiverName,
         string relatedUuid,
         decimal subtotal,
-        IEnumerable<TaxBreakdown> taxBreakdowns)
+        IEnumerable<TaxBreakdown> taxBreakdowns,
+        string receiverFiscalRegime = "616",
+        string receiverZipCode = "00000")
     {
         if (branchId == Guid.Empty) throw new DomainException("El ID de sucursal es requerido.");
         if (string.IsNullOrWhiteSpace(series)) throw new DomainException("La serie es requerida.");
@@ -208,6 +222,8 @@ public class Invoice : BaseEntity, IAggregateRoot
         if (clientId == Guid.Empty) throw new DomainException("El ID de cliente es requerido.");
         if (string.IsNullOrWhiteSpace(receiverTaxId)) throw new DomainException("El RFC del receptor es requerido.");
         if (string.IsNullOrWhiteSpace(receiverName)) throw new DomainException("El nombre del receptor es requerido.");
+        if (string.IsNullOrWhiteSpace(receiverFiscalRegime)) throw new DomainException("El régimen fiscal del receptor es requerido.");
+        if (string.IsNullOrWhiteSpace(receiverZipCode)) throw new DomainException("El código postal del receptor es requerido.");
         if (string.IsNullOrWhiteSpace(relatedUuid)) throw new DomainException("El UUID relacionado es obligatorio para una nota de crédito.");
         if (subtotal < 0) throw new DomainException("El subtotal no puede ser negativo.");
 
@@ -224,6 +240,8 @@ public class Invoice : BaseEntity, IAggregateRoot
             ClientId = clientId,
             ReceiverTaxId = receiverTaxId.Trim().ToUpperInvariant(),
             ReceiverName = receiverName.Trim(),
+            ReceiverFiscalRegime = receiverFiscalRegime.Trim(),
+            ReceiverZipCode = receiverZipCode.Trim(),
             CfdiUsage = CfdiUsage.GeneralExpense, // G02 (Devoluciones) o similar. Usamos uno por defecto.
             RelatedUuid = relatedUuid.Trim().ToUpperInvariant(),
             RelationType = "01", // "01" - Nota de crédito de los documentos relacionados

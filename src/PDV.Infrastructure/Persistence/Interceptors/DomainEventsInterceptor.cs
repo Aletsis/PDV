@@ -15,6 +15,13 @@ namespace PDV.Infrastructure.Persistence.Interceptors;
 /// </summary>
 public sealed class DomainEventsInterceptor : SaveChangesInterceptor
 {
+    private readonly bool _isServerMode;
+
+    public DomainEventsInterceptor(bool isServerMode = false)
+    {
+        _isServerMode = isServerMode;
+    }
+
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
@@ -40,7 +47,7 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
     // Implementación interna
     // ──────────────────────────────────────────────────────────────────────
 
-    private static void DispatchDomainEvents(DbContext context)
+    private void DispatchDomainEvents(DbContext context)
     {
         // 1. Recolectar entidades con eventos pendientes
         var domainEntities = context.ChangeTracker
@@ -69,9 +76,12 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
             }
 
             // Registrar en el Outbox para sincronización offline (incluye SalePaymentMadeEvent y SaleCancelledEvent)
-            var eventType = domainEvent.GetType().Name;
-            var payload = System.Text.Json.JsonSerializer.Serialize(domainEvent, domainEvent.GetType());
-            context.Set<OutboxMessage>().Add(new OutboxMessage(eventType, payload));
+            if (!_isServerMode)
+            {
+                var eventType = domainEvent.GetType().Name;
+                var payload = System.Text.Json.JsonSerializer.Serialize(domainEvent, domainEvent.GetType());
+                context.Set<OutboxMessage>().Add(new OutboxMessage(eventType, payload));
+            }
         }
 
         // 3. Limpiar eventos del agregado para evitar doble procesamiento
@@ -89,6 +99,7 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
         {
             var movement = new InventoryMovement(
                 productId: inv.ProductId,
+                branchId:  inv.BranchId,
                 quantity:  inv.Quantity,
                 type:      inv.Type,
                 referenceId: inv.ReferenceId,

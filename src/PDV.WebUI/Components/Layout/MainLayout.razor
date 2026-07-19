@@ -5,6 +5,9 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @implements IDisposable
+@inject IServiceProvider ServiceProvider
+@using Microsoft.EntityFrameworkCore
+@using PDV.Application.Common.Interfaces
 
 
 <MudThemeProvider Theme="PremiumTheme.Theme" IsDarkMode="true" />
@@ -25,17 +28,40 @@
                 <span class="d-none d-sm-inline">Nube (Online)</span>
             </MudChip>
         }
-        else if (ConnectionMonitor.IsConnected)
-        {
-            <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Wifi" Class="mr-4 px-3" Style="border-radius: 20px;">
-                <span class="d-none d-sm-inline">Caja (Sincronizada)</span>
-            </MudChip>
-        }
         else
         {
-            <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.WifiOff" Class="mr-4 px-3 pulse-warning" Style="border-radius: 20px;">
-                <span class="d-none d-sm-inline">Caja (Offline)</span>
-            </MudChip>
+            @if (ConnectionMonitor.IsConnected)
+            {
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Wifi" Class="mr-2 px-3" Style="border-radius: 20px;">
+                    <span class="d-none d-sm-inline">Caja (Online)</span>
+                </MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.WifiOff" Class="mr-2 px-3 pulse-warning" Style="border-radius: 20px;">
+                    <span class="d-none d-sm-inline">Caja (Offline)</span>
+                </MudChip>
+            }
+
+            @if (_hardwareAgentConnected)
+            {
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Print" Class="mr-2 px-3" Style="border-radius: 20px;">
+                    <span class="d-none d-sm-inline">Impresora OK</span>
+                </MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Error" Variant="Variant.Filled" Icon="@Icons.Material.Filled.PrintDisabled" Class="mr-2 px-3 pulse-error" Style="border-radius: 20px;">
+                    <span class="d-none d-sm-inline">Impresora Error</span>
+                </MudChip>
+            }
+
+            @if (_pendingSyncCount > 0)
+            {
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Sync" Class="mr-4 px-3 pulse-warning" Style="border-radius: 20px;">
+                    <span>Cola: @_pendingSyncCount</span>
+                </MudChip>
+            }
         }
         <AuthorizeView>
             <Authorized>
@@ -70,9 +96,52 @@
     bool _drawerOpen = true;
     private string? _lastErrorShown;
 
+    private bool _hardwareAgentConnected = false;
+    private int _pendingSyncCount = 0;
+    private System.Threading.Timer? _uiTimer;
+    private readonly HttpClient _localHttpClient = new() { Timeout = TimeSpan.FromSeconds(2) };
+
     protected override void OnInitialized()
     {
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
+
+        // Iniciar polling de estado de impresora y outbox cada 5 segundos
+        _uiTimer = new System.Threading.Timer(async _ =>
+        {
+            await CheckHardwareAgentHealthAsync();
+            if (ConnectionMonitor.IsLocalMode)
+            {
+                await CheckPendingSyncCountAsync();
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+    }
+
+    private async Task CheckHardwareAgentHealthAsync()
+    {
+        try
+        {
+            var response = await _localHttpClient.GetAsync("http://127.0.0.1:9000/health");
+            _hardwareAgentConnected = response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            _hardwareAgentConnected = false;
+        }
+    }
+
+    private async Task CheckPendingSyncCountAsync()
+    {
+        try
+        {
+            using var scope = ServiceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+            _pendingSyncCount = await context.OutboxMessages.CountAsync(m => m.State == PDV.Domain.Enums.OutboxState.Pending);
+        }
+        catch
+        {
+            // Omitir si la base de datos está bloqueada temporalmente
+        }
     }
 
     protected override void OnParametersSet()
@@ -120,5 +189,7 @@
     public void Dispose()
     {
         ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionStatusChanged;
+        _uiTimer?.Dispose();
+        _localHttpClient?.Dispose();
     }
 }

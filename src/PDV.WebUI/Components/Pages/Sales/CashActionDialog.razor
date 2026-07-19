@@ -103,6 +103,8 @@
     [Parameter] public Guid CashRegisterId { get; set; }
     [Parameter] public string UserId { get; set; } = string.Empty;
     [Parameter] public bool IsInflow { get; set; } // True = Morralla (Inflow), False = Recolección (Outflow)
+    [Parameter] public string? SupervisorUsername { get; set; }
+    [Parameter] public string? SupervisorPassword { get; set; }
 
     // Billetes
     private int bills1000;
@@ -172,7 +174,9 @@
                 CashRegisterId: CashRegisterId,
                 UserId: UserId,
                 Amount: CalculatedAmount,
-                Reason: fullReason
+                Reason: fullReason,
+                SupervisorUsername: SupervisorUsername,
+                SupervisorPassword: SupervisorPassword
             );
 
             var resultId = await Mediator.Send(command);

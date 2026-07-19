@@ -4,6 +4,8 @@ using MediatR;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 
+using Microsoft.EntityFrameworkCore;
+
 namespace PDV.Application.Features.Products.Commands.UpdateProduct;
 
 public record UpdateProductCommand : IRequest
@@ -33,6 +35,7 @@ public record UpdateProductCommand : IRequest
     public string Department { get; set; } = string.Empty;
     public int? Clasificacion1Id { get; set; }
     public int? Clasificacion5Id { get; set; }
+    public Guid? BranchId { get; set; }
 }
 
 public class UpdateProductCommandValidator : AbstractValidator<UpdateProductCommand>
@@ -114,11 +117,41 @@ public class UpdateProductCommandHandler : IRequestHandler<UpdateProductCommand>
         
         entity.UpdatePrice(request.Price);
         entity.UpdateWholesalePrice(request.WholesalePrice, request.WholesaleMinQuantity);
-        entity.AdjustStock(request.Stock);
         entity.UpdatePlu(request.Plu);
         entity.UpdateBarcode(request.Barcode);
         entity.UpdateCost(request.Cost);
-        entity.UpdateMinStock(request.MinStock);
+
+        // Resolver sucursal activa/actual
+        var activeBranchId = request.BranchId;
+        if (activeBranchId == null || activeBranchId == Guid.Empty)
+        {
+            var activeShift = await _context.Shifts
+                .Include(s => s.CashRegister)
+                .FirstOrDefaultAsync(s => s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
+            activeBranchId = activeShift?.CashRegister?.BranchId;
+
+            if (activeBranchId == null || activeBranchId == Guid.Empty)
+            {
+                var firstBranch = await _context.Branches.FirstOrDefaultAsync(cancellationToken);
+                activeBranchId = firstBranch?.Id;
+            }
+        }
+
+        if (activeBranchId.HasValue && activeBranchId.Value != Guid.Empty)
+        {
+            var branchStock = await _context.ProductBranchStocks
+                .FirstOrDefaultAsync(s => s.ProductId == entity.Id && s.BranchId == activeBranchId.Value, cancellationToken);
+            if (branchStock == null)
+            {
+                branchStock = new ProductBranchStock(entity.Id, activeBranchId.Value, request.Stock, request.MinStock);
+                _context.ProductBranchStocks.Add(branchStock);
+            }
+            else
+            {
+                branchStock.AdjustStock(request.Stock);
+                branchStock.UpdateMinStock(request.MinStock);
+            }
+        }
 
         if (Enum.TryParse<PDV.Domain.Enums.SaleType>(request.SaleType, true, out var saleType))
         {
@@ -132,14 +165,19 @@ public class UpdateProductCommandHandler : IRequestHandler<UpdateProductCommand>
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Sincronizar en tiempo real con Comercial
-        try
+        // Sincronizar de forma diferida con Comercial si estamos en el servidor (no SQLite)
+        if (_context is DbContext dbContext && dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == false)
         {
-            await _comercialSyncService.UpdateProductInComercialAsync(entity, cancellationToken);
-        }
-        catch (Exception)
-        {
-            // Resiliencia: Si falla el API Comercial, no detenemos la operación local del PDV.
+            try
+            {
+                var queueItem = new ContpaqiSyncQueue(entity.Id, "Product", "Update");
+                _context.ContpaqiSyncQueues.Add(queueItem);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Resiliencia
+            }
         }
     }
 }

@@ -109,7 +109,11 @@ public class ServerDiscoveryHostedService : BackgroundService
             configUrl = defaultPort.Split(';').FirstOrDefault() ?? "http://+:5000";
         }
 
-        var localIp = GetLocalIpAddress();
+        var localIp = _configuration.GetValue<string>("SyncSettings:AnnouncementIp");
+        if (string.IsNullOrWhiteSpace(localIp))
+        {
+            localIp = GetLocalIpAddress();
+        }
         
         // If configUrl has wildcards or loopback, replace with local IP
         if (configUrl.Contains("+") || configUrl.Contains("*") || configUrl.Contains("0.0.0.0") || configUrl.Contains("localhost") || configUrl.Contains("127.0.0.1"))

@@ -3,6 +3,8 @@ using MediatR;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 
+using Microsoft.EntityFrameworkCore;
+
 namespace PDV.Application.Features.Clients.Commands.UpdateClient;
 
 using PDV.Domain.ValueObjects;
@@ -79,14 +81,19 @@ public class UpdateClientCommandHandler : IRequestHandler<UpdateClientCommand, b
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Sincronizar en tiempo real con Comercial
-        try
+        // Sincronizar de forma diferida con Comercial si estamos en el servidor (no SQLite)
+        if (_context is DbContext dbContext && dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == false)
         {
-            await _comercialSyncService.UpdateClientInComercialAsync(entity, cancellationToken);
-        }
-        catch (Exception)
-        {
-            // Resiliencia: Si falla el API Comercial, no detenemos la operación local del PDV.
+            try
+            {
+                var queueItem = new ContpaqiSyncQueue(entity.Id, "Client", "Update");
+                _context.ContpaqiSyncQueues.Add(queueItem);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Resiliencia
+            }
         }
 
         return true;

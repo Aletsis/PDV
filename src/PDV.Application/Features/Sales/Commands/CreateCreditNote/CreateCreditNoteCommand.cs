@@ -6,9 +6,11 @@ using PDV.Domain.Enums;
 using PDV.Domain.ValueObjects;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace PDV.Application.Features.Sales.Commands.CreateCreditNote;
 
@@ -17,14 +19,20 @@ public record CreateCreditNoteCommand(Guid ReturnId) : IRequest<Guid>;
 public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
-    private readonly IComercialApiSyncService _comercialApiSyncService;
+    private readonly ICsdCertificateService _csdCertificateService;
+    private readonly ICfdiXmlGenerator _cfdiXmlGenerator;
+    private readonly IPacService _pacService;
 
     public CreateCreditNoteCommandHandler(
         IApplicationDbContext context,
-        IComercialApiSyncService comercialApiSyncService)
+        ICsdCertificateService csdCertificateService,
+        ICfdiXmlGenerator cfdiXmlGenerator,
+        IPacService pacService)
     {
         _context = context;
-        _comercialApiSyncService = comercialApiSyncService;
+        _csdCertificateService = csdCertificateService;
+        _cfdiXmlGenerator = cfdiXmlGenerator;
+        _pacService = pacService;
     }
 
     public async Task<Guid> Handle(CreateCreditNoteCommand request, CancellationToken cancellationToken)
@@ -83,40 +91,30 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
             throw new InvalidOperationException("La venta original asociada a la devolución no se encuentra facturada. Debe facturar la venta (individual o globalmente) antes de generar una Nota de Crédito.");
         }
 
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        if (config == null)
+        {
+            throw new InvalidOperationException("No se han configurado los parámetros fiscales del sistema.");
+        }
+
+        if (!config.IsCsdValid() || config.CsdCertificateData == null || config.CsdPrivateKeyData == null || string.IsNullOrEmpty(config.CsdPassword))
+        {
+            throw new InvalidOperationException("El Certificado de Sello Digital (CSD) del emisor no está configurado o ya ha expirado.");
+        }
+
+        if (string.IsNullOrEmpty(config.PacUrl) || string.IsNullOrEmpty(config.PacApiUser))
+        {
+            throw new InvalidOperationException("Las credenciales de acceso al PAC no están configuradas.");
+        }
+
         // 4. Recuperar secuencia de folios de Nota de Crédito
         var creditNoteSequence = await _context.FolioSequences
             .FirstOrDefaultAsync(fs => fs.BranchId == ret.BranchId && fs.SeriesType == InvoiceType.CreditNote, cancellationToken);
 
-        if (creditNoteSequence == null || string.IsNullOrWhiteSpace(creditNoteSequence.ConceptCode))
+        if (creditNoteSequence == null)
         {
             throw new InvalidOperationException("No se ha configurado la secuencia de folios ni el código de concepto de Nota de Crédito para esta sucursal.");
         }
-
-        // Obtener cliente
-        string codCliente = "PUBLICOGENERAL";
-        if (origSale.ClientId.HasValue)
-        {
-            var client = await _context.Clients
-                .FirstOrDefaultAsync(c => c.Id == origSale.ClientId.Value, cancellationToken);
-            if (client != null)
-            {
-                codCliente = client.Code;
-            }
-        }
-
-        // 5. Mapear partidas devueltas
-        var productIds = ret.Items.Select(i => i.ProductId).Distinct().ToList();
-        var products = await _context.Products
-            .Where(p => productIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, p => p, cancellationToken);
-
-        var partidasDto = ret.Items.Select(item => new FacturaPartidaDto
-        {
-            CodigoProducto = products.TryGetValue(item.ProductId, out var product) ? product.Code : string.Empty,
-            Unidades = (double)item.Quantity,
-            PrecioUnitario = (double)item.UnitPrice,
-            CodigoAlmacen = "1"
-        }).ToList();
 
         // Mapear forma de pago de la venta
         string formaPago = origSale.PaymentMethod switch
@@ -129,31 +127,7 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
             _ => "01"
         };
 
-        // 6. Enviar timbrado de egreso al API de Comercial
-        var apiCommand = new GenerarFacturaComercialDto
-        {
-            CodigoConcepto = creditNoteSequence.ConceptCode,
-            Serie = creditNoteSequence.Series,
-            CodigoCliente = codCliente,
-            Referencia = $"NC Dev Ticket {origSale.SaleNumber}",
-            NumeroMoneda = 1,
-            TipoCambio = 1.0,
-            UsoCfdi = "G02", // Devoluciones, descuentos o bonificaciones
-            MetodoPago = "PUE",
-            FormaPago = formaPago,
-            CsdPassword = string.Empty,
-            AutoTimbrar = true,
-            Partidas = partidasDto
-        };
-
-        var apiResult = await _comercialApiSyncService.GenerarFacturaComercialAsync(apiCommand, cancellationToken);
-
-        if (apiResult == null || !apiResult.Timbrado || apiResult.DatosFiscales == null)
-        {
-            throw new InvalidOperationException($"No se pudo generar ni timbrar la Nota de Crédito: {apiResult?.Mensaje ?? "Error desconocido en el servidor central"}");
-        }
-
-        // 7. Crear Nota de Crédito local
+        // 5. Generar desglose de impuestos local para la nota de crédito
         var taxBreakdowns = ret.Items
             .GroupBy(i => new { i.TaxRate, i.IsTaxExempt })
             .Select(g => new TaxBreakdown(
@@ -163,44 +137,73 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
                 IsExempt: g.Key.IsTaxExempt
             )).ToList();
 
+        int nextFolioNum = creditNoteSequence.LastFolio + 1;
+        string folioStr = nextFolioNum.ToString();
+        string seriesStr = creditNoteSequence.Series;
+
+        // Crear la Nota de Crédito local en estado Draft
         var creditInvoice = Invoice.CreateCreditNote(
             branchId: ret.BranchId,
-            series: apiResult.Serie,
-            folio: apiResult.Folio,
+            series: seriesStr,
+            folio: folioStr,
             returnId: ret.Id,
             clientId: origSale.ClientId ?? Guid.Empty,
             receiverTaxId: origInvoice.ReceiverTaxId,
             receiverName: origInvoice.ReceiverName,
             relatedUuid: origInvoice.Uuid,
             subtotal: ret.Subtotal,
-            taxBreakdowns: taxBreakdowns
+            taxBreakdowns: taxBreakdowns,
+            receiverFiscalRegime: origInvoice.ReceiverFiscalRegime,
+            receiverZipCode: origInvoice.ReceiverZipCode
         );
 
-        DateTime ftCredit = DateTime.UtcNow;
-        if (DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var ftc))
+        // Generar XML CFDI 4.0 sin firmar para la nota de crédito
+        string unsignedXml = _cfdiXmlGenerator.GenerateCfdi40Xml(creditInvoice, config, "PUE", formaPago);
+
+        // Generar Cadena Original
+        string cadenaOriginal = _cfdiXmlGenerator.GenerateCadenaOriginal(unsignedXml);
+
+        // Firmar Cadena Original usando la llave privada CSD
+        string sello = _csdCertificateService.SignCadenaOriginal(cadenaOriginal, config.CsdPrivateKeyData, config.CsdPassword);
+
+        // Insertar sello en el XML
+        var doc = XDocument.Parse(unsignedXml);
+        doc.Root?.SetAttributeValue("Sello", sello);
+        using var sw = new Utf8StringWriter();
+        doc.Save(sw);
+        string signedXml = sw.ToString();
+
+        // Enviar XML al PAC para timbrado de egreso
+        var stampResult = await _pacService.StampXmlAsync(
+            signedXml,
+            config.PacApiUser,
+            config.PacApiKey ?? string.Empty,
+            config.PacUrl ?? string.Empty,
+            cancellationToken
+        );
+
+        if (!stampResult.Success || stampResult.Uuid == null)
         {
-            ftCredit = ftc.ToUniversalTime();
+            throw new InvalidOperationException($"Error al timbrar la Nota de Crédito ante el PAC: {stampResult.ErrorMessage}");
         }
 
+        // Estampar la Nota de Crédito en el sistema con los datos devueltos por el PAC
         creditInvoice.Stamp(
-            uuid: apiResult.DatosFiscales.UUID,
-            stampedAt: ftCredit,
-            selloDigitalEmisor: apiResult.DatosFiscales.SelloDigitalEmisor,
-            selloDigitalSAT: apiResult.DatosFiscales.SelloDigitalSAT,
-            noCertificadoEmisor: apiResult.DatosFiscales.NoCertificadoEmisor,
-            noCertificadoSAT: apiResult.DatosFiscales.NoCertificadoSAT,
-            cadenaOriginal: apiResult.DatosFiscales.CadenaOriginal
+            uuid: stampResult.Uuid,
+            stampedAt: stampResult.StampedAt ?? DateTime.UtcNow,
+            selloDigitalEmisor: sello,
+            selloDigitalSAT: stampResult.SelloSAT ?? "",
+            noCertificadoEmisor: config.CsdSerialNumber ?? "",
+            noCertificadoSAT: stampResult.CertificadoSAT ?? "",
+            cadenaOriginal: stampResult.CadenaOriginalTfd ?? ""
         );
 
         _context.Invoices.Add(creditInvoice);
 
         // Actualizar secuencia de folios
-        if (int.TryParse(apiResult.Folio, out var newFolio))
-        {
-            creditNoteSequence.ResetTo(newFolio);
-        }
+        creditNoteSequence.ResetTo(nextFolioNum);
 
-        // Si la devolución está vinculada a un turno activo/cerrado, registrar nota
+        // Si la devolución está vinculada a un turno, registrar nota de crédito
         var shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == ret.ShiftId, cancellationToken);
         if (shift != null)
         {
@@ -210,5 +213,10 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
         await _context.SaveChangesAsync(cancellationToken);
 
         return creditInvoice.Id;
+    }
+
+    private class Utf8StringWriter : StringWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
     }
 }

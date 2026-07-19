@@ -1,0 +1,368 @@
+@page "/admin/pricelists"
+@using MediatR
+@using PDV.Application.Features.PriceLists.Queries.GetPriceLists
+@using PDV.Application.Features.PriceLists.Commands.CreatePriceList
+@using PDV.Application.Features.PriceLists.Commands.UpdatePriceList
+@using PDV.Application.Features.PriceLists.Commands.DeletePriceList
+@using PDV.Application.Features.PriceLists.Dtos
+@using PDV.Application.Features.Sync.Queries
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@inject AuthenticationStateProvider AuthProvider
+@implements IDisposable
+
+<PageTitle>Listas de Precios</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Page Header & Mode Monitor -->
+    <PdvHeader Title="Listas de Precios Corporativas"
+               Subtitle="Administra las listas de precios de los productos para sucursales o clientes específicos."
+               Icon="@Icons.Material.Filled.LocalOffer"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            @if (isLocalMode)
+            {
+                <div class="local-mode-monitor d-flex align-center gap-3 px-4 py-2 border-dashed rounded-lg">
+                    <div class="d-flex flex-column">
+                        <span class="monitor-label">Base de Datos</span>
+                        <span class="monitor-val font-weight-medium">Local (SQLite)</span>
+                    </div>
+                    <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+                    <div class="d-flex flex-column align-end">
+                        <span class="monitor-label">Modo Operativo</span>
+                        <div class="d-flex align-center gap-1">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudDone" Size="Size.Small" Color="Color.Success" />
+                            <span class="monitor-val-accent text-success font-weight-bold">Solo Lectura</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </StatusAlert>
+        <Actions>
+            @if (!isLocalMode && isAdmin)
+            {
+                <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddCircleOutline" OnClick="OpenCreateDialog">
+                    Nueva Lista de Precios
+                </PdvInteractiveButton>
+            }
+        </Actions>
+    </PdvHeader>
+
+    <!-- Metrics Cards Grid -->
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <PdvKpiCard Title="Total Listas"
+                        Value="@totalPriceListsCount.ToString()"
+                        Icon="@Icons.Material.Filled.ListAlt"
+                        IconColor="Color.Primary"
+                        IsLoading="@isLoading" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <PdvKpiCard Title="Activas"
+                        Value="@activePriceListsCount.ToString()"
+                        Icon="@Icons.Material.Filled.CheckCircle"
+                        IconColor="Color.Success"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <PdvKpiCard Title="Inactivas"
+                        Value="@inactivePriceListsCount.ToString()"
+                        Icon="@Icons.Material.Filled.Cancel"
+                        IconColor="Color.Error"
+                        IsLoading="@isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Server Only Mode Alert -->
+    @if (isLocalMode)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="border-solid" Style="border-radius: 12px; border-width: 1px; background: rgba(33, 150, 243, 0.05);">
+            La administración de listas de precios se realiza únicamente en el servidor central. En esta terminal local, la información se encuentra en modo de solo lectura.
+        </MudAlert>
+    }
+
+    <!-- Main Data Section -->
+    <MudPaper Class="p-4" Style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <!-- Table Toolbar -->
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 600px;">
+                <MudTextField T="string" Value="searchString" ValueChanged="OnSearchStringChanged" Placeholder="Buscar por Nombre, Descripción..." 
+                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                               IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Clearable="true" Class="flex-grow-1" />
+                
+                <MudSelect T="bool?" Value="filterActive" ValueChanged="OnFilterActiveChanged" Label="Estado" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px;">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">Todos</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(true)">Activas</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">Inactivas</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+
+        <!-- Data Grid wrapped in State Container -->
+        <PdvStateContainer IsLoading="@isLoading"
+                            IsEmpty="@(!filteredPriceLists.Any())"
+                            EmptyTitle="Sin listas de precios"
+                            EmptyMessage="No se encontraron listas de precios registradas que coincidan con la búsqueda."
+                            EmptyIcon="@Icons.Material.Filled.LocalOffer"
+                            SkeletonRows="5"
+                            SkeletonColumns="5">
+            <MudDataGrid T="PriceListDto" Items="@filteredPriceLists" Filterable="false" Hover="true" Striped="true" 
+                         Dense="false" Elevation="0" Class="border border-solid rounded-lg">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <PropertyColumn Property="x => x.Description" Title="Descripción" />
+                    <TemplateColumn Title="Estado">
+                        <CellTemplate>
+                            @if (context.Item.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="font-weight-medium">Activa</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel" Class="font-weight-medium">Inactiva</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 200px;" CellClass="d-flex justify-end gap-1">
+                        <CellTemplate>
+                            <MudTooltip Text="Configurar Precios de Productos">
+                                <MudIconButton Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Warning" Size="Size.Small" 
+                                               OnClick="@(() => OpenConfigurePricesDialog(context.Item))" Style="background-color: rgba(255, 183, 77, 0.05);" />
+                            </MudTooltip>
+                            @if (!isLocalMode && isAdmin)
+                            {
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                                   OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                                   OnClick="@(() => DeletePriceList(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
+                                </MudTooltip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="PriceListDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </PdvStateContainer>
+    </MudPaper>
+</div>
+
+@code {
+    private List<PriceListDto> priceLists = new();
+    private List<PriceListDto> filteredPriceLists = new();
+    
+    private bool isLocalMode = false;
+    private bool isLoading = false;
+    private bool isAdmin = false;
+    
+    private int totalPriceListsCount = 0;
+    private int activePriceListsCount = 0;
+    private int inactivePriceListsCount = 0;
+    
+    private string searchString = "";
+    private bool? filterActive = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
+        await LoadSyncStatus();
+        await LoadPriceLists();
+        await CheckUserRole();
+    }
+
+    private void OnConnectionStatusChanged(bool isConnected)
+    {
+        InvokeAsync(async () => {
+            await LoadSyncStatus();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadSyncStatus()
+    {
+        try
+        {
+            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+            isLocalMode = syncStatus.IsLocalMode;
+        }
+        catch (Exception)
+        {
+            isLocalMode = false;
+        }
+    }
+
+    private async Task LoadPriceLists()
+    {
+        isLoading = true;
+        try
+        {
+            priceLists = await Mediator.Send(new GetPriceListsQuery(IncludeInactive: true));
+            UpdateMetrics();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar listas de precios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void UpdateMetrics()
+    {
+        totalPriceListsCount = priceLists.Count;
+        activePriceListsCount = priceLists.Count(pl => pl.IsActive);
+        inactivePriceListsCount = priceLists.Count(pl => !pl.IsActive);
+    }
+
+    private void ApplyFilters()
+    {
+        var query = priceLists.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchString))
+        {
+            query = query.Where(pl => 
+                pl.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                (pl.Description != null && pl.Description.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        if (filterActive.HasValue)
+        {
+            query = query.Where(pl => pl.IsActive == filterActive.Value);
+        }
+
+        filteredPriceLists = query.ToList();
+    }
+
+    private void OnSearchStringChanged(string value)
+    {
+        searchString = value;
+        ApplyFilters();
+    }
+
+    private void OnFilterActiveChanged(bool? value)
+    {
+        filterActive = value;
+        ApplyFilters();
+    }
+
+    private async Task CheckUserRole()
+    {
+        try
+        {
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            isAdmin = user.IsInRole("Admin");
+        }
+        catch (Exception)
+        {
+            isAdmin = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        if (isLocalMode || !isAdmin) return;
+        
+        var parameters = new DialogParameters<PriceListDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.Model, new PriceListDialog.PriceListFormModel() }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<PriceListDialog>("Nueva Lista de Precios", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Lista de precios creada exitosamente", Severity.Success);
+            await LoadPriceLists();
+        }
+    }
+
+    private async Task OpenEditDialog(PriceListDto priceList)
+    {
+        if (isLocalMode || !isAdmin) return;
+
+        var model = new PriceListDialog.PriceListFormModel
+        {
+            Id = priceList.Id,
+            Name = priceList.Name,
+            Description = priceList.Description
+        };
+
+        var parameters = new DialogParameters<PriceListDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.Model, model }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<PriceListDialog>("Editar Lista de Precios", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Lista de precios actualizada exitosamente", Severity.Success);
+            await LoadPriceLists();
+        }
+    }
+
+    private async Task OpenConfigurePricesDialog(PriceListDto priceList)
+    {
+        var parameters = new DialogParameters<PriceListProductsDialog>
+        {
+            { x => x.PriceListId, priceList.Id },
+            { x => x.PriceListName, priceList.Name },
+            { x => x.IsReadOnly, isLocalMode || !isAdmin }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<PriceListProductsDialog>($"Precios: {priceList.Name}", parameters, options);
+        await dialog.Result;
+    }
+
+    private async Task DeletePriceList(PriceListDto priceList)
+    {
+        if (isLocalMode || !isAdmin) return;
+
+        bool? result = await DialogService.ShowMessageBox(
+            "Eliminar Lista de Precios",
+            $"¿Estás seguro que deseas eliminar {priceList.Name}? Esta acción borrará todas las asignaciones de precios asociadas.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            var deleteResult = await Mediator.Send(new DeletePriceListCommand(priceList.Id));
+            if (deleteResult.IsSuccess)
+            {
+                Snackbar.Add("Lista de precios eliminada exitosamente", Severity.Success);
+                await LoadPriceLists();
+            }
+            else
+            {
+                Snackbar.Add($"Error: {deleteResult.Error.Description}", Severity.Error);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectionMonitor.OnConnectionStatusChanged -= OnConnectionStatusChanged;
+    }
+}

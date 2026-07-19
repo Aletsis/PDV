@@ -36,7 +36,9 @@ public class ListClientsQueryHandler : IRequestHandler<ListClientsQuery, List<Cl
                 Phone = c.Phone,
                 Email = c.Email,
                 IsActive = c.IsActive,
-                ClientType = c.ClientType
+                ClientType = c.ClientType,
+                FiscalRegime = c.FiscalRegime,
+                FiscalZipCode = c.FiscalZipCode
             })
             .ToListAsync(cancellationToken);
     }

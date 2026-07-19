@@ -36,8 +36,15 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
     public string? PacUrl { get; private set; }
     /// <summary>Usuario/llave de API del PAC.</summary>
     public string? PacApiUser { get; private set; }
+    /// <summary>Password/ApiKey de API del PAC.</summary>
+    public string? PacApiKey { get; private set; }
     /// <summary>Régimen fiscal del emisor (catálogo SAT c_RegimenFiscal). Ej: "601" = General de Ley.</summary>
     public string FiscalRegime { get; private set; }
+    
+    // Archivos físicos del CSD guardados de forma segura
+    public byte[]? CsdCertificateData { get; private set; }
+    public byte[]? CsdPrivateKeyData { get; private set; }
+    public string? CsdPassword { get; private set; }
 
     // ──────────────────────────────────────────────
     // Configuración de Tickets
@@ -160,7 +167,11 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         string csdSerialNumber,
         DateTime csdExpiresAt,
         string pacUrl,
-        string pacApiUser)
+        string pacApiUser,
+        string? pacApiKey = null,
+        byte[]? csdCertificateData = null,
+        byte[]? csdPrivateKeyData = null,
+        string? csdPassword = null)
     {
         if (string.IsNullOrWhiteSpace(csdSerialNumber)) throw new DomainException("El número de serie del CSD es requerido.");
         if (csdExpiresAt <= DateTime.UtcNow) throw new DomainException("El CSD ya está vencido. Cargue un certificado vigente.");
@@ -171,6 +182,11 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         CsdExpiresAt = csdExpiresAt;
         PacUrl = pacUrl.Trim();
         PacApiUser = pacApiUser.Trim();
+        PacApiKey = pacApiKey?.Trim();
+
+        if (csdCertificateData != null) CsdCertificateData = csdCertificateData;
+        if (csdPrivateKeyData != null) CsdPrivateKeyData = csdPrivateKeyData;
+        if (csdPassword != null) CsdPassword = csdPassword;
 
         AddDomainEvent(new InvoiceSettingsUpdatedEvent(Id, CsdSerialNumber));
     }

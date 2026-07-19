@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace PDV.Application.Common.Interfaces;
 
 /// <summary>
@@ -9,4 +11,6 @@ public interface ICurrentUserService
     string? UserId { get; }
     string? UserName { get; }
     bool IsAuthenticated { get; }
+    List<string> Roles { get; }
+    string? IpAddress { get; }
 }

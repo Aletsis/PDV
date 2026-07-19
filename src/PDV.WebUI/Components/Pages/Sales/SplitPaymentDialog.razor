@@ -1,5 +1,9 @@
 @using MudBlazor
+@using PDV.Application.Common.Interfaces
 @inject ISnackbar Snackbar
+@inject IPaymentTerminalService PaymentTerminalService
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject IDialogService DialogService
 
 <MudDialog>
     <TitleContent>
@@ -45,17 +49,56 @@
                     </MudItem>
 
                     <MudItem xs="12">
-                        <MudNumericField T="decimal"
-                                         Label="Tarjeta (Debit/Credit Card)"
-                                         @bind-Value="cardAmount"
-                                         Format="C2"
-                                         Min="0"
-                                         Variant="Variant.Outlined"
-                                         Adornment="Adornment.Start"
-                                         AdornmentIcon="@Icons.Material.Filled.CreditCard"
-                                         HideSpinButtons="true"
-                                         Immediate="true"
-                                         OnBlur="Recalculate" />
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex align-center gap-2">
+                                <MudNumericField T="decimal"
+                                                 Label="Tarjeta (Debit/Credit Card)"
+                                                 @bind-Value="cardAmount"
+                                                 Format="C2"
+                                                 Min="0"
+                                                 Variant="Variant.Outlined"
+                                                 Adornment="Adornment.Start"
+                                                 AdornmentIcon="@Icons.Material.Filled.CreditCard"
+                                                 HideSpinButtons="true"
+                                                 Immediate="true"
+                                                 Disabled="isCardAuthorized"
+                                                 OnBlur="Recalculate"
+                                                 Class="flex-grow-1" />
+                                
+                                @if (cardAmount > 0 && !isCardAuthorized)
+                                {
+                                    <MudButton Variant="Variant.Filled" 
+                                               Color="Color.Primary" 
+                                               OnClick="ProcessCardPayment"
+                                               Style="height: 56px;"
+                                               Class="font-weight-bold"
+                                               StartIcon="@Icons.Material.Filled.PowerInput">
+                                        Procesar Terminal
+                                    </MudButton>
+                                }
+                            </div>
+
+                            @if (isCardAuthorized)
+                            {
+                                <MudAlert Severity="Severity.Success" 
+                                          Variant="Variant.Filled" 
+                                          Style="border-radius: 8px;"
+                                          Class="py-1">
+                                    <div class="d-flex justify-space-between align-center w-100">
+                                        <span>
+                                            <strong>Pago Aprobado:</strong> @cardBrand *xxxx-@cardLastFour (Aut: @cardAuthCode, ID: @cardTxId)
+                                        </span>
+                                        <MudButton Variant="Variant.Text" 
+                                                   Color="Color.Inherit" 
+                                                   Size="Size.Small" 
+                                                   OnClick="CancelCardPayment"
+                                                   Class="ml-4 font-weight-bold">
+                                            Deshacer
+                                        </MudButton>
+                                    </div>
+                                </MudAlert>
+                            }
+                        </div>
                     </MudItem>
 
                     <MudItem xs="12">
@@ -103,6 +146,23 @@
     </DialogActions>
 </MudDialog>
 
+<MudOverlay Visible="processingPayment" DarkBackground="true" Absolute="true" ZIndex="9999">
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-6" style="max-width: 400px; text-align: center; background: #1a1a2e; border-radius: 12px; border: 2px solid var(--mud-palette-primary);">
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        <MudText Typo="Typo.h6" Class="font-weight-bold text-white">Procesando Pago</MudText>
+        <MudText Typo="Typo.body1" Class="text-white">Monto: <strong>$@cardAmount.ToString("F2")</strong></MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">Por favor, aproxima, inserta o desliza la tarjeta en la terminal bancaria...</MudText>
+        
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Error" 
+                   OnClick="CancelProcessing" 
+                   Class="mt-2 font-weight-bold"
+                   StartIcon="@Icons.Material.Filled.Cancel">
+            Cancelar Operación
+        </MudButton>
+    </div>
+</MudOverlay>
+
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
@@ -130,6 +190,15 @@
 
     private readonly decimal[] QuickBills = { 20, 50, 100, 200, 500, 1000 };
 
+    private bool isCardAuthorized = false;
+    private string cardAuthCode = string.Empty;
+    private string cardTxId = string.Empty;
+    private string cardBrand = string.Empty;
+    private string cardLastFour = string.Empty;
+    
+    private bool processingPayment = false;
+    private CancellationTokenSource? paymentCts;
+
     private void AddQuickCash(decimal amount)
     {
         cashAmount = amount;
@@ -140,6 +209,109 @@
     {
         // Force Blazor re-render of calculated values
         StateHasChanged();
+    }
+
+    private async Task ProcessCardPayment()
+    {
+        if (processingPayment) return;
+        
+        processingPayment = true;
+        paymentCts = new CancellationTokenSource();
+        StateHasChanged();
+
+        try
+        {
+            var port = Configuration["Hardware:PaymentTerminal:Port"] ?? "MOCK";
+            var protocol = Configuration["Hardware:PaymentTerminal:Protocol"] ?? "Mock";
+            var reference = $"REF-{DateTime.UtcNow.Ticks.ToString()[..8]}";
+
+            var result = await PaymentTerminalService.ProcessPaymentAsync(
+                cardAmount, 
+                reference, 
+                "Sale", 
+                protocol, 
+                port, 
+                paymentCts.Token);
+
+            if (result.Success)
+            {
+                isCardAuthorized = true;
+                cardAuthCode = result.AuthorizationCode;
+                cardTxId = result.TransactionId;
+                cardBrand = result.Brand;
+                cardLastFour = result.LastFour;
+                
+                Snackbar.Add($"Pago con tarjeta aprobado. Aut: {result.AuthorizationCode}", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Transacción declinada: {result.Message}", Severity.Error);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Snackbar.Add("Operación cancelada por el usuario.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar pago: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            processingPayment = false;
+            paymentCts?.Dispose();
+            paymentCts = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CancelCardPayment()
+    {
+        if (!isCardAuthorized) return;
+        
+        processingPayment = true;
+        StateHasChanged();
+
+        try
+        {
+            var port = Configuration["Hardware:PaymentTerminal:Port"] ?? "MOCK";
+            var protocol = Configuration["Hardware:PaymentTerminal:Protocol"] ?? "Mock";
+
+            var result = await PaymentTerminalService.CancelPaymentAsync(
+                cardTxId, 
+                protocol, 
+                port);
+
+            if (result.Success)
+            {
+                isCardAuthorized = false;
+                cardAuthCode = string.Empty;
+                cardTxId = string.Empty;
+                cardBrand = string.Empty;
+                cardLastFour = string.Empty;
+                cardAmount = 0; // reset
+                
+                Snackbar.Add("Cobro con tarjeta cancelado / devuelto exitosamente.", Severity.Info);
+            }
+            else
+            {
+                Snackbar.Add($"No se pudo cancelar el cobro: {result.Message}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cancelar cobro: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            processingPayment = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelProcessing()
+    {
+        paymentCts?.Cancel();
     }
 
     private void Submit()
@@ -169,19 +341,39 @@
             CardAmount: cardAmount,
             TransferAmount: transferAmount,
             PrimaryMethod: primaryMethod,
-            Change: ChangeAmount
+            Change: ChangeAmount,
+            CardTransactionId: cardTxId,
+            CardAuthCode: cardAuthCode
         );
 
         MudDialog.Close(DialogResult.Ok(result));
     }
 
-    private void Cancel() => MudDialog.Cancel();
+    private async Task Cancel()
+    {
+        if (isCardAuthorized)
+        {
+            var confirm = await DialogService.ShowMessageBox(
+                "Pago Autorizado Activo",
+                "Ya se ha procesado un cargo a la tarjeta. Para salir, primero debes deshacer/cancelar el cobro con tarjeta. ¿Deseas deshacerlo ahora?",
+                yesText: "Sí, Deshacer", noText: "No");
+
+            if (confirm == true)
+            {
+                await CancelCardPayment();
+            }
+            return;
+        }
+        MudDialog.Cancel();
+    }
 
     public record SplitPaymentResult(
         decimal CashAmount,
         decimal CardAmount,
         decimal TransferAmount,
         string PrimaryMethod,
-        decimal Change
+        decimal Change,
+        string? CardTransactionId = null,
+        string? CardAuthCode = null
     );
 }

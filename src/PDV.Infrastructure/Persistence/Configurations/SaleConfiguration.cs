@@ -42,5 +42,12 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
               .WithMany()
               .HasForeignKey(e => e.ShiftId)
               .OnDelete(DeleteBehavior.Restrict);
+
+        // Índices críticos de rendimiento en ventas y reportes
+        entity.HasIndex(e => new { e.BranchId, e.Date })
+              .HasDatabaseName("IX_Sales_BranchId_Date");
+
+        entity.HasIndex(e => e.ShiftId)
+              .HasDatabaseName("IX_Sales_ShiftId");
     }
 }

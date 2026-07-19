@@ -20,6 +20,7 @@ namespace PDV.Infrastructure.Server.Migrations
                 .HasAnnotation("ProductVersion", "9.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -154,6 +155,37 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActionName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NewValues")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldValues")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.Branch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -164,6 +196,9 @@ namespace PDV.Infrastructure.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -210,6 +245,8 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("CompanyId");
 
                     b.ToTable("Branches", (string)null);
                 });
@@ -546,6 +583,14 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("FiscalRegime")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("FiscalZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -576,6 +621,122 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Clients");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.Company", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RFC")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RFC")
+                        .IsUnique();
+
+                    b.ToTable("Companies");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.ContpaqiSyncQueue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ReferenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State", "CreatedAt");
+
+                    b.ToTable("ContpaqiSyncQueues");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.Department", b =>
@@ -686,10 +847,77 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.ToTable("FolioSequences", (string)null);
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.InboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.HasIndex("State", "ReceivedAt");
+
+                    b.ToTable("InboxMessages");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.InventoryMovement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -734,6 +962,8 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("ProductId");
 
@@ -800,6 +1030,13 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("ReceiverFiscalRegime")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("616");
+
                     b.Property<string>("ReceiverName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -807,6 +1044,13 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("ReceiverTaxId")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("ReceiverZipCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("00000");
 
                     b.Property<string>("RelatedUuid")
                         .HasColumnType("text");
@@ -993,6 +1237,119 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.ToTable("OutboxMessages");
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Permissions");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.PriceList", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PriceLists");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.PriceListProduct", b =>
+                {
+                    b.Property<Guid>("PriceListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("PriceListId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("PriceListProducts");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.Printer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1124,10 +1481,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("text");
 
-                    b.Property<decimal>("MinStock")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1139,10 +1492,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bytea");
 
                     b.Property<int>("SaleType")
                         .HasColumnType("integer");
@@ -1159,10 +1508,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("Stock")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
 
                     b.Property<int>("TaxRate")
                         .HasColumnType("integer");
@@ -1183,12 +1528,81 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Barcode")
+                        .HasDatabaseName("IX_Products_Barcode")
+                        .HasFilter("\"Barcode\" IS NOT NULL");
+
                     b.HasIndex("BranchId");
 
                     b.HasIndex("Code")
                         .IsUnique();
 
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Products_Name_GIN");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Plu")
+                        .HasDatabaseName("IX_Products_Plu")
+                        .HasFilter("\"Plu\" IS NOT NULL");
+
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.ProductBranchStock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("MinStock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bytea");
+
+                    b.Property<decimal>("Stock")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("ProductId", "BranchId")
+                        .IsUnique();
+
+                    b.ToTable("ProductBranchStocks");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.Return", b =>
@@ -1341,6 +1755,21 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.ToTable("ReturnItem");
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.RolePermission", b =>
+                {
+                    b.Property<string>("RoleId")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("RolePermissions");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.Sale", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1430,13 +1859,15 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BranchId");
-
                     b.HasIndex("CashRegisterId");
 
                     b.HasIndex("ClientId");
 
-                    b.HasIndex("ShiftId");
+                    b.HasIndex("ShiftId")
+                        .HasDatabaseName("IX_Sales_ShiftId");
+
+                    b.HasIndex("BranchId", "Date")
+                        .HasDatabaseName("IX_Sales_BranchId_Date");
 
                     b.ToTable("Sales");
                 });
@@ -1581,6 +2012,76 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.ToTable("Shifts");
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.SyncConflict", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientValuesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ConflictType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("DetectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResolutionStrategy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("Resolved")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ServerValuesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Resolved");
+
+                    b.HasIndex("EntityName", "EntityId");
+
+                    b.ToTable("SyncConflicts");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.SystemConfiguration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1641,8 +2142,18 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
+                    b.Property<byte[]>("CsdCertificateData")
+                        .HasColumnType("bytea");
+
                     b.Property<DateTime?>("CsdExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CsdPassword")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte[]>("CsdPrivateKeyData")
+                        .HasColumnType("bytea");
 
                     b.Property<string>("CsdSerialNumber")
                         .HasColumnType("text");
@@ -1674,6 +2185,10 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("text");
+
+                    b.Property<string>("PacApiKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("PacApiUser")
                         .HasColumnType("text");
@@ -1969,6 +2484,11 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Branch", b =>
                 {
+                    b.HasOne("PDV.Domain.Entities.Company", "Company")
+                        .WithMany("Branches")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.OwnsOne("PDV.Domain.ValueObjects.Address", "Address", b1 =>
                         {
                             b1.Property<Guid>("BranchId")
@@ -2013,6 +2533,8 @@ namespace PDV.Infrastructure.Server.Migrations
                         });
 
                     b.Navigation("Address");
+
+                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.Cancellation", b =>
@@ -2230,6 +2752,49 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Navigation("Address");
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.Company", b =>
+                {
+                    b.OwnsOne("PDV.Domain.ValueObjects.Address", "FiscalAddress", b1 =>
+                        {
+                            b1.Property<Guid>("CompanyId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("City")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("Country")
+                                .IsRequired()
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)");
+
+                            b1.Property<string>("State")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("Street")
+                                .IsRequired()
+                                .HasMaxLength(150)
+                                .HasColumnType("character varying(150)");
+
+                            b1.Property<string>("ZipCode")
+                                .IsRequired()
+                                .HasMaxLength(10)
+                                .HasColumnType("character varying(10)");
+
+                            b1.HasKey("CompanyId");
+
+                            b1.ToTable("Companies");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CompanyId");
+                        });
+
+                    b.Navigation("FiscalAddress");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.FolioSequence", b =>
                 {
                     b.HasOne("PDV.Domain.Entities.Branch", "Branch")
@@ -2243,11 +2808,19 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryMovement", b =>
                 {
+                    b.HasOne("PDV.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PDV.Domain.Entities.Product", "Product")
-                        .WithMany("Movements")
+                        .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Branch");
 
                     b.Navigation("Product");
                 });
@@ -2334,6 +2907,23 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Navigation("Branch");
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.PriceListProduct", b =>
+                {
+                    b.HasOne("PDV.Domain.Entities.PriceList", null)
+                        .WithMany("ProductPrices")
+                        .HasForeignKey("PriceListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PDV.Domain.Entities.Product", "Product")
+                        .WithMany("PriceListProducts")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.Printer", b =>
                 {
                     b.HasOne("PDV.Domain.Entities.Branch", "Branch")
@@ -2350,6 +2940,25 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasForeignKey("BranchId");
 
                     b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.ProductBranchStock", b =>
+                {
+                    b.HasOne("PDV.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PDV.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.Return", b =>
@@ -2444,6 +3053,17 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("Return");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.RolePermission", b =>
+                {
+                    b.HasOne("PDV.Domain.Entities.Permission", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.Sale", b =>
@@ -2741,9 +3361,19 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Navigation("CashRegister");
                 });
 
+            modelBuilder.Entity("PDV.Domain.Entities.Company", b =>
+                {
+                    b.Navigation("Branches");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.PriceList", b =>
+                {
+                    b.Navigation("ProductPrices");
+                });
+
             modelBuilder.Entity("PDV.Domain.Entities.Product", b =>
                 {
-                    b.Navigation("Movements");
+                    b.Navigation("PriceListProducts");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.Return", b =>

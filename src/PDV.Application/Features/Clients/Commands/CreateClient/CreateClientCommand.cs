@@ -4,6 +4,8 @@ using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 using PDV.Domain.ValueObjects;
 
+using Microsoft.EntityFrameworkCore;
+
 namespace PDV.Application.Features.Clients.Commands.CreateClient;
 
 
@@ -68,18 +70,19 @@ public class CreateClientCommandHandler : IRequestHandler<CreateClientCommand, G
         _context.Clients.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Sincronizar en tiempo real con Comercial
-        try
+        // Sincronizar de forma diferida con Comercial si estamos en el servidor (no SQLite)
+        if (_context is DbContext dbContext && dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == false)
         {
-            var exists = await _comercialSyncService.ClientExistsInComercialAsync(entity.Code, cancellationToken);
-            if (!exists)
+            try
             {
-                await _comercialSyncService.SendClientToComercialAsync(entity, cancellationToken);
+                var queueItem = new ContpaqiSyncQueue(entity.Id, "Client", "Create");
+                _context.ContpaqiSyncQueues.Add(queueItem);
+                await _context.SaveChangesAsync(cancellationToken);
             }
-        }
-        catch (Exception)
-        {
-            // Resiliencia: Si falla el API Comercial, no detenemos la operación local del PDV.
+            catch (Exception)
+            {
+                // Resiliencia
+            }
         }
 
         return entity.Id;

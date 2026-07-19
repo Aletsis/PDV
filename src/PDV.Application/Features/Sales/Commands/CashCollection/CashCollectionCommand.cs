@@ -1,13 +1,25 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
 using PDV.Domain.ValueObjects;
 using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.CashCollection;
 
-public record CashCollectionCommand(Guid CashRegisterId, string UserId, decimal Amount, string Reason) : IRequest<Guid>;
+[AuthorizeCommand("sales.cash_collection")]
+public record CashCollectionCommand(
+    Guid CashRegisterId, 
+    string UserId, 
+    decimal Amount, 
+    string Reason,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null
+) : IRequest<Guid>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class CashCollectionCommandHandler : IRequestHandler<CashCollectionCommand, Guid>
 {
@@ -34,7 +46,7 @@ public class CashCollectionCommandHandler : IRequestHandler<CashCollectionComman
         var col = new PDV.Domain.Entities.CashCollection(
             shiftId: activeShift.Id,
             cashRegisterId: request.CashRegisterId,
-            userId: !string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId,
+            userId: request.AuthorizedByUserId ?? (!string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId),
             denominations: denominations,
             reason: request.Reason);
 

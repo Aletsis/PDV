@@ -164,7 +164,7 @@
             if (isAdmin || isManager)
             {
                 Snackbar.Add($"Operación '{ActionName}' autorizada por: {user.FullName}", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(true));
+                MudDialog.Close(DialogResult.Ok(new AuthorizationResult(true, username, password)));
             }
             else
             {
@@ -194,4 +194,6 @@
             Cancel();
         }
     }
+
+    public record AuthorizationResult(bool Success, string? Username, string? Password);
 }

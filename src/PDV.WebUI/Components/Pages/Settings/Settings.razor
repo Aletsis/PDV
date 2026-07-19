@@ -516,6 +516,11 @@ else
                 </MudGrid>
             </div>
         </MudTabPanel>
+
+        @* ── Facturación / CSD Panel ───────────────────────────────── *@
+        <MudTabPanel Text="Facturación (CSD)" Icon="@Icons.Material.Filled.ReceiptLong">
+            <CsdSettingsPanel Configuration="config" OnSaved="LoadData" />
+        </MudTabPanel>
     </MudTabs>
 }
 

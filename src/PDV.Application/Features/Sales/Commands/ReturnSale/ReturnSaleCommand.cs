@@ -1,12 +1,22 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
 using PDV.Domain.Repositories;
 
 namespace PDV.Application.Features.Sales.Commands.ReturnSale;
 
-public record ReturnSaleCommand(Guid SaleId, string Reason, string CashierUserId) : IRequest<bool>;
+[AuthorizeCommand("sales.refund")]
+public record ReturnSaleCommand(
+    Guid SaleId, 
+    string Reason, 
+    string CashierUserId,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
 {
@@ -40,11 +50,13 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
 
         // Buscar turno activo del cajero que realiza la devolución
         var activeShift = await _context.Shifts
+            .Include(s => s.CashRegister)
             .FirstOrDefaultAsync(s => s.UserId == request.CashierUserId && s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
 
         if (activeShift == null)
         {
             activeShift = await _context.Shifts
+                .Include(s => s.CashRegister)
                 .FirstOrDefaultAsync(s => s.CashRegisterId == sale.CashRegisterId && s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
         }
 
@@ -66,6 +78,8 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
             activeShift.CashRegisterId
         );
 
+        var branchId = activeShift?.CashRegister?.BranchId ?? sale.BranchId;
+
         // Incrementar stock de productos devueltos y agregar items a la devolución
         foreach (var item in sale.Items)
         {
@@ -81,7 +95,13 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
                 );
                 
                 ret.AddItem(returnItem);
-                product.IncreaseStock(item.Quantity);
+                
+                var branchStock = await _context.ProductBranchStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == branchId, cancellationToken);
+                if (branchStock != null)
+                {
+                    branchStock.IncreaseStock(item.Quantity);
+                }
             }
         }
 

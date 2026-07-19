@@ -33,7 +33,9 @@ public class GetClientQueryHandler : IRequestHandler<GetClientQuery, ClientDto?>
             Phone = client.Phone,
             Email = client.Email,
             IsActive = client.IsActive,
-            ClientType = client.ClientType
+            ClientType = client.ClientType,
+            FiscalRegime = client.FiscalRegime,
+            FiscalZipCode = client.FiscalZipCode
         };
     }
 }

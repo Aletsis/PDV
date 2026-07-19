@@ -12,14 +12,24 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
         entity.HasIndex(e => e.Code).IsUnique();
 
+        // Índices críticos para búsquedas de catálogo masivo
+        entity.HasIndex(e => e.Barcode)
+              .HasDatabaseName("IX_Products_Barcode")
+              .HasFilter("\"Barcode\" IS NOT NULL");
+
+        entity.HasIndex(e => e.Plu)
+              .HasDatabaseName("IX_Products_Plu")
+              .HasFilter("\"Plu\" IS NOT NULL");
+
+        entity.HasIndex(e => e.Name)
+              .HasDatabaseName("IX_Products_Name_GIN")
+              .HasAnnotation("Npgsql:IndexMethod", "gin")
+              .HasAnnotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
+
         entity.Property(e => e.Price).HasPrecision(18, 2);
         entity.Property(e => e.WholesalePrice).HasPrecision(18, 2);
         entity.Property(e => e.WholesaleMinQuantity).HasPrecision(18, 3);
         entity.Property(e => e.Cost).HasPrecision(18, 2);
-        entity.Property(e => e.Stock).HasPrecision(18, 4);
-        entity.Property(e => e.MinStock).HasPrecision(18, 4);
-
-        entity.Property(e => e.RowVersion).IsConcurrencyToken();
 
         entity.Property(e => e.SatCode).HasMaxLength(20);
         entity.Property(e => e.Type).IsRequired();
@@ -30,13 +40,5 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         entity.Property(e => e.Department).HasMaxLength(100);
         entity.Property(e => e.Clasificacion1Id);
         entity.Property(e => e.Clasificacion5Id);
-
-        entity.HasMany(e => e.Movements)
-              .WithOne(m => m.Product)
-              .HasForeignKey(m => m.ProductId)
-              .OnDelete(DeleteBehavior.Cascade);
-
-        entity.Navigation(e => e.Movements)
-              .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

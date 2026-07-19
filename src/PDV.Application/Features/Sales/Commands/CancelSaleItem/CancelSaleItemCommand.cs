@@ -1,10 +1,20 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
-
 using PDV.Domain.Enums;
 
-public record CancelSaleItemCommand(Guid SaleItemId, string Reason, string UserId) : IRequest<bool>;
+[AuthorizeCommand("sales.cancel_item")]
+public record CancelSaleItemCommand(
+    Guid SaleItemId, 
+    string Reason, 
+    string UserId,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class CancelSaleItemCommandHandler : IRequestHandler<CancelSaleItemCommand, bool>
 {
@@ -29,15 +39,16 @@ public class CancelSaleItemCommandHandler : IRequestHandler<CancelSaleItemComman
             throw new InvalidOperationException("No se puede cancelar un item de una venta que ya ha sido pagada. Use devolución en su lugar.");
         }
 
-        // Obtener producto para incrementar stock
-        var product = await _context.Products.FindAsync(new object[] { item.ProductId }, cancellationToken);
+        // Obtener stock de la sucursal para incrementar
+        var branchStock = await _context.ProductBranchStocks
+            .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == sale.BranchId, cancellationToken);
 
         // create cancellation record
         var cancellation = new Cancellation(
             branchId: sale.BranchId,
             type: CancellationType.Product,
             reason: request.Reason,
-            userId: request.UserId,
+            userId: request.AuthorizedByUserId ?? request.UserId,
             saleId: sale.Id,
             saleItemId: item.Id
         );
@@ -45,9 +56,9 @@ public class CancelSaleItemCommandHandler : IRequestHandler<CancelSaleItemComman
         _context.Cancellations.Add(cancellation);
 
         // Incrementar stock del producto
-        if (product != null)
+        if (branchStock != null)
         {
-            product.IncreaseStock(item.Quantity);
+            branchStock.IncreaseStock(item.Quantity);
         }
 
         // Usar método de dominio para remover item (esto recalcula el total automáticamente)

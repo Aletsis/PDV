@@ -43,10 +43,60 @@ public static class AppDbContextSeed
             {
                 // Asignar el rol de Admin
                 await userManager.AddToRoleAsync(defaultUser, "Admin");
-
-
             }
         }
+
+        // 3. Sembrar los permisos del sistema si no existen
+        var permissions = new[]
+        {
+            new Permission("Cancelar Venta Completa", "sales.cancel", "Permite cancelar una venta completa activa"),
+            new Permission("Eliminar/Cancelar Artículo de Venta", "sales.cancel_item", "Permite eliminar o cancelar un artículo de la venta"),
+            new Permission("Modificar Precio / Descuento de Artículo", "sales.override_price", "Permite modificar el precio original de un artículo o aplicar descuento"),
+            new Permission("Procesar Devolución / Reembolso", "sales.refund", "Permite procesar la devolución de mercancía de una venta pagada"),
+            new Permission("Realizar Corte de Caja", "sales.cash_cut", "Permite realizar el corte de caja / cierre de turno"),
+            new Permission("Realizar Retiro de Efectivo", "sales.cash_collection", "Permite realizar retiros o cobros de efectivo de la caja")
+        };
+
+        foreach (var p in permissions)
+        {
+            var exists = await context.Permissions.AnyAsync(x => x.Code == p.Code);
+            if (!exists)
+            {
+                context.Permissions.Add(p);
+            }
+        }
+        await context.SaveChangesAsync();
+
+        // 4. Mapear permisos a roles Admin y Manager
+        var adminRole = await roleManager.FindByNameAsync("Admin");
+        var managerRole = await roleManager.FindByNameAsync("Manager");
+
+        if (adminRole != null)
+        {
+            var dbPermissions = await context.Permissions.ToListAsync();
+            foreach (var p in dbPermissions)
+            {
+                var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == adminRole.Id && rp.PermissionId == p.Id);
+                if (!roleHasPerm)
+                {
+                    context.RolePermissions.Add(new RolePermission(adminRole.Id, p.Id));
+                }
+            }
+        }
+
+        if (managerRole != null)
+        {
+            var dbPermissions = await context.Permissions.ToListAsync();
+            foreach (var p in dbPermissions)
+            {
+                var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == managerRole.Id && rp.PermissionId == p.Id);
+                if (!roleHasPerm)
+                {
+                    context.RolePermissions.Add(new RolePermission(managerRole.Id, p.Id));
+                }
+            }
+        }
+        await context.SaveChangesAsync();
 
         // 4. Sanar la base de datos de cualquier token de concurrencia nulo o incompatible
         if (context.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
@@ -54,7 +104,7 @@ public static class AppDbContextSeed
             try
             {
                 // Convertir tokens BLOB o NULL a Base64 TEXT válido en SQLite para que el ValueConverter los lea correctamente
-                await context.Database.ExecuteSqlRawAsync("UPDATE Products SET RowVersion = '" + Convert.ToBase64String(Guid.NewGuid().ToByteArray()) + "' WHERE RowVersion IS NULL OR typeof(RowVersion) = 'blob';");
+                await context.Database.ExecuteSqlRawAsync("UPDATE ProductBranchStocks SET RowVersion = '" + Convert.ToBase64String(Guid.NewGuid().ToByteArray()) + "' WHERE RowVersion IS NULL OR typeof(RowVersion) = 'blob';");
                 await context.Database.ExecuteSqlRawAsync("UPDATE FolioSequences SET RowVersion = '" + Convert.ToBase64String(Guid.NewGuid().ToByteArray()) + "' WHERE RowVersion IS NULL OR typeof(RowVersion) = 'blob';");
                 await context.Database.ExecuteSqlRawAsync("UPDATE TicketSequences SET RowVersion = '" + Convert.ToBase64String(Guid.NewGuid().ToByteArray()) + "' WHERE RowVersion IS NULL OR typeof(RowVersion) = 'blob';");
 
@@ -62,6 +112,7 @@ public static class AppDbContextSeed
                 var tablesToHeal = new[]
                 {
                     ("Products", new[] { "Id", "BranchId" }),
+                    ("ProductBranchStocks", new[] { "Id", "ProductId", "BranchId" }),
                     ("Sales", new[] { "Id", "ShiftId", "ClientId", "CashRegisterId", "BranchId" }),
                     ("SaleItems", new[] { "Id", "SaleId", "ProductId" }),
 
@@ -104,16 +155,16 @@ public static class AppDbContextSeed
         }
         else
         {
-            var productsWithNullRowVersion = await context.Products
+            var stocksWithNullRowVersion = await context.ProductBranchStocks
                 .IgnoreQueryFilters()
                 .Where(p => p.RowVersion == null)
                 .ToListAsync();
 
-            if (productsWithNullRowVersion.Any())
+            if (stocksWithNullRowVersion.Any())
             {
-                foreach (var product in productsWithNullRowVersion)
+                foreach (var stock in stocksWithNullRowVersion)
                 {
-                    product.RowVersion = Guid.NewGuid().ToByteArray();
+                    stock.RowVersion = Guid.NewGuid().ToByteArray();
                 }
                 await context.SaveChangesAsync();
             }

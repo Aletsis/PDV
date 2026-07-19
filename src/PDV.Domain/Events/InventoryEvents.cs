@@ -7,6 +7,7 @@ namespace PDV.Domain.Events;
 public record InventoryMovementRegisteredEvent(
     Guid MovementId, 
     Guid ProductId, 
+    Guid BranchId,
     decimal Quantity, 
     InventoryMovementType Type, 
     Guid? ReferenceId,

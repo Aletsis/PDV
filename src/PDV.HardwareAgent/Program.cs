@@ -10,8 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Configures the application life time to run as a Windows Service if started as such.
 builder.Host.UseWindowsService();
 
-// Configure the agent to listen on http://localhost:9000 for local requests
-builder.WebHost.UseUrls("http://localhost:9000");
+// Configure the agent to listen on http://127.0.0.1:9000 for local requests (strictly loopback)
+builder.WebHost.UseUrls("http://127.0.0.1:9000");
 
 // Enable CORS to allow requests from any PWA frontend origin
 builder.Services.AddCors(options =>
@@ -26,6 +26,8 @@ builder.Services.AddCors(options =>
 
 // Register services (inversion of control using MultiChannelEscPosPrinter)
 builder.Services.AddSingleton<IEscPosPrinter, MultiChannelEscPosPrinter>();
+builder.Services.AddSingleton<IScaleService, PDV.HardwareAgent.Services.ScaleService>();
+builder.Services.AddSingleton<IPaymentTerminalService, PDV.HardwareAgent.Services.PaymentTerminalService>();
 
 var app = builder.Build();
 
@@ -33,5 +35,7 @@ app.UseCors("AllowPwa");
 
 // Map all printer and cash drawer endpoints cleanly
 app.MapPrinterEndpoints();
+app.MapScaleEndpoints();
+app.MapPaymentEndpoints();
 
 app.Run();

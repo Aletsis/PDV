@@ -47,4 +47,14 @@ public class SystemConfigurationDto
     // Integración API Comercial
     public string? ComercialApiUrl { get; set; }
     public string? ComercialApiKey { get; set; }
+
+    // Facturación / CSD / PAC
+    public string? CsdSerialNumber { get; set; }
+    public DateTime? CsdExpiresAt { get; set; }
+    public string? PacUrl { get; set; }
+    public string? PacApiUser { get; set; }
+    public string? PacApiKey { get; set; }
+    public string? CsdPassword { get; set; }
+    public bool HasCsdCertificate { get; set; }
+    public bool HasCsdPrivateKey { get; set; }
 }

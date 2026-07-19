@@ -64,10 +64,19 @@ public class AddSaleItemCommandHandler : IRequestHandler<AddSaleItemCommand, Gui
                 if (!product.IsActive)
                     throw new InvalidOperationException($"El producto {product.Name} está inactivo.");
 
-                if (!product.HasStock(request.Quantity))
+                var branchStock = await _context.ProductBranchStocks
+                    .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == sale.BranchId, cancellationToken);
+                
+                if (branchStock == null)
                 {
                     throw new InvalidOperationException(
-                        $"Stock insuficiente para el producto {product.Name}. Disponible: {product.Stock}, Requerido: {request.Quantity}");
+                        $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                }
+
+                if (!branchStock.HasStock(request.Quantity))
+                {
+                    throw new InvalidOperationException(
+                        $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {request.Quantity}");
                 }
 
                 decimal taxRatePercent = 0m;
@@ -100,7 +109,7 @@ public class AddSaleItemCommandHandler : IRequestHandler<AddSaleItemCommand, Gui
                 _context.SaleItems.Add(saleItem);
 
                 // Registrar movimiento de inventario transaccional (Kardex)
-                product.ApplyMovement(-request.Quantity, InventoryMovementType.Sale, sale.Id);
+                branchStock.ApplyMovement(-request.Quantity, InventoryMovementType.Sale, sale.Id);
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await _context.CommitTransactionAsync(cancellationToken);

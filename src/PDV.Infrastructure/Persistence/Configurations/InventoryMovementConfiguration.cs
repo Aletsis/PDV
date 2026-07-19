@@ -13,5 +13,15 @@ public class InventoryMovementConfiguration : IEntityTypeConfiguration<Inventory
         entity.Property(e => e.Quantity).HasPrecision(18, 4);
         entity.Property(e => e.Type).HasConversion<int>();
         entity.Property(e => e.Remarks).HasMaxLength(255);
+
+        entity.HasOne(m => m.Product)
+              .WithMany()
+              .HasForeignKey(m => m.ProductId)
+              .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(m => m.Branch)
+              .WithMany()
+              .HasForeignKey(m => m.BranchId)
+              .OnDelete(DeleteBehavior.Restrict);
     }
 }

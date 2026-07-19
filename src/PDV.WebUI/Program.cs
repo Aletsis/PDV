@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using MudBlazor.Services;
 using PDV.Application;
 using PDV.Infrastructure;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using PDV.Infrastructure.Server;
 using PDV.Infrastructure.Local;
 using Microsoft.EntityFrameworkCore;
@@ -96,6 +99,23 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database");
 
+// Configure OpenTelemetry Tracing and Metrics
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource("PDV.WebUI")
+               .AddAspNetCoreInstrumentation()
+               .AddHttpClientInstrumentation()
+               .AddConsoleExporter();
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics.AddMeter("PDV.WebUI")
+               .AddAspNetCoreInstrumentation()
+               .AddHttpClientInstrumentation()
+               .AddConsoleExporter();
+    });
+
 // Add Clean Architecture Layers
 builder.Services.AddApplicationServices();
 
@@ -124,7 +144,18 @@ else
 builder.Services.AddSingleton<ConnectionMonitor>();
 
 // Register ESC/POS printer implementation
-builder.Services.AddScoped<IEscPosPrinter, MultiChannelEscPosPrinter>();
+if (runMode.Equals("Server", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IEscPosPrinter, PDV.WebUI.Services.WebUIProxyPrinter>();
+}
+else
+{
+    builder.Services.AddScoped<IEscPosPrinter, MultiChannelEscPosPrinter>();
+}
+
+// Register local hardware proxies (always via client loopback)
+builder.Services.AddScoped<IScaleService, PDV.WebUI.Services.WebUIProxyScale>();
+builder.Services.AddScoped<IPaymentTerminalService, PDV.WebUI.Services.WebUIProxyPaymentTerminal>();
 
 // Register UI-specific services (Blazor implementation)
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

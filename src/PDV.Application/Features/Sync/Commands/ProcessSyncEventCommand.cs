@@ -257,12 +257,31 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                 if (client == null) return SyncProcessResult.Fail("Could not deserialize Client payload.");
 
                 var existing = await _context.Clients.FirstOrDefaultAsync(c => c.Id == client.Id, cancellationToken);
+                string action = "Create";
                 if (existing == null)
                 {
                     _context.Clients.Add(client);
                 }
                 else
                 {
+                    // Conflict detection: If the server's version is newer than the client's version
+                    if (existing.LastModifiedAt.HasValue && client.LastModifiedAt.HasValue)
+                    {
+                        if (existing.LastModifiedAt.Value > client.LastModifiedAt.Value)
+                        {
+                            var clientJson = JsonSerializer.Serialize(client, _jsonOptions);
+                            var serverJson = JsonSerializer.Serialize(existing, _jsonOptions);
+                            var conflict = new SyncConflict("Client", client.Id, clientJson, serverJson, "ConcurrentWriteOutOfSync");
+                            _context.SyncConflicts.Add(conflict);
+                            await _context.SaveChangesAsync(cancellationToken);
+
+                            // Server version wins (Last-Write-Wins on Server side). 
+                            // We return Ok to acknowledge client sync so it doesn't try to sync this message indefinitely.
+                            return SyncProcessResult.Ok();
+                        }
+                    }
+
+                    action = "Update";
                     existing.UpdateProfile(client.Name, client.TaxId);
                     existing.UpdateContactInfo(client.Phone, client.Email);
                     if (client.Address != null)
@@ -279,6 +298,11 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                     }
                 }
                 await _context.SaveChangesAsync(cancellationToken);
+
+                // Encolar tarea para CONTPAQi Comercial
+                var queueItem = new ContpaqiSyncQueue(client.Id, "Client", action);
+                _context.ContpaqiSyncQueues.Add(queueItem);
+                await _context.SaveChangesAsync(cancellationToken);
             }
             else if (dto.EventType.Equals("InventoryMovementRegisteredEvent"))
             {
@@ -293,6 +317,7 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                     {
                         var movement = new InventoryMovement(
                             productId: ev.ProductId,
+                            branchId:  ev.BranchId,
                             quantity:  ev.Quantity,
                             type:      ev.Type,
                             referenceId: ev.ReferenceId,
@@ -301,8 +326,15 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
 
                         _context.InventoryMovements.Add(movement);
 
-                        // Ajustar el stock en el servidor (ev.Quantity es negativo para ventas)
-                        product.AdjustStock(product.Stock + ev.Quantity);
+                        // Ajustar el stock en la sucursal correspondiente
+                        var branchStock = await _context.ProductBranchStocks
+                            .FirstOrDefaultAsync(s => s.ProductId == ev.ProductId && s.BranchId == ev.BranchId, cancellationToken);
+                        if (branchStock == null)
+                        {
+                            branchStock = new ProductBranchStock(ev.ProductId, ev.BranchId, 0, 0);
+                            _context.ProductBranchStocks.Add(branchStock);
+                        }
+                        branchStock.AdjustStock(branchStock.Stock + ev.Quantity);
 
                         await _context.SaveChangesAsync(cancellationToken);
                     }
@@ -414,6 +446,23 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
             typeInfo.CreateObject = () => ctor.Invoke(null);
         }
 
+        // Expose non-public auditable properties to the serializer contract
+        var auditableProperties = typeInfo.Type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        foreach (var prop in auditableProperties)
+        {
+            if (prop.Name == "LastModifiedAt" || prop.Name == "CreatedAt" || prop.Name == "CreatedBy" || prop.Name == "LastModifiedBy")
+            {
+                var existingProp = typeInfo.Properties.FirstOrDefault(p => p.Name.Equals(prop.Name, StringComparison.OrdinalIgnoreCase));
+                if (existingProp == null)
+                {
+                    var newProp = typeInfo.CreateJsonPropertyInfo(prop.PropertyType, prop.Name);
+                    newProp.Get = obj => prop.GetValue(obj);
+                    newProp.Set = (obj, val) => prop.SetValue(obj, val);
+                    typeInfo.Properties.Add(newProp);
+                }
+            }
+        }
+
         var ignoredTypes = new HashSet<Type>
         {
             typeof(Product),
@@ -437,11 +486,26 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
             
             if (underlyingProperty != null)
             {
-                // If it has a non-public setter, bind it
-                if (property.Set == null && underlyingProperty.SetMethod != null)
+                // If it has a non-public setter, bind it (including inherited base class private setters)
+                if (property.Set == null)
                 {
-                    var setter = underlyingProperty.SetMethod;
-                    property.Set = (obj, val) => setter.Invoke(obj, new[] { val });
+                    var currentType = typeInfo.Type;
+                    MethodInfo? setter = null;
+                    while (currentType != null)
+                    {
+                        var propInfo = currentType.GetProperty(property.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                        if (propInfo?.SetMethod != null)
+                        {
+                            setter = propInfo.SetMethod;
+                            break;
+                        }
+                        currentType = currentType.BaseType;
+                    }
+
+                    if (setter != null)
+                    {
+                        property.Set = (obj, val) => setter.Invoke(obj, new[] { val });
+                    }
                 }
             }
 

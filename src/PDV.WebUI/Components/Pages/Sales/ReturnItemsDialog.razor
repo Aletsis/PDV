@@ -140,6 +140,8 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
     [Parameter] public SaleDetailDto SaleDetail { get; set; } = null!;
+    [Parameter] public string? SupervisorUsername { get; set; }
+    [Parameter] public string? SupervisorPassword { get; set; }
 
     private List<ReturnRowModel> returnItems = new();
     private string reason = "";
@@ -201,7 +203,9 @@
                         SaleItemId: row.Item.Id,
                         Quantity: row.ReturnQuantity,
                         Reason: reason.Trim(),
-                        CashierUserId: cashierUserId
+                        CashierUserId: cashierUserId,
+                        SupervisorUsername: SupervisorUsername,
+                        SupervisorPassword: SupervisorPassword
                     );
 
                     var success = await Mediator.Send(command);

@@ -24,6 +24,7 @@ public class PrinterSyncDto
     public int CodePage { get; set; }
     public int MaxWidth { get; set; }
     public Guid? BranchId { get; set; }
+    public bool IsDeleted { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastModifiedAt { get; set; }
 }
@@ -56,6 +57,7 @@ public class GetPrintersDeltaQueryHandler : IRequestHandler<GetPrintersDeltaQuer
                 CodePage = p.CodePage,
                 MaxWidth = p.MaxWidth,
                 BranchId = p.BranchId,
+                IsDeleted = p.IsDeleted,
                 CreatedAt = p.CreatedAt,
                 LastModifiedAt = p.LastModifiedAt
             })

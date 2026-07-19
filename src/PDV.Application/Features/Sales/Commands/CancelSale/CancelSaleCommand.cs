@@ -1,12 +1,22 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.CancelSale;
 
-public record CancelSaleCommand(Guid SaleId, string Reason, string UserId) : IRequest<bool>;
+[AuthorizeCommand("sales.cancel")]
+public record CancelSaleCommand(
+    Guid SaleId, 
+    string Reason, 
+    string UserId,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
+{
+    public string? AuthorizedByUserId { get; set; }
+}
 
 public class CancelSaleCommandHandler : IRequestHandler<CancelSaleCommand, bool>
 {
@@ -53,10 +63,11 @@ public class CancelSaleCommandHandler : IRequestHandler<CancelSaleCommand, bool>
                 // Incrementar stock de todos los productos de la venta cancelada
                 foreach (var item in sale.Items)
                 {
-                    var product = await _context.Products.FindAsync(new object[] { item.ProductId }, cancellationToken);
-                    if (product != null)
+                    var branchStock = await _context.ProductBranchStocks
+                        .FirstOrDefaultAsync(pbs => pbs.ProductId == item.ProductId && pbs.BranchId == sale.BranchId, cancellationToken);
+                    if (branchStock != null)
                     {
-                        product.IncreaseStock(item.Quantity);
+                        branchStock.IncreaseStock(item.Quantity);
                     }
                 }
 
@@ -64,7 +75,7 @@ public class CancelSaleCommandHandler : IRequestHandler<CancelSaleCommand, bool>
                     branchId: sale.BranchId,
                     type: CancellationType.Sale,
                     reason: request.Reason,
-                    userId: request.UserId,
+                    userId: request.AuthorizedByUserId ?? request.UserId,
                     saleId: sale.Id,
                     saleItemId: null
                 );

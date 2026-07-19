@@ -126,9 +126,10 @@ public class GetDashboardSummaryQueryHandler
         }).ToList();
 
         // ── Bajo stock ────────────────────────────────────────────────────
-        var lowStockCount = await _context.Products
+        var lowStockCount = await _context.ProductBranchStocks
             .AsNoTracking()
-            .Where(p => p.IsActive && p.MinStock > 0 && p.Stock <= p.MinStock)
+            .Include(pbs => pbs.Product)
+            .Where(pbs => pbs.Product.IsActive && pbs.MinStock > 0 && pbs.Stock <= pbs.MinStock)
             .CountAsync(cancellationToken);
 
         // ── Ventas por hora (últimas 8 horas) ─────────────────────────────

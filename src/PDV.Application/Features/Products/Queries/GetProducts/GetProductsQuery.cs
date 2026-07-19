@@ -5,7 +5,7 @@ using PDV.Application.Features.Products.Dtos;
 
 namespace PDV.Application.Features.Products.Queries.GetProducts;
 
-public record GetProductsQuery : IRequest<List<ProductDto>>;
+public record GetProductsQuery(Guid? BranchId = null) : IRequest<List<ProductDto>>;
 
 public class GetProductsQueryHandler : IRequestHandler<GetProductsQuery, List<ProductDto>>
 {
@@ -18,6 +18,21 @@ public class GetProductsQueryHandler : IRequestHandler<GetProductsQuery, List<Pr
 
     public async Task<List<ProductDto>> Handle(GetProductsQuery request, CancellationToken cancellationToken)
     {
+        var branchId = request.BranchId;
+        if (branchId == null || branchId == Guid.Empty)
+        {
+            var activeShift = await _context.Shifts
+                .Include(s => s.CashRegister)
+                .FirstOrDefaultAsync(s => s.Status == PDV.Domain.Enums.ShiftStatus.Open, cancellationToken);
+            branchId = activeShift?.CashRegister?.BranchId;
+
+            if (branchId == null || branchId == Guid.Empty)
+            {
+                var firstBranch = await _context.Branches.FirstOrDefaultAsync(cancellationToken);
+                branchId = firstBranch?.Id;
+            }
+        }
+
         return await _context.Products
             .Select(x => new ProductDto
             {
@@ -29,12 +44,18 @@ public class GetProductsQueryHandler : IRequestHandler<GetProductsQuery, List<Pr
                 Price = x.Price,
                 WholesalePrice = x.WholesalePrice,
                 WholesaleMinQuantity = x.WholesaleMinQuantity,
-                Stock = x.Stock,
+                Stock = _context.ProductBranchStocks
+                    .Where(s => s.ProductId == x.Id && s.BranchId == branchId)
+                    .Select(s => s.Stock)
+                    .FirstOrDefault(),
                 Category = x.Category,
                 SaleType = x.SaleType.ToString(),
                 Barcode = x.Barcode,
                 Cost = x.Cost,
-                MinStock = x.MinStock,
+                MinStock = _context.ProductBranchStocks
+                    .Where(s => s.ProductId == x.Id && s.BranchId == branchId)
+                    .Select(s => s.MinStock)
+                    .FirstOrDefault(),
                 TaxRate = x.TaxRate.ToString(),
                 IsActive = x.IsActive,
                 SatCode = x.SatCode,

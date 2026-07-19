@@ -105,6 +105,8 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
+    [Parameter] public Guid? BranchId { get; set; }
+
     private MudTable<ProductDto> table = default!;
     private string searchQuery = "";
     private Dictionary<Guid, int> quantities = new();
@@ -117,7 +119,8 @@
             PageNumber = state.Page + 1,
             PageSize = state.PageSize,
             SearchQuery = searchQuery,
-            Type = ProductType.Producto
+            Type = ProductType.Producto,
+            BranchId = BranchId
         }, cancellationToken);
 
         foreach (var p in result.Items)

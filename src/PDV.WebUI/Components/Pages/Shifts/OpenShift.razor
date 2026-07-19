@@ -23,6 +23,7 @@
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
 @inject IIdentityService IdentityService
 @inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Apertura de Caja — PDV</PageTitle>
 
@@ -334,7 +335,7 @@
             var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
             clientIp = IpAddressHelper.ResolveClientIp(rawIp);
 
-            // 3. Buscar cajas asignadas por IP o por usuario
+            // 3. Buscar cajas asignadas por IP, usuario o cookie
             CashRegisterDto? registerByIp = null;
             if (!string.IsNullOrEmpty(clientIp))
             {
@@ -345,10 +346,21 @@
             var registers = await Mediator.Send(new ListCashRegistersQuery());
             registerByUser = registers.FirstOrDefault(r => r.AssignedUserId == currentUserId);
 
+            Guid? cookieRegisterId = null;
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr) && Guid.TryParse(idStr, out var id))
+            {
+                cookieRegisterId = id;
+            }
+
             // Seleccionar caja
             if (CashRegisterId.HasValue && CashRegisterId.Value != Guid.Empty)
             {
                 cashRegister = await Mediator.Send(new GetCashRegisterQuery(CashRegisterId.Value));
+            }
+            else if (cookieRegisterId.HasValue)
+            {
+                cashRegister = await Mediator.Send(new GetCashRegisterQuery(cookieRegisterId.Value));
             }
             else
             {
@@ -510,6 +522,51 @@
             {
                 await HandleOpenShift();
             }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SyncTerminalCookiesAndLocalStorage();
+        }
+    }
+
+    private async Task SyncTerminalCookiesAndLocalStorage()
+    {
+        try
+        {
+            var localIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_cash_register_id");
+            string? cookieIdStr = null;
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr))
+            {
+                cookieIdStr = idStr;
+            }
+
+            if (Guid.TryParse(localIdStr, out var localId))
+            {
+                if (cookieIdStr != localIdStr)
+                {
+                    await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={localIdStr}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+                    if (cashRegister?.Id != localId)
+                    {
+                        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+                        return;
+                    }
+                }
+            }
+            else if (cashRegister != null)
+            {
+                var regId = cashRegister.Id.ToString();
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_cash_register_id", regId);
+                await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={regId}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error syncing terminal storage: {ex.Message}");
         }
     }
 }

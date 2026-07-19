@@ -64,10 +64,11 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
                 // 1. Revertir temporalmente el stock de los productos anteriores
                 foreach (var item in sale.Items)
                 {
-                    var product = await _context.Products.FindAsync(new object[] { item.ProductId }, cancellationToken);
-                    if (product != null)
+                    var branchStock = await _context.ProductBranchStocks
+                        .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == sale.BranchId, cancellationToken);
+                    if (branchStock != null)
                     {
-                        product.IncreaseStock(item.Quantity);
+                        branchStock.IncreaseStock(item.Quantity);
                     }
                 }
 
@@ -89,10 +90,19 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
 
                     decimal quantity = product.SaleType == SaleType.Bulk ? item.Weight : item.Quantity;
 
-                    if (!product.HasStock(quantity))
+                    var branchStock = await _context.ProductBranchStocks
+                        .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == sale.BranchId, cancellationToken);
+                    
+                    if (branchStock == null)
                     {
                         throw new InvalidOperationException(
-                            $"Stock insuficiente para el producto {product.Name}. Disponible: {product.Stock}, Requerido: {quantity}");
+                            $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                    }
+
+                    if (!branchStock.HasStock(quantity))
+                    {
+                        throw new InvalidOperationException(
+                            $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {quantity}");
                     }
 
                     decimal taxRatePercent = 0m;
@@ -124,7 +134,7 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
                     newItems.Add(saleItem);
 
                     // Aplicar movimiento de inventario transaccional (Kardex)
-                    product.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
+                    branchStock.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
                 }
 
                 // 4. Cargar los nuevos items en la venta (esto recalcula subtotales e impuestos en el dominio)

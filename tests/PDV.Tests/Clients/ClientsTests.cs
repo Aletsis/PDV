@@ -4,6 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Moq;
+using PDV.Application.Common.Interfaces;
 using PDV.Application.Features.Clients.Commands.CreateClient;
 using PDV.Application.Features.Clients.Commands.DeleteClient;
 using PDV.Application.Features.Clients.Commands.UpdateClient;
@@ -32,9 +34,11 @@ public class ClientsTests
         var options = CreateNewContextOptions();
         await using var context = new AppDbContext(options);
 
-        var handler = new CreateClientCommandHandler(context);
+        var mockSyncService = new Mock<IComercialApiSyncService>();
+        var handler = new CreateClientCommandHandler(context, mockSyncService.Object);
         var command = new CreateClientCommand
         {
+            Code = "C001",
             Name = "Cliente de Prueba S.A.",
             TaxId = "XAXX010101000",
             Address = "Calle Falsa 123",
@@ -50,6 +54,7 @@ public class ClientsTests
 
         var client = await context.Clients.FindAsync(new object[] { clientId }, CancellationToken.None);
         Assert.NotNull(client);
+        Assert.Equal("C001", client!.Code);
         Assert.Equal("Cliente de Prueba S.A.", client!.Name);
         Assert.Equal("XAXX010101000", client.TaxId);
         Assert.Equal("Calle Falsa 123", client.Address?.Street);
@@ -68,14 +73,16 @@ public class ClientsTests
         var options = CreateNewContextOptions();
         await using var context = new AppDbContext(options);
 
-        var existingClient = new Client("Juan Perez", "PEJJ800101XXX", "5559876543", "juan@perez.com");
+        var existingClient = new Client("C001", "Juan Perez", "PEJJ800101XXX", "5559876543", "juan@perez.com");
         context.Clients.Add(existingClient);
         await context.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new UpdateClientCommandHandler(context);
+        var mockSyncService = new Mock<IComercialApiSyncService>();
+        var handler = new UpdateClientCommandHandler(context, mockSyncService.Object);
         var command = new UpdateClientCommand
         {
             Id = existingClient.Id,
+            Code = "C001-Updated",
             Name = "Juan Perez Lopez",
             TaxId = "PEJJ800101AAA",
             Address = "Av. Siempre Viva 742",
@@ -92,6 +99,7 @@ public class ClientsTests
 
         var client = await context.Clients.FindAsync(new object[] { existingClient.Id }, CancellationToken.None);
         Assert.NotNull(client);
+        Assert.Equal("C001-Updated", client!.Code);
         Assert.Equal("Juan Perez Lopez", client!.Name);
         Assert.Equal("PEJJ800101AAA", client.TaxId);
         Assert.Equal("Av. Siempre Viva 742", client.Address?.Street);
@@ -111,7 +119,7 @@ public class ClientsTests
         var options = CreateNewContextOptions();
         await using var context = new AppDbContext(options);
 
-        var clientToDelete = new Client("Eliminar SRL", "ELI000000AAA", "5559998887", "eliminar@correo.com");
+        var clientToDelete = new Client("C002", "Eliminar SRL", "ELI000000AAA", "5559998887", "eliminar@correo.com");
         context.Clients.Add(clientToDelete);
         await context.SaveChangesAsync(CancellationToken.None);
 
