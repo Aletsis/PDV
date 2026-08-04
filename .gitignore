@@ -89,3 +89,7 @@ publish-agent/
 publish-windows/
 installer/Output/
 
+# Archivos Appsettings
+src/PDV.WebUI/appsettings.Development.json
+src/PDV.WebUI/appsettings.production.json
+src/PDV.WebUI/appsettings.json

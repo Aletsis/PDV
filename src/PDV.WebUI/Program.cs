@@ -41,7 +41,15 @@ if (System.Array.IndexOf(args, "--apply-migrations-only") >= 0)
                ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
                ?? "Data Source=pdv.db";
     }
-    tempBuilder.Services.AddLocalInfrastructureServices(conn);
+    var runmode = tempBuilder.Configuration["RunMode"] ?? "Server";
+    if (runmode.Equals("Local", StringComparison.OrdinalIgnoreCase))
+    {
+        tempBuilder.Services.AddLocalInfrastructureServices(conn);
+    }
+    else
+    {
+        tempBuilder.Services.AddServerInfrastructureServices(conn);
+    }
     var tempApp = tempBuilder.Build();
     
     using (var scope = tempApp.Services.CreateScope())
