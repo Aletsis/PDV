@@ -87,4 +87,5 @@ scratch/
 # Carpetas de publicación local
 publish-agent/
 publish-windows/
+installer/Output/
 
