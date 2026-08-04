@@ -19,9 +19,12 @@ using PDV.WebUI.Services;
 using PDV.WebUI.Health;
 using PDV.WebUI.Middleware;
 using PDV.Infrastructure.Persistence;
+using System.IO;
+using System.Text;
+using Microsoft.AspNetCore.Authorization;
 
-System.IO.Directory.SetCurrentDirectory(System.AppContext.BaseDirectory);
-System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+Directory.SetCurrentDirectory(System.AppContext.BaseDirectory);
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 if (System.Array.IndexOf(args, "--apply-migrations-only") >= 0)
 {
@@ -43,7 +46,7 @@ if (System.Array.IndexOf(args, "--apply-migrations-only") >= 0)
     
     using (var scope = tempApp.Services.CreateScope())
     {
-        var db = scope.ServiceProvider.GetRequiredService<PDV.Infrastructure.Persistence.AppDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.Migrate();
     }
     System.Console.WriteLine("Migraciones aplicadas con exito.");
@@ -84,12 +87,15 @@ builder.Host.UseSerilog();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.DetailedErrors = true;
+    });
 
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
-builder.Services.AddSingleton<IRealTimeSyncNotifier, PDV.WebUI.Services.RealTimeSyncNotifier>();
+builder.Services.AddSingleton<IRealTimeSyncNotifier, RealTimeSyncNotifier>();
 
 // Permite a los componentes Blazor Server acceder al HttpContext (ej. para leer IP del cliente)
 builder.Services.AddHttpContextAccessor();
@@ -154,14 +160,14 @@ else
 }
 
 // Register local hardware proxies (always via client loopback)
-builder.Services.AddScoped<IScaleService, PDV.WebUI.Services.WebUIProxyScale>();
-builder.Services.AddScoped<IPaymentTerminalService, PDV.WebUI.Services.WebUIProxyPaymentTerminal>();
+builder.Services.AddScoped<IScaleService, WebUIProxyScale>();
+builder.Services.AddScoped<IPaymentTerminalService, WebUIProxyPaymentTerminal>();
 
 // Register UI-specific services (Blazor implementation)
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // Turno activo del cajero (por sesión Blazor Server)
-builder.Services.AddScoped<PDV.WebUI.Services.ShiftSessionService>();
+builder.Services.AddScoped<ShiftSessionService>();
 
 // Add MudBlazor services
 builder.Services.AddMudServices();
@@ -171,7 +177,7 @@ builder.Services.AddCascadingAuthenticationState();
 // Use the built-in Identity components or custom ones. 
 // For now, simpler setup without full UI generation, but we need the providers.
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<ApplicationUser>>();
-builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, PDV.WebUI.Services.AdminRolesAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, AdminRolesAuthorizationHandler>();
 
 
 var app = builder.Build();
@@ -199,7 +205,10 @@ app.UseAuthorization();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode(options =>
+    {
+        options.DisableWebSocketCompression = true;
+    });
 
 app.MapRazorPages();
 app.MapControllers();
@@ -232,12 +241,12 @@ if (!runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
 {
     using (var seedScope = app.Services.CreateScope())
     {
-        var roleManager = seedScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
+        var roleManager = seedScope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         foreach (var roleName in new[] { "Admin", "Manager", "Cashier" })
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {
-                await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(roleName));
+                await roleManager.CreateAsync(new IdentityRole(roleName));
                 Log.Information("Rol '{Role}' creado automáticamente.", roleName);
             }
         }
@@ -277,7 +286,7 @@ if (!runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await PDV.Infrastructure.Persistence.AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
+        await AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
         Log.Information("Initial seed data checked and applied successfully.");
     }
     catch (Exception ex)

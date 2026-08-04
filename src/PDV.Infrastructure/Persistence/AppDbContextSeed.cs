@@ -38,7 +38,7 @@ public static class AppDbContextSeed
                 IsActive = true
             };
 
-            var result = await userManager.CreateAsync(defaultUser, "admin");
+            var result = await userManager.CreateAsync(defaultUser, "Admin123!");
             if (result.Succeeded)
             {
                 // Asignar el rol de Admin

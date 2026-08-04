@@ -16,7 +16,7 @@ COPY src/PDV.HardwareAgent/PDV.HardwareAgent.csproj src/PDV.HardwareAgent/
 COPY tests/PDV.Tests/PDV.Tests.csproj tests/PDV.Tests/
 
 # Restaurar paquetes NuGet
-RUN dotnet restore
+RUN dotnet nuget locals all --clear && dotnet restore
 
 # Copiar el código fuente completo de la aplicación
 COPY src/ src/
@@ -24,7 +24,7 @@ COPY tests/ tests/
 
 # Compilar y publicar la interfaz Web en modo Release optimizado
 WORKDIR /app/src/PDV.WebUI
-RUN dotnet publish -c Release -o /app/publish --no-restore
+RUN dotnet publish -c Release -o /app/publish
 
 # ==========================================
 # Etapa 2: Imagen de Ejecución de Producción
@@ -42,7 +42,7 @@ EXPOSE 5001
 
 # Definir variables de entorno predeterminadas para ejecución en producción
 ENV ASPNETCORE_URLS=http://+:5000
-ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_ENVIRONMENT=Development
 ENV RunMode=Server
 
 # Copiar archivos publicados desde la etapa de compilación
