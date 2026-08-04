@@ -68,7 +68,7 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
                         .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == sale.BranchId, cancellationToken);
                     if (branchStock != null)
                     {
-                        branchStock.IncreaseStock(item.Quantity);
+                        branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión temporal por edición de venta");
                     }
                 }
 

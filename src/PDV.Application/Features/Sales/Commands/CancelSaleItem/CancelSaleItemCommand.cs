@@ -58,7 +58,7 @@ public class CancelSaleItemCommandHandler : IRequestHandler<CancelSaleItemComman
         // Incrementar stock del producto
         if (branchStock != null)
         {
-            branchStock.IncreaseStock(item.Quantity);
+            branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión por artículo cancelado");
         }
 
         // Usar método de dominio para remover item (esto recalcula el total automáticamente)

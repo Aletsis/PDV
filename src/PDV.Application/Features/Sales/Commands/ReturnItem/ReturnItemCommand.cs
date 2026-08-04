@@ -111,7 +111,7 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
             .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == branchId, cancellationToken);
         if (branchStock != null)
         {
-            branchStock.IncreaseStock(qtyToReturn);
+            branchStock.ApplyMovement(qtyToReturn, InventoryMovementType.Return, sale.Id, "Devolución de artículo");
         }
 
         // Marcar el ítem como devuelto si ya se devolvió por completo

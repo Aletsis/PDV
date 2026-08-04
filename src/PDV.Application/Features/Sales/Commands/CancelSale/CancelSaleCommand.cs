@@ -67,7 +67,7 @@ public class CancelSaleCommandHandler : IRequestHandler<CancelSaleCommand, bool>
                         .FirstOrDefaultAsync(pbs => pbs.ProductId == item.ProductId && pbs.BranchId == sale.BranchId, cancellationToken);
                     if (branchStock != null)
                     {
-                        branchStock.IncreaseStock(item.Quantity);
+                        branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión por cancelación de venta");
                     }
                 }
 

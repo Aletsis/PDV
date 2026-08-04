@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
 using PDV.Application.Common.Security;
 using PDV.Domain.Entities;
+using PDV.Domain.Enums;
 using PDV.Domain.Repositories;
 
 namespace PDV.Application.Features.Sales.Commands.ReturnSale;
@@ -100,7 +101,7 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
                     .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == branchId, cancellationToken);
                 if (branchStock != null)
                 {
-                    branchStock.IncreaseStock(item.Quantity);
+                    branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Return, sale.Id, "Devolución total de venta");
                 }
             }
         }
