@@ -80,6 +80,7 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
         );
 
         var branchId = activeShift?.CashRegister?.BranchId ?? sale.BranchId;
+        ret.SetBranch(branchId);
 
         // Incrementar stock de productos devueltos y agregar items a la devolución
         foreach (var item in sale.Items)

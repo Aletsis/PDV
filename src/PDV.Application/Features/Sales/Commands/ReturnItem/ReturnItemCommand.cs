@@ -107,6 +107,7 @@ public class ReturnItemCommandHandler : IRequestHandler<ReturnItemCommand, bool>
 
         // Incrementar el inventario (a la inversa de una venta)
         var branchId = activeShift?.CashRegister?.BranchId ?? sale.BranchId;
+        ret.SetBranch(branchId);
         var branchStock = await _context.ProductBranchStocks
             .Include(s => s.Product)
             .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == branchId, cancellationToken);
