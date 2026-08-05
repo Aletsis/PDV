@@ -13,6 +13,7 @@ using PDV.Infrastructure.Persistence;
 using PDV.Application.Features.Sync.Dtos;
 using PDV.Application.Features.Clients.Queries.GetClientsDelta;
 using PDV.Application.Features.Branches.Queries.GetBranchesDelta;
+using PDV.Application.Features.Products.Queries.GetProductBranchStocksDelta;
 using PDV.Application.Features.Printers.Queries.GetPrintersDelta;
 using PDV.Application.Features.TicketSequences.Queries.GetTicketSequencesDelta;
 using PDV.Application.Features.FolioSequences.Queries.GetFolioSequencesDelta;
@@ -436,6 +437,9 @@ public class SyncWorker : BackgroundService
         // 3. Pull Branches
         await PullBranchesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
+        // 3.1. Pull Product Branch Stocks
+        await PullProductBranchStocksDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
         // 3.5. Pull Folio Sequences
         await PullFolioSequencesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
@@ -855,6 +859,94 @@ public class SyncWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred during branch pull synchronization.");
+            if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
+            {
+                _clientDiscoveryService.InvalidateUrl();
+            }
+        }
+    }
+
+    private async Task PullProductBranchStocksDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/product-branch-stocks-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Product branch stocks pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<ProductBranchStockSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} product branch stock deltas from server. Applying locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            foreach (var dto in deltas)
+            {
+                var existing = await db.ProductBranchStocks.FirstOrDefaultAsync(s => s.ProductId == dto.ProductId && s.BranchId == dto.BranchId, stoppingToken);
+                if (existing == null)
+                {
+                    // Ensure the referenced product and branch exist locally before inserting to prevent FK constraint failures
+                    var productExists = await db.Products.AnyAsync(p => p.Id == dto.ProductId, stoppingToken);
+                    var branchExists = await db.Branches.AnyAsync(b => b.Id == dto.BranchId, stoppingToken);
+                    
+                    if (productExists && branchExists)
+                    {
+                        var branchStock = new ProductBranchStock(dto.ProductId, dto.BranchId, dto.Stock, dto.MinStock);
+                        branchStock.SetId(dto.Id);
+
+                        if (dto.IsDeleted)
+                        {
+                            branchStock.SoftDelete("SystemSync");
+                        }
+
+                        branchStock.ClearDomainEvents();
+                        db.ProductBranchStocks.Add(branchStock);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Skipping product branch stock sync for Product: {ProductId}, Branch: {BranchId} because one of them does not exist locally.", dto.ProductId, dto.BranchId);
+                    }
+                }
+                else
+                {
+                    if (dto.IsDeleted)
+                    {
+                        if (!existing.IsDeleted)
+                        {
+                            existing.SoftDelete("SystemSync");
+                        }
+                    }
+                    else
+                    {
+                        if (existing.IsDeleted)
+                        {
+                            existing.Restore();
+                        }
+                        
+                        existing.AdjustStock(dto.Stock);
+                        existing.UpdateMinStock(dto.MinStock);
+                    }
+
+                    existing.ClearDomainEvents();
+                }
+            }
+
+            await db.SaveChangesAsync(stoppingToken);
+            _logger.LogInformation("Successfully applied {Count} product branch stock deltas to local SQLite.", deltas.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during product branch stocks pull synchronization.");
             if (ex is HttpRequestException or SocketException or TimeoutException or System.Net.WebException)
             {
                 _clientDiscoveryService.InvalidateUrl();

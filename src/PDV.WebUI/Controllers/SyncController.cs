@@ -152,6 +152,22 @@ public class SyncController : ControllerBase
         }
     }
 
+    [HttpGet("product-branch-stocks-delta")]
+    public async Task<IActionResult> GetProductBranchStocksDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new PDV.Application.Features.Products.Queries.GetProductBranchStocksDelta.GetProductBranchStocksDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting product branch stocks delta since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
     [HttpGet("branches-delta")]
     public async Task<IActionResult> GetBranchesDelta([FromQuery] DateTime? since)
     {
