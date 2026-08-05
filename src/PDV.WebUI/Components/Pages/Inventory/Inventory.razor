@@ -45,191 +45,200 @@ else
             }
         </StatusAlert>
     </PdvHeader>
-
-    <!-- KPI Cards -->
-    <div class="d-flex flex-wrap gap-4">
-        <div class="flex-grow-1" style="min-width: 200px;">
-            <PdvKpiCard Title="Total Movimientos"
-                       Value="@stats.TotalMovements.ToString()"
-                       Icon="@Icons.Material.Filled.History"
-                       GradientType="PdvKpiCard.KpiGradientType.Primary" />
+    @if (_isInitializing)
+    {
+        <div class="d-flex align-center justify-center pa-8" style="min-height: 300px;">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
         </div>
-        <div class="flex-grow-1" style="min-width: 200px;">
-            <PdvKpiCard Title="Compras / Entradas"
-                       Value="@stats.TotalPurchases.ToString()"
-                       Icon="@Icons.Material.Filled.AddShoppingCart"
-                       GradientType="PdvKpiCard.KpiGradientType.Success" />
+    }
+    else
+    {
+        <!-- KPI Cards -->
+        <div class="d-flex flex-wrap gap-4">
+            <div class="flex-grow-1" style="min-width: 200px;">
+                <PdvKpiCard Title="Total Movimientos"
+                            Value="@stats.TotalMovements.ToString()"
+                            Icon="@Icons.Material.Filled.History"
+                            GradientType="PdvKpiCard.KpiGradientType.Primary" />
+            </div>
+            <div class="flex-grow-1" style="min-width: 200px;">
+                <PdvKpiCard Title="Compras / Entradas"
+                            Value="@stats.TotalPurchases.ToString()"
+                            Icon="@Icons.Material.Filled.AddShoppingCart"
+                            GradientType="PdvKpiCard.KpiGradientType.Success" />
+            </div>
+            <div class="flex-grow-1" style="min-width: 200px;">
+                <PdvKpiCard Title="Ajustes / Mermas"
+                            Value="@stats.TotalAdjustments.ToString()"
+                            Icon="@Icons.Material.Filled.TrendingDown"
+                            GradientType="PdvKpiCard.KpiGradientType.Error" />
+            </div>
+            <div class="flex-grow-1" style="min-width: 200px;">
+                <PdvKpiCard Title="Traspasos"
+                            Value="@stats.TotalTransfers.ToString()"
+                            Icon="@Icons.Material.Filled.CompareArrows"
+                            GradientType="PdvKpiCard.KpiGradientType.Info" />
+            </div>
         </div>
-        <div class="flex-grow-1" style="min-width: 200px;">
-            <PdvKpiCard Title="Ajustes / Mermas"
-                       Value="@stats.TotalAdjustments.ToString()"
-                       Icon="@Icons.Material.Filled.TrendingDown"
-                       GradientType="PdvKpiCard.KpiGradientType.Error" />
-        </div>
-        <div class="flex-grow-1" style="min-width: 200px;">
-            <PdvKpiCard Title="Traspasos"
-                       Value="@stats.TotalTransfers.ToString()"
-                       Icon="@Icons.Material.Filled.CompareArrows"
-                       GradientType="PdvKpiCard.KpiGradientType.Info" />
-        </div>
-    </div>
 
-    <!-- Filters and Actions Panel -->
-    <MudPaper Class="pa-4 rounded-lg border border-solid border-gray-200" Elevation="0">
-        <MudGrid Class="align-center">
-            <!-- Search Product -->
-            <MudItem xs="12" sm="3">
-                <MudTextField T="string"
-                              Value="searchQuery"
-                              ValueChanged="OnSearchChanged"
-                              Placeholder="Buscar por producto o código..."
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search"
-                              Variant="Variant.Outlined"
-                              Margin="Margin.Dense"
-                              Clearable="true"
-                              Immediate="true"
-                              DebounceInterval="300"
-                              Class="premium-input" />
-            </MudItem>
+        <!-- Filters and Actions Panel -->
+        <MudPaper Class="pa-4 rounded-lg border border-solid border-gray-200" Elevation="0">
+            <MudGrid Class="align-center">
+                <!-- Search Product -->
+                <MudItem xs="12" sm="3">
+                    <MudTextField T="string"
+                                  Value="searchQuery"
+                                  ValueChanged="OnSearchChanged"
+                                  Placeholder="Buscar por producto o código..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Clearable="true"
+                                  Immediate="true"
+                                  DebounceInterval="300"
+                                  Class="premium-input" />
+                </MudItem>
 
-            <!-- Branch Filter -->
-            <MudItem xs="12" sm="2">
-                <MudSelect T="Guid?"
-                           Label="Sucursal"
-                           Value="filterBranchId"
-                           ValueChanged="OnBranchChanged"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           Class="premium-input">
-                    <MudSelectItem T="Guid?" Value="null">Todas las sucursales</MudSelectItem>
-                    @foreach (var branch in branches)
-                    {
-                        <MudSelectItem T="Guid?" Value="@branch.Id">@branch.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-
-            <!-- Movement Type Filter -->
-            <MudItem xs="12" sm="2">
-                <MudSelect T="InventoryMovementType?"
-                           Label="Tipo de Movimiento"
-                           Value="filterType"
-                           ValueChanged="OnTypeChanged"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           Class="premium-input">
-                    <MudSelectItem T="InventoryMovementType?" Value="null">Todos los tipos</MudSelectItem>
-                    <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Purchase">Compras</MudSelectItem>
-                    <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentInput">Ajustes Entrada</MudSelectItem>
-                    <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentOutput">Mermas / Ajustes Salida</MudSelectItem>
-                    <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Transfer">Traspasos</MudSelectItem>
-                    <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Sale">Ventas</MudSelectItem>
-                    <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Return">Devoluciones</MudSelectItem>
-                </MudSelect>
-            </MudItem>
-
-            <!-- Date Range Filter -->
-            <MudItem xs="12" sm="3" Class="d-flex gap-2">
-                <MudDatePicker Label="Desde"
-                               Date="startDate"
-                               DateChanged="OnStartDateChanged"
+                <!-- Branch Filter -->
+                <MudItem xs="12" sm="2">
+                    <MudSelect T="Guid?"
+                               Label="Sucursal"
+                               Value="filterBranchId"
+                               ValueChanged="OnBranchChanged"
                                Variant="Variant.Outlined"
                                Margin="Margin.Dense"
-                               Clearable="true"
-                               Class="premium-input" />
-                <MudDatePicker Label="Hasta"
-                               Date="endDate"
-                               DateChanged="OnEndDateChanged"
+                               Class="premium-input">
+                        <MudSelectItem T="Guid?" Value="null">Todas las sucursales</MudSelectItem>
+                        @foreach (var branch in branches)
+                        {
+                            <MudSelectItem T="Guid?" Value="@branch.Id">@branch.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <!-- Movement Type Filter -->
+                <MudItem xs="12" sm="2">
+                    <MudSelect T="InventoryMovementType?"
+                               Label="Tipo de Movimiento"
+                               Value="filterType"
+                               ValueChanged="OnTypeChanged"
                                Variant="Variant.Outlined"
                                Margin="Margin.Dense"
-                               Clearable="true"
-                               Class="premium-input" />
-            </MudItem>
+                               Class="premium-input">
+                        <MudSelectItem T="InventoryMovementType?" Value="null">Todos los tipos</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Purchase">Compras</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentInput">Ajustes Entrada</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentOutput">Mermas / Ajustes Salida</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Transfer">Traspasos</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Sale">Ventas</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Return">Devoluciones</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
 
-            <!-- Register Button -->
-            <MudItem xs="12" sm="2" Class="d-flex justify-end">
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="OpenRegisterDialog"
-                           Class="rounded-lg font-weight-bold"
-                           FullWidth="true"
-                           Style="height: 40px;">
-                    Registrar
-                </MudButton>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
+                <!-- Date Range Filter -->
+                <MudItem xs="12" sm="3" Class="d-flex gap-2">
+                    <MudDatePicker Label="Desde"
+                                   Date="startDate"
+                                   DateChanged="OnStartDateChanged"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Clearable="true"
+                                   Class="premium-input" />
+                    <MudDatePicker Label="Hasta"
+                                   Date="endDate"
+                                   DateChanged="OnEndDateChanged"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Clearable="true"
+                                   Class="premium-input" />
+                </MudItem>
 
-    <!-- Kardex Data Table -->
-    <MudPaper Class="pa-4 rounded-lg" Elevation="0">
-        <MudTable ServerData="LoadKardexData" @ref="table" Hover="true" Dense="false" Elevation="0" Bordered="false" Striped="true">
-            <HeaderContent>
-                <MudTh>Fecha</MudTh>
-                <MudTh>Producto</MudTh>
-                <MudTh>Sucursal</MudTh>
-                <MudTh>Tipo</MudTh>
-                <MudTh Style="text-align: right;">Cantidad</MudTh>
-                <MudTh>Observaciones</MudTh>
-                <MudTh>Ref / ID</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@context.Date.ToLocalTime().ToString("g")</MudTd>
-                <MudTd>
-                    <div class="d-flex flex-column">
-                        <span class="font-weight-bold">@context.ProductName</span>
-                        <span class="mud-text-secondary text-sm">@context.ProductCode</span>
-                    </div>
-                </MudTd>
-                <MudTd>@context.BranchName</MudTd>
-                <MudTd>
-                    @switch (context.Type)
-                    {
-                        case InventoryMovementType.Sale:
-                            <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.PointOfSale">Venta</MudChip>
-                            break;
-                        case InventoryMovementType.Purchase:
-                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.AddShoppingCart">Compra</MudChip>
-                            break;
-                        case InventoryMovementType.Return:
-                            <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.SettingsBackupRestore">Devolución</MudChip>
-                            break;
-                        case InventoryMovementType.AdjustmentInput:
-                            <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingUp">Ajuste Entrada</MudChip>
-                            break;
-                        case InventoryMovementType.AdjustmentOutput:
-                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingDown">Merma</MudChip>
-                            break;
-                        case InventoryMovementType.Transfer:
-                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.CompareArrows">Traspaso</MudChip>
-                            break;
-                    }
-                </MudTd>
-                <MudTd Style="text-align: right;">
-                    <span class="font-weight-bold" style="color: @(context.Quantity > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
-                        @(context.Quantity > 0 ? "+" : "")@context.Quantity.ToString("N3")
-                    </span>
-                </MudTd>
-                <MudTd>@context.Remarks</MudTd>
-                <MudTd>
-                    <span class="text-xs mud-text-secondary" style="font-family: monospace;">
-                        @(context.ReferenceId?.ToString().Substring(0, 8) ?? "-")
-                    </span>
-                </MudTd>
-            </RowTemplate>
-            <NoRecordsContent>
-                <MudText Align="Align.Center" Class="pa-4">No se encontraron movimientos registrados en el Kardex.</MudText>
-            </NoRecordsContent>
-            <PagerContent>
-                <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
-            </PagerContent>
-        </MudTable>
-    </MudPaper>
+                <!-- Register Button -->
+                <MudItem xs="12" sm="2" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="OpenRegisterDialog"
+                               Class="rounded-lg font-weight-bold"
+                               FullWidth="true"
+                               Style="height: 40px;">
+                        Registrar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- Kardex Data Table -->
+        <MudPaper Class="pa-4 rounded-lg" Elevation="0">
+            <MudTable ServerData="LoadKardexData" @ref="table" Hover="true" Dense="false" Elevation="0" Bordered="false" Striped="true">
+                <HeaderContent>
+                    <MudTh>Fecha</MudTh>
+                    <MudTh>Producto</MudTh>
+                    <MudTh>Sucursal</MudTh>
+                    <MudTh>Tipo</MudTh>
+                    <MudTh Style="text-align: right;">Cantidad</MudTh>
+                    <MudTh>Observaciones</MudTh>
+                    <MudTh>Ref / ID</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Date.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-column">
+                            <span class="font-weight-bold">@context.ProductName</span>
+                            <span class="mud-text-secondary text-sm">@context.ProductCode</span>
+                        </div>
+                    </MudTd>
+                    <MudTd>@context.BranchName</MudTd>
+                    <MudTd>
+                        @switch (context.Type)
+                        {
+                            case InventoryMovementType.Sale:
+                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.PointOfSale">Venta</MudChip>
+                                break;
+                            case InventoryMovementType.Purchase:
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.AddShoppingCart">Compra</MudChip>
+                                break;
+                            case InventoryMovementType.Return:
+                                <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.SettingsBackupRestore">Devolución</MudChip>
+                                break;
+                            case InventoryMovementType.AdjustmentInput:
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingUp">Ajuste Entrada</MudChip>
+                                break;
+                            case InventoryMovementType.AdjustmentOutput:
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingDown">Merma</MudChip>
+                                break;
+                            case InventoryMovementType.Transfer:
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.CompareArrows">Traspaso</MudChip>
+                                break;
+                        }
+                    </MudTd>
+                    <MudTd Style="text-align: right;">
+                        <span class="font-weight-bold" style="color: @(context.Quantity > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
+                            @(context.Quantity > 0 ? "+" : "")@context.Quantity.ToString("N3")
+                        </span>
+                    </MudTd>
+                    <MudTd>@context.Remarks</MudTd>
+                    <MudTd>
+                        <span class="text-xs mud-text-secondary" style="font-family: monospace;">
+                            @(context.ReferenceId?.ToString().Substring(0, 8) ?? "-")
+                        </span>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Align="Align.Center" Class="pa-4">No se encontraron movimientos registrados en el Kardex.</MudText>
+                </NoRecordsContent>
+                <PagerContent>
+                    <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+                </PagerContent>
+            </MudTable>
+        </MudPaper>
+    }
     </div>
 }
 
 @code {
+    private bool _isInitializing = true;
     private MudTable<InventoryMovementDto> table = default!;
     private List<BranchDto> branches = new();
     private InventoryStatsDto stats = new();
@@ -244,10 +253,12 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _isInitializing = true;
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
         await LoadSyncStatus();
         branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
         await LoadStats();
+        _isInitializing = false;
     }
 
     private void OnConnectionStatusChanged(bool isConnected)

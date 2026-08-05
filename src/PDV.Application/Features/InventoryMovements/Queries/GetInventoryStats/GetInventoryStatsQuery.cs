@@ -37,15 +37,34 @@ public class GetInventoryStatsQueryHandler : IRequestHandler<GetInventoryStatsQu
             query = query.Where(x => x.BranchId == request.BranchId.Value);
         }
 
-        if (request.StartDate.HasValue)
+        var startDate = request.StartDate;
+        if (startDate.HasValue)
         {
-            query = query.Where(x => x.Date >= request.StartDate.Value);
+            if (startDate.Value.Kind == DateTimeKind.Local)
+                startDate = startDate.Value.ToUniversalTime();
+            else if (startDate.Value.Kind == DateTimeKind.Unspecified)
+                startDate = DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc);
         }
 
-        if (request.EndDate.HasValue)
+        var endDate = request.EndDate;
+        if (endDate.HasValue)
         {
-            var endOfDay = request.EndDate.Value.Date.AddDays(1).AddSeconds(-1);
-            query = query.Where(x => x.Date <= endOfDay);
+            if (endDate.Value.Kind == DateTimeKind.Local)
+                endDate = endDate.Value.ToUniversalTime();
+            else if (endDate.Value.Kind == DateTimeKind.Unspecified)
+                endDate = DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc);
+        }
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(x => x.Date >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddSeconds(-1);
+            var endOfDayUtc = DateTime.SpecifyKind(endOfDay, DateTimeKind.Utc);
+            query = query.Where(x => x.Date <= endOfDayUtc);
         }
 
         var stats = new InventoryStatsDto
