@@ -1,0 +1,364 @@
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Products.Dtos
+@using PDV.Application.Features.Products.Queries.GetProductsWithPagination
+@using PDV.Application.Features.Products.Queries.GetProductStock
+@using PDV.Application.Features.InventoryMovements.Commands.RegisterInventoryMovement
+@using PDV.WebUI.Components.Pages.Sales
+@using PDV.Application.Features.Sync.Queries
+@using MediatR
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog Class="premium-inventory-dialog" Style="max-width: 600px; width: 100%;">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="d-flex align-center gap-2 font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Primary" />
+            Registrar Movimiento de Inventario
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid>
+                <!-- Tipo de Movimiento -->
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="InventoryMovementType" 
+                               Label="Tipo de Movimiento" 
+                               Value="selectedType" 
+                               ValueChanged="OnMovementTypeChanged"
+                               Variant="Variant.Outlined" 
+                               Margin="Margin.Dense" 
+                               Class="premium-input">
+                        <MudSelectItem Value="InventoryMovementType.Purchase">Compra / Entrada</MudSelectItem>
+                        <MudSelectItem Value="InventoryMovementType.AdjustmentInput">Ajuste de Entrada</MudSelectItem>
+                        <MudSelectItem Value="InventoryMovementType.AdjustmentOutput">Ajuste de Salida / Merma</MudSelectItem>
+                        <MudSelectItem Value="InventoryMovementType.Transfer">Traspaso entre Sucursales</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <!-- Sucursal Origen -->
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid" 
+                               Label="@(selectedType == InventoryMovementType.Transfer ? "Sucursal Origen" : "Sucursal")" 
+                               Value="selectedBranchId" 
+                               ValueChanged="OnBranchChanged"
+                               Variant="Variant.Outlined" 
+                               Margin="Margin.Dense" 
+                               Class="premium-input">
+                        @foreach (var branch in branches)
+                        {
+                            <MudSelectItem Value="@branch.Id">@branch.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <!-- Sucursal Destino (solo para Traspasos) -->
+                @if (selectedType == InventoryMovementType.Transfer)
+                {
+                    <MudItem xs="12">
+                        <MudSelect T="Guid?" 
+                                   Label="Sucursal Destino" 
+                                   @bind-Value="destinationBranchId" 
+                                   Variant="Variant.Outlined" 
+                                   Margin="Margin.Dense" 
+                                   Required="true"
+                                   Class="premium-input">
+                            <MudSelectItem T="Guid?" Value="null">-- Seleccionar Destino --</MudSelectItem>
+                            @foreach (var branch in branches.Where(b => b.Id != selectedBranchId))
+                            {
+                                <MudSelectItem T="Guid?" Value="@branch.Id">@branch.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+
+                <!-- Producto (Autocomplete + Lookup) -->
+                <MudItem xs="12" Class="d-flex align-center gap-2">
+                    <MudAutocomplete T="ProductDto" 
+                                     Label="Buscar Producto (Código o Nombre)" 
+                                     SearchFunc="SearchProduct" 
+                                     ToStringFunc="@(p => p == null ? "" : $"{p.Code} - {p.Name}")" 
+                                     Value="selectedProduct"
+                                     ValueChanged="OnProductSelected"
+                                     Variant="Variant.Outlined" 
+                                     Margin="Margin.Dense" 
+                                     ResetValueOnEmptyText="true"
+                                     CoerceText="false"
+                                     CoerceValue="false"
+                                     Class="flex-grow-1 premium-input" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Search" 
+                                   Color="Color.Primary" 
+                                   Variant="Variant.Outlined" 
+                                   Size="Size.Medium" 
+                                   OnClick="OpenAdvancedProductLookup"
+                                   Style="margin-top: 4px;"
+                                   title="Búsqueda Avanzada" />
+                </MudItem>
+
+                <!-- Stock Actual -->
+                @if (selectedProduct != null)
+                {
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-3 rounded-lg" Style="background-color: var(--mud-palette-background-gray);" Elevation="0">
+                            <div class="d-flex justify-between align-center">
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                    Stock Actual en Sucursal:
+                                </MudText>
+                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="@(currentStock > 0 ? Color.Success : Color.Error)">
+                                    @currentStock.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0") @(selectedProduct.SaleUnitName ?? "Pza")
+                                </MudText>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                }
+
+                <!-- Cantidad -->
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" 
+                                     Label="Cantidad" 
+                                     @bind-Value="quantity" 
+                                     Min="0.001m" 
+                                     Format="N3"
+                                     Variant="Variant.Outlined" 
+                                     Margin="Margin.Dense" 
+                                     Class="premium-input" />
+                </MudItem>
+
+                <!-- Unidad de Medida (ReadOnly helper) -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" 
+                                  Label="Unidad" 
+                                  Value="@(selectedProduct?.SaleUnitName ?? "Pieza")" 
+                                  ReadOnly="true" 
+                                  Variant="Variant.Outlined" 
+                                  Margin="Margin.Dense" 
+                                  Class="premium-input" />
+                </MudItem>
+
+                <!-- Observaciones / Comentarios -->
+                <MudItem xs="12">
+                    <MudTextField Label="Observaciones / Justificación" 
+                                  @bind-Value="remarks" 
+                                  Lines="2" 
+                                  Variant="Variant.Outlined" 
+                                  Margin="Margin.Dense" 
+                                  Class="premium-input" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined">Cancelar</MudButton>
+        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="isSubmitting">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                <MudText>Registrar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid InitialBranchId { get; set; }
+
+    private MudForm form = default!;
+    private List<BranchDto> branches = new();
+    private Guid selectedBranchId;
+    private Guid? destinationBranchId;
+    private InventoryMovementType selectedType = InventoryMovementType.Purchase;
+    private ProductDto? selectedProduct;
+    private decimal quantity = 1;
+    private decimal currentStock = 0;
+    private string remarks = string.Empty;
+    private bool isSubmitting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+            if (syncStatus.IsLocalMode)
+            {
+                Snackbar.Add("Las operaciones de inventario están deshabilitadas en modo Local.", Severity.Error);
+                MudDialog.Cancel();
+                return;
+            }
+        }
+        catch (Exception)
+        {
+            // Proceed
+        }
+
+        branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
+        selectedBranchId = InitialBranchId != Guid.Empty && branches.Any(b => b.Id == InitialBranchId)
+            ? InitialBranchId
+            : branches.FirstOrDefault()?.Id ?? Guid.Empty;
+    }
+
+    private async Task OnBranchChanged(Guid branchId)
+    {
+        selectedBranchId = branchId;
+        if (destinationBranchId == selectedBranchId)
+        {
+            destinationBranchId = null;
+        }
+        await LoadProductStock();
+    }
+
+    private void OnMovementTypeChanged(InventoryMovementType type)
+    {
+        selectedType = type;
+        if (selectedType != InventoryMovementType.Transfer)
+        {
+            destinationBranchId = null;
+        }
+    }
+
+    private async Task<IEnumerable<ProductDto>> SearchProduct(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Array.Empty<ProductDto>();
+
+        var result = await Mediator.Send(new GetProductsWithPaginationQuery
+        {
+            PageNumber = 1,
+            PageSize = 20,
+            SearchQuery = value,
+            BranchId = selectedBranchId
+        }, token);
+
+        return result.Items;
+    }
+
+    private async Task OnProductSelected(ProductDto? product)
+    {
+        selectedProduct = product;
+        await LoadProductStock();
+    }
+
+    private async Task LoadProductStock()
+    {
+        if (selectedProduct != null && selectedBranchId != Guid.Empty)
+        {
+            currentStock = await Mediator.Send(new GetProductStockQuery(selectedProduct.Id, selectedBranchId));
+        }
+        else
+        {
+            currentStock = 0;
+        }
+    }
+
+    private async Task OpenAdvancedProductLookup()
+    {
+        var parameters = new DialogParameters<ProductLookupDialog>();
+        if (selectedBranchId != Guid.Empty)
+        {
+            parameters.Add(x => x.BranchId, selectedBranchId);
+        }
+        
+        var dialog = await DialogService.ShowAsync<ProductLookupDialog>("Buscar Producto", parameters, new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Medium, 
+            FullWidth = true, 
+            CloseOnEscapeKey = true 
+        });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is ProductLookupDialog.ProductLookupResult lookupResult)
+        {
+            selectedProduct = new ProductDto
+            {
+                Id = lookupResult.Product.Id,
+                Name = lookupResult.Product.Name,
+                Code = lookupResult.Product.Code,
+                SaleType = lookupResult.Product.SaleType.ToString(),
+                SaleUnitName = lookupResult.Product.SaleUnitName,
+                ControlExistencia = (int)lookupResult.Product.ControlExistencia
+            };
+            quantity = lookupResult.QuantityOrWeight;
+            await LoadProductStock();
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (selectedProduct == null)
+        {
+            Snackbar.Add("Debe seleccionar un producto.", Severity.Warning);
+            return;
+        }
+
+        if (quantity <= 0)
+        {
+            Snackbar.Add("La cantidad debe ser mayor a cero.", Severity.Warning);
+            return;
+        }
+
+        if (selectedType == InventoryMovementType.Transfer)
+        {
+            if (destinationBranchId == null || destinationBranchId == Guid.Empty)
+            {
+                Snackbar.Add("Debe seleccionar la sucursal de destino.", Severity.Warning);
+                return;
+            }
+            if (selectedBranchId == destinationBranchId)
+            {
+                Snackbar.Add("La sucursal de origen y destino no pueden ser iguales.", Severity.Warning);
+                return;
+            }
+        }
+
+        // Validar stock si disminuye inventario y tiene control de existencia activo
+        var needsStockValidation = selectedType == InventoryMovementType.AdjustmentOutput || selectedType == InventoryMovementType.Transfer;
+        if (needsStockValidation && selectedProduct.ControlExistencia != (int)ControlExistencia.SinControl && currentStock < quantity)
+        {
+            Snackbar.Add($"Stock insuficiente en origen. Disponible: {currentStock.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0")}, Requerido: {quantity.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0")}", Severity.Error);
+            return;
+        }
+
+        isSubmitting = true;
+        try
+        {
+            var command = new RegisterInventoryMovementCommand
+            {
+                ProductId = selectedProduct.Id,
+                BranchId = selectedBranchId,
+                DestinationBranchId = destinationBranchId,
+                Quantity = quantity,
+                Type = selectedType,
+                Remarks = remarks
+            };
+
+            var success = await Mediator.Send(command);
+            if (success)
+            {
+                Snackbar.Add("Movimiento de inventario registrado con éxito.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add("No se pudo registrar el movimiento de inventario.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

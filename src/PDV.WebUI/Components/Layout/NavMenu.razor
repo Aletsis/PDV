@@ -1,3 +1,7 @@
+@using MediatR
+@using PDV.Application.Features.Sync.Queries
+@inject IMediator Mediator
+
 <MudNavMenu>
     <AuthorizeView Roles="Admin,Manager">
         <MudNavLink Href="dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
@@ -8,6 +12,10 @@
     <AuthorizeView Roles="Admin,Manager">
         <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>
         <MudNavLink Href="products" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
+        @if (!isLocalMode)
+        {
+            <MudNavLink Href="inventory" Icon="@Icons.Material.Filled.Inventory2">Inventario</MudNavLink>
+        }
         <MudNavLink Href="clients" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
         <MudNavLink Href="invoices" Icon="@Icons.Material.Filled.Description">Facturas</MudNavLink>
     </AuthorizeView>
@@ -24,3 +32,20 @@
         </MudNavGroup>
     </AuthorizeView>
 </MudNavMenu>
+
+@code {
+    private bool isLocalMode = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+            isLocalMode = syncStatus.IsLocalMode;
+        }
+        catch
+        {
+            isLocalMode = false;
+        }
+    }
+}
