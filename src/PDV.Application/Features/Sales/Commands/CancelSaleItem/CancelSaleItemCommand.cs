@@ -41,6 +41,7 @@ public class CancelSaleItemCommandHandler : IRequestHandler<CancelSaleItemComman
 
         // Obtener stock de la sucursal para incrementar
         var branchStock = await _context.ProductBranchStocks
+            .Include(s => s.Product)
             .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == sale.BranchId, cancellationToken);
 
         // create cancellation record
@@ -56,7 +57,7 @@ public class CancelSaleItemCommandHandler : IRequestHandler<CancelSaleItemComman
         _context.Cancellations.Add(cancellation);
 
         // Incrementar stock del producto
-        if (branchStock != null)
+        if (branchStock != null && branchStock.Product.ControlExistencia != ControlExistencia.SinControl)
         {
             branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión por artículo cancelado");
         }

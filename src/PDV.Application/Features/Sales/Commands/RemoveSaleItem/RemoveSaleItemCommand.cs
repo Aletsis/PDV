@@ -67,8 +67,9 @@ public class RemoveSaleItemCommandHandler : IRequestHandler<RemoveSaleItemComman
                 var product = await _context.Products.FindAsync(new object[] { saleItem.ProductId }, cancellationToken);
 
                 var branchStock = await _context.ProductBranchStocks
+                    .Include(s => s.Product)
                     .FirstOrDefaultAsync(s => s.ProductId == saleItem.ProductId && s.BranchId == sale.BranchId, cancellationToken);
-                if (branchStock != null)
+                if (branchStock != null && branchStock.Product.ControlExistencia != ControlExistencia.SinControl)
                 {
                     // Reintegrar stock (Kardex)
                     branchStock.ApplyMovement(saleItem.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión por artículo removido en POS");

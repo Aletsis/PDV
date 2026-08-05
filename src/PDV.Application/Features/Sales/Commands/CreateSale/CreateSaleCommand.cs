@@ -137,16 +137,19 @@ public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
                     var branchStock = await _context.ProductBranchStocks
                         .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == sale.BranchId, cancellationToken);
                     
-                    if (branchStock == null)
+                    if (product.ControlExistencia != ControlExistencia.SinControl)
                     {
-                        throw new InvalidOperationException(
-                            $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
-                    }
+                        if (branchStock == null)
+                        {
+                            throw new InvalidOperationException(
+                                $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                        }
 
-                    if (!branchStock.HasStock(quantity))
-                    {
-                        throw new InvalidOperationException(
-                            $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {quantity}");
+                        if (!branchStock.HasStock(quantity))
+                        {
+                            throw new InvalidOperationException(
+                                $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {quantity}");
+                        }
                     }
 
                     // Determinar decimal de taxRate e isTaxExempt a partir de product.TaxRate
@@ -181,7 +184,10 @@ public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
                     sale.AddItem(saleItem);
 
                     // Registrar movimiento de inventario transaccional (Kardex)
-                    branchStock.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
+                    if (product.ControlExistencia != ControlExistencia.SinControl && branchStock != null)
+                    {
+                        branchStock.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
+                    }
                 }
 
                 // Marcar como pagada si es necesario

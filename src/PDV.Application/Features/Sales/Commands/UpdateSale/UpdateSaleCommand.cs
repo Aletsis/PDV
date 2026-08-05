@@ -65,8 +65,9 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
                 foreach (var item in sale.Items)
                 {
                     var branchStock = await _context.ProductBranchStocks
+                        .Include(s => s.Product)
                         .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == sale.BranchId, cancellationToken);
-                    if (branchStock != null)
+                    if (branchStock != null && branchStock.Product.ControlExistencia != ControlExistencia.SinControl)
                     {
                         branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Sale, sale.Id, "Reversión temporal por edición de venta");
                     }
@@ -93,16 +94,19 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
                     var branchStock = await _context.ProductBranchStocks
                         .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == sale.BranchId, cancellationToken);
                     
-                    if (branchStock == null)
+                    if (product.ControlExistencia != ControlExistencia.SinControl)
                     {
-                        throw new InvalidOperationException(
-                            $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
-                    }
+                        if (branchStock == null)
+                        {
+                            throw new InvalidOperationException(
+                                $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                        }
 
-                    if (!branchStock.HasStock(quantity))
-                    {
-                        throw new InvalidOperationException(
-                            $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {quantity}");
+                        if (!branchStock.HasStock(quantity))
+                        {
+                            throw new InvalidOperationException(
+                                $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {quantity}");
+                        }
                     }
 
                     decimal taxRatePercent = 0m;
@@ -134,7 +138,10 @@ public class UpdateSaleCommandHandler : IRequestHandler<UpdateSaleCommand, Guid>
                     newItems.Add(saleItem);
 
                     // Aplicar movimiento de inventario transaccional (Kardex)
-                    branchStock.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
+                    if (product.ControlExistencia != ControlExistencia.SinControl && branchStock != null)
+                    {
+                        branchStock.ApplyMovement(-quantity, InventoryMovementType.Sale, sale.Id);
+                    }
                 }
 
                 // 4. Cargar los nuevos items en la venta (esto recalcula subtotales e impuestos en el dominio)

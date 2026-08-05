@@ -76,24 +76,27 @@ public class UpdateSaleItemQuantityCommandHandler : IRequestHandler<UpdateSaleIt
                 var branchStock = await _context.ProductBranchStocks
                     .FirstOrDefaultAsync(s => s.ProductId == saleItem.ProductId && s.BranchId == sale.BranchId, cancellationToken);
                 
-                if (branchStock == null)
+                if (product.ControlExistencia != ControlExistencia.SinControl)
                 {
-                    throw new InvalidOperationException(
-                        $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
-                }
-
-                if (delta > 0)
-                {
-                    // Validar si hay stock disponible para el incremento
-                    if (!branchStock.HasStock(delta))
+                    if (branchStock == null)
                     {
                         throw new InvalidOperationException(
-                            $"Stock insuficiente para el incremento del producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {delta}");
+                            $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                    }
+
+                    if (delta > 0)
+                    {
+                        // Validar si hay stock disponible para el incremento
+                        if (!branchStock.HasStock(delta))
+                        {
+                            throw new InvalidOperationException(
+                                $"Stock insuficiente para el incremento del producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {delta}");
+                        }
                     }
                 }
 
                 // Aplicar movimiento de stock proporcional (Kardex)
-                if (delta != 0)
+                if (delta != 0 && product.ControlExistencia != ControlExistencia.SinControl && branchStock != null)
                 {
                     branchStock.ApplyMovement(-delta, InventoryMovementType.Sale, sale.Id, $"Ajuste de cantidad a {request.NewQuantity} piezas");
                 }

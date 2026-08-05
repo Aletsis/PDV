@@ -99,7 +99,7 @@ public class ReturnSaleCommandHandler : IRequestHandler<ReturnSaleCommand, bool>
                 
                 var branchStock = await _context.ProductBranchStocks
                     .FirstOrDefaultAsync(s => s.ProductId == item.ProductId && s.BranchId == branchId, cancellationToken);
-                if (branchStock != null)
+                if (branchStock != null && product.ControlExistencia != ControlExistencia.SinControl)
                 {
                     branchStock.ApplyMovement(item.Quantity, InventoryMovementType.Return, sale.Id, "Devolución total de venta");
                 }

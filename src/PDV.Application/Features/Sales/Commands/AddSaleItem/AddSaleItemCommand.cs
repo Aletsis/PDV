@@ -67,16 +67,19 @@ public class AddSaleItemCommandHandler : IRequestHandler<AddSaleItemCommand, Gui
                 var branchStock = await _context.ProductBranchStocks
                     .FirstOrDefaultAsync(s => s.ProductId == product.Id && s.BranchId == sale.BranchId, cancellationToken);
                 
-                if (branchStock == null)
+                if (product.ControlExistencia != ControlExistencia.SinControl)
                 {
-                    throw new InvalidOperationException(
-                        $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
-                }
+                    if (branchStock == null)
+                    {
+                        throw new InvalidOperationException(
+                            $"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
+                    }
 
-                if (!branchStock.HasStock(request.Quantity))
-                {
-                    throw new InvalidOperationException(
-                        $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {request.Quantity}");
+                    if (!branchStock.HasStock(request.Quantity))
+                    {
+                        throw new InvalidOperationException(
+                            $"Stock insuficiente para el producto {product.Name} en esta sucursal. Disponible: {branchStock.Stock}, Requerido: {request.Quantity}");
+                    }
                 }
 
                 decimal taxRatePercent = 0m;
@@ -109,7 +112,10 @@ public class AddSaleItemCommandHandler : IRequestHandler<AddSaleItemCommand, Gui
                 _context.SaleItems.Add(saleItem);
 
                 // Registrar movimiento de inventario transaccional (Kardex)
-                branchStock.ApplyMovement(-request.Quantity, InventoryMovementType.Sale, sale.Id);
+                if (product.ControlExistencia != ControlExistencia.SinControl && branchStock != null)
+                {
+                    branchStock.ApplyMovement(-request.Quantity, InventoryMovementType.Sale, sale.Id);
+                }
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await _context.CommitTransactionAsync(cancellationToken);
