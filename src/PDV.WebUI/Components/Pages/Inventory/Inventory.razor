@@ -356,7 +356,7 @@ else
         var dialog = await DialogService.ShowAsync<RegisterMovementDialog>(
             "Registrar Movimiento", 
             parameters, 
-            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true }
+            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true }
         );
 
         var result = await dialog.Result;

@@ -13,7 +13,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudDialog Class="premium-inventory-dialog" Style="max-width: 600px; width: 100%;">
+<MudDialog Class="premium-inventory-dialog" Style="max-width: 800px; width: 100%;">
     <TitleContent>
         <MudText Typo="Typo.h5" Class="d-flex align-center gap-2 font-weight-bold">
             <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Primary" />
@@ -75,8 +75,14 @@
                     </MudItem>
                 }
 
+                <!-- Sección para Agregar Artículo -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mt-2">Agregar Artículo</MudText>
+                    <MudDivider Class="my-2" />
+                </MudItem>
+
                 <!-- Producto (Autocomplete + Lookup) -->
-                <MudItem xs="12" Class="d-flex align-center gap-2">
+                <MudItem xs="12" sm="8" Class="d-flex align-center gap-2">
                     <MudAutocomplete T="ProductDto" 
                                      Label="Buscar Producto (Código o Nombre)" 
                                      SearchFunc="SearchProduct" 
@@ -98,25 +104,8 @@
                                    title="Búsqueda Avanzada" />
                 </MudItem>
 
-                <!-- Stock Actual -->
-                @if (selectedProduct != null)
-                {
-                    <MudItem xs="12">
-                        <MudPaper Class="pa-3 rounded-lg" Style="background-color: var(--mud-palette-background-gray);" Elevation="0">
-                            <div class="d-flex justify-between align-center">
-                                <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                    Stock Actual en Sucursal:
-                                </MudText>
-                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="@(currentStock > 0 ? Color.Success : Color.Error)">
-                                    @currentStock.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0") @(selectedProduct.SaleUnitName ?? "Pza")
-                                </MudText>
-                            </div>
-                        </MudPaper>
-                    </MudItem>
-                }
-
                 <!-- Cantidad -->
-                <MudItem xs="12" sm="6">
+                <MudItem xs="12" sm="4">
                     <MudNumericField T="decimal" 
                                      Label="Cantidad" 
                                      @bind-Value="quantity" 
@@ -127,19 +116,76 @@
                                      Class="premium-input" />
                 </MudItem>
 
-                <!-- Unidad de Medida (ReadOnly helper) -->
-                <MudItem xs="12" sm="6">
-                    <MudTextField T="string" 
-                                  Label="Unidad" 
-                                  Value="@(selectedProduct?.SaleUnitName ?? "Pieza")" 
-                                  ReadOnly="true" 
-                                  Variant="Variant.Outlined" 
-                                  Margin="Margin.Dense" 
-                                  Class="premium-input" />
+                <!-- Stock Actual y Botón de Agregar -->
+                <MudItem xs="12" Class="d-flex align-center justify-between gap-4 mt-n2 mb-2">
+                    <div>
+                        @if (selectedProduct != null)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Stock Actual en Sucursal: <span class="font-weight-bold @(currentStock > 0 ? "text-success" : "text-danger")">
+                                    @currentStock.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0") @(selectedProduct.SaleUnitName ?? "Pza")
+                                </span>
+                            </MudText>
+                        }
+                    </div>
+                    <MudButton OnClick="AddItemToList" 
+                               StartIcon="@Icons.Material.Filled.Add" 
+                               Color="Color.Primary" 
+                               Variant="Variant.Outlined" 
+                               Size="Size.Small" 
+                               Class="premium-btn">
+                        Agregar al movimiento
+                    </MudButton>
+                </MudItem>
+
+                <!-- Sección: Artículos en el Movimiento -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mt-2">Artículos en el Movimiento</MudText>
+                    <MudDivider Class="my-2" />
+                    @if (addedItems.Count == 0)
+                    {
+                        <div class="d-flex flex-column align-center justify-center pa-6 rounded-lg mud-text-secondary" style="border: 2px dashed var(--mud-palette-lines-default); background-color: var(--mud-palette-background-gray);">
+                            <MudIcon Icon="@Icons.Material.Filled.Inbox" Size="Size.Medium" Class="mb-1" />
+                            <MudText Typo="Typo.body2">No se han agregado artículos al movimiento.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Hover="true" Striped="true" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default); border-radius: 8px; overflow: hidden;">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Producto</th>
+                                    <th style="text-align: right;">Stock Disp.</th>
+                                    <th style="text-align: right; width: 120px;">Cantidad</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in addedItems)
+                                {
+                                    <tr>
+                                        <td>@item.Product.Code</td>
+                                        <td>@item.Product.Name</td>
+                                        <td style="text-align: right;">@item.CurrentStock.ToString(item.Product.SaleType == "Bulk" ? "N3" : "N0") @(item.Product.SaleUnitName ?? "Pza")</td>
+                                        <td style="text-align: right;" class="font-weight-bold">
+                                            @item.Quantity.ToString(item.Product.SaleType == "Bulk" ? "N3" : "N0") @(item.Product.SaleUnitName ?? "Pza")
+                                        </td>
+                                        <td style="text-align: center;">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                           Color="Color.Error" 
+                                                           Size="Size.Small" 
+                                                           OnClick="@(() => RemoveItemFromList(item))" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
                 </MudItem>
 
                 <!-- Observaciones / Comentarios -->
-                <MudItem xs="12">
+                <MudItem xs="12" Class="mt-2">
                     <MudTextField Label="Observaciones / Justificación" 
                                   @bind-Value="remarks" 
                                   Lines="2" 
@@ -152,7 +198,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined">Cancelar</MudButton>
-        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="isSubmitting">
+        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="isSubmitting || addedItems.Count == 0">
             @if (isSubmitting)
             {
                 <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
@@ -171,8 +217,16 @@
 
     [Parameter] public Guid InitialBranchId { get; set; }
 
+    private class AddedMovementItem
+    {
+        public ProductDto Product { get; set; } = null!;
+        public decimal Quantity { get; set; }
+        public decimal CurrentStock { get; set; }
+    }
+
     private MudForm form = default!;
     private List<BranchDto> branches = new();
+    private List<AddedMovementItem> addedItems = new();
     private Guid selectedBranchId;
     private Guid? destinationBranchId;
     private InventoryMovementType selectedType = InventoryMovementType.Purchase;
@@ -212,6 +266,13 @@
         {
             destinationBranchId = null;
         }
+        
+        if (addedItems.Any())
+        {
+            addedItems.Clear();
+            Snackbar.Add("Se ha limpiado la lista de artículos debido al cambio de sucursal de origen.", Severity.Info);
+        }
+
         await LoadProductStock();
     }
 
@@ -290,9 +351,7 @@
         }
     }
 
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Submit()
+    private void AddItemToList()
     {
         if (selectedProduct == null)
         {
@@ -303,6 +362,57 @@
         if (quantity <= 0)
         {
             Snackbar.Add("La cantidad debe ser mayor a cero.", Severity.Warning);
+            return;
+        }
+
+        var existing = addedItems.FirstOrDefault(i => i.Product.Id == selectedProduct.Id);
+        var targetQty = quantity;
+        if (existing != null)
+        {
+            targetQty += existing.Quantity;
+        }
+
+        // Validar stock si disminuye inventario y tiene control de existencia activo
+        var needsStockValidation = selectedType == InventoryMovementType.AdjustmentOutput || selectedType == InventoryMovementType.Transfer;
+        if (needsStockValidation && selectedProduct.ControlExistencia != (int)ControlExistencia.SinControl && currentStock < targetQty)
+        {
+            Snackbar.Add($"Stock insuficiente en origen para '{selectedProduct.Name}'. Disponible: {currentStock.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0")}, Requerido: {targetQty.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0")}", Severity.Error);
+            return;
+        }
+
+        if (existing != null)
+        {
+            existing.Quantity = targetQty;
+        }
+        else
+        {
+            addedItems.Add(new AddedMovementItem
+            {
+                Product = selectedProduct,
+                Quantity = quantity,
+                CurrentStock = currentStock
+            });
+        }
+
+        selectedProduct = null;
+        quantity = 1;
+        currentStock = 0;
+        Snackbar.Add("Artículo agregado al movimiento.", Severity.Success);
+    }
+
+    private void RemoveItemFromList(AddedMovementItem item)
+    {
+        addedItems.Remove(item);
+        Snackbar.Add("Artículo removido del movimiento.", Severity.Info);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (addedItems.Count == 0)
+        {
+            Snackbar.Add("Debe agregar al menos un artículo al movimiento.", Severity.Warning);
             return;
         }
 
@@ -320,12 +430,18 @@
             }
         }
 
-        // Validar stock si disminuye inventario y tiene control de existencia activo
+        // Re-validar stock para todos los artículos agregados si el tipo de movimiento disminuye stock
         var needsStockValidation = selectedType == InventoryMovementType.AdjustmentOutput || selectedType == InventoryMovementType.Transfer;
-        if (needsStockValidation && selectedProduct.ControlExistencia != (int)ControlExistencia.SinControl && currentStock < quantity)
+        if (needsStockValidation)
         {
-            Snackbar.Add($"Stock insuficiente en origen. Disponible: {currentStock.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0")}, Requerido: {quantity.ToString(selectedProduct.SaleType == "Bulk" ? "N3" : "N0")}", Severity.Error);
-            return;
+            foreach (var item in addedItems)
+            {
+                if (item.Product.ControlExistencia != (int)ControlExistencia.SinControl && item.CurrentStock < item.Quantity)
+                {
+                    Snackbar.Add($"Stock insuficiente en origen para '{item.Product.Name}'. Disponible: {item.CurrentStock.ToString(item.Product.SaleType == "Bulk" ? "N3" : "N0")}, Requerido: {item.Quantity.ToString(item.Product.SaleType == "Bulk" ? "N3" : "N0")}", Severity.Error);
+                    return;
+                }
+            }
         }
 
         isSubmitting = true;
@@ -333,18 +449,21 @@
         {
             var command = new RegisterInventoryMovementCommand
             {
-                ProductId = selectedProduct.Id,
                 BranchId = selectedBranchId,
                 DestinationBranchId = destinationBranchId,
-                Quantity = quantity,
                 Type = selectedType,
-                Remarks = remarks
+                Remarks = remarks,
+                Items = addedItems.Select(i => new InventoryMovementItemCommand
+                {
+                    ProductId = i.Product.Id,
+                    Quantity = i.Quantity
+                }).ToList()
             };
 
             var success = await Mediator.Send(command);
             if (success)
             {
-                Snackbar.Add("Movimiento de inventario registrado con éxito.", Severity.Success);
+                Snackbar.Add("Movimientos de inventario registrados con éxito.", Severity.Success);
                 MudDialog.Close(DialogResult.Ok(true));
             }
             else

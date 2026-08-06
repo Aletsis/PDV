@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation;
@@ -13,26 +14,25 @@ namespace PDV.Application.Features.InventoryMovements.Commands.RegisterInventory
 
 public record RegisterInventoryMovementCommand : IRequest<bool>
 {
-    public Guid ProductId { get; init; }
     public Guid BranchId { get; init; }
     public Guid? DestinationBranchId { get; init; }
-    public decimal Quantity { get; init; }
     public InventoryMovementType Type { get; init; }
     public string? Remarks { get; init; }
+    public List<InventoryMovementItemCommand> Items { get; init; } = new();
+}
+
+public record InventoryMovementItemCommand
+{
+    public Guid ProductId { get; init; }
+    public decimal Quantity { get; init; }
 }
 
 public class RegisterInventoryMovementCommandValidator : AbstractValidator<RegisterInventoryMovementCommand>
 {
     public RegisterInventoryMovementCommandValidator()
     {
-        RuleFor(v => v.ProductId)
-            .NotEmpty().WithMessage("El ID de producto es requerido.");
-
         RuleFor(v => v.BranchId)
             .NotEmpty().WithMessage("La sucursal de origen es requerida.");
-
-        RuleFor(v => v.Quantity)
-            .GreaterThan(0).WithMessage("La cantidad debe ser mayor a cero.");
 
         RuleFor(v => v.Type)
             .IsInEnum().WithMessage("Tipo de movimiento inválido.");
@@ -40,6 +40,23 @@ public class RegisterInventoryMovementCommandValidator : AbstractValidator<Regis
         RuleFor(v => v.DestinationBranchId)
             .NotEmpty().When(v => v.Type == InventoryMovementType.Transfer)
             .WithMessage("La sucursal de destino es requerida para traspasos.");
+
+        RuleFor(v => v.Items)
+            .NotEmpty().WithMessage("Debe incluir al menos un artículo.");
+
+        RuleForEach(v => v.Items).SetValidator(new InventoryMovementItemCommandValidator());
+    }
+}
+
+public class InventoryMovementItemCommandValidator : AbstractValidator<InventoryMovementItemCommand>
+{
+    public InventoryMovementItemCommandValidator()
+    {
+        RuleFor(v => v.ProductId)
+            .NotEmpty().WithMessage("El ID de producto es requerido.");
+
+        RuleFor(v => v.Quantity)
+            .GreaterThan(0).WithMessage("La cantidad debe ser mayor a cero.");
     }
 }
 
@@ -65,10 +82,6 @@ public class RegisterInventoryMovementCommandHandler : IRequestHandler<RegisterI
             throw new DomainException("Las operaciones de inventario no están permitidas en modo local.");
         }
 
-        var product = await _context.Products.FindAsync(new object[] { request.ProductId }, cancellationToken);
-        if (product == null)
-            throw new KeyNotFoundException($"Producto con ID {request.ProductId} no encontrado.");
-
         if (request.Type != InventoryMovementType.Purchase &&
             request.Type != InventoryMovementType.AdjustmentInput &&
             request.Type != InventoryMovementType.AdjustmentOutput &&
@@ -77,57 +90,70 @@ public class RegisterInventoryMovementCommandHandler : IRequestHandler<RegisterI
             throw new DomainException("Tipo de movimiento no soportado en esta operación.");
         }
 
-        var sourceBranchStock = await _context.ProductBranchStocks
-            .FirstOrDefaultAsync(x => x.ProductId == request.ProductId && x.BranchId == request.BranchId, cancellationToken);
-
-        if (sourceBranchStock == null)
+        if (request.Items == null || request.Items.Count == 0)
         {
-            sourceBranchStock = new Domain.Entities.ProductBranchStock(request.ProductId, request.BranchId, 0, 0);
-            _context.ProductBranchStocks.Add(sourceBranchStock);
+            throw new DomainException("Debe especificar al menos un artículo para el movimiento.");
         }
 
-        if (request.Type == InventoryMovementType.Transfer)
+        // Generar un ReferenceId único para agrupar todo este lote/movimiento
+        var batchReferenceId = Guid.CreateVersion7();
+
+        foreach (var item in request.Items)
         {
-            if (request.DestinationBranchId == null || request.DestinationBranchId == Guid.Empty)
-                throw new DomainException("La sucursal de destino es requerida para un traspaso.");
+            var product = await _context.Products.FindAsync(new object[] { item.ProductId }, cancellationToken);
+            if (product == null)
+                throw new KeyNotFoundException($"Producto con ID {item.ProductId} no encontrado.");
 
-            if (request.BranchId == request.DestinationBranchId)
-                throw new DomainException("La sucursal de origen y destino no pueden ser iguales.");
+            var sourceBranchStock = await _context.ProductBranchStocks
+                .FirstOrDefaultAsync(x => x.ProductId == item.ProductId && x.BranchId == request.BranchId, cancellationToken);
 
-            var destBranchStock = await _context.ProductBranchStocks
-                .FirstOrDefaultAsync(x => x.ProductId == request.ProductId && x.BranchId == request.DestinationBranchId.Value, cancellationToken);
-
-            if (destBranchStock == null)
+            if (sourceBranchStock == null)
             {
-                destBranchStock = new Domain.Entities.ProductBranchStock(request.ProductId, request.DestinationBranchId.Value, 0, 0);
-                _context.ProductBranchStocks.Add(destBranchStock);
+                sourceBranchStock = new Domain.Entities.ProductBranchStock(item.ProductId, request.BranchId, 0, 0);
+                _context.ProductBranchStocks.Add(sourceBranchStock);
             }
 
-            // Validar stock si tiene control de existencia
-            if (product.ControlExistencia != ControlExistencia.SinControl && sourceBranchStock.Stock < request.Quantity)
+            if (request.Type == InventoryMovementType.Transfer)
             {
-                throw new DomainException($"Stock insuficiente en origen para realizar el traspaso. Disponible: {sourceBranchStock.Stock}, Requerido: {request.Quantity}");
-            }
+                if (request.DestinationBranchId == null || request.DestinationBranchId == Guid.Empty)
+                    throw new DomainException("La sucursal de destino es requerida para un traspaso.");
 
-            var transferId = Guid.CreateVersion7();
-            
-            sourceBranchStock.ApplyMovement(-request.Quantity, InventoryMovementType.Transfer, transferId, $"Traspaso (Salida) a sucursal de destino. {request.Remarks}");
-            destBranchStock.ApplyMovement(request.Quantity, InventoryMovementType.Transfer, transferId, $"Traspaso (Entrada) desde sucursal de origen. {request.Remarks}");
-        }
-        else if (request.Type == InventoryMovementType.AdjustmentOutput)
-        {
-            // Validar stock si tiene control de existencia
-            if (product.ControlExistencia != ControlExistencia.SinControl && sourceBranchStock.Stock < request.Quantity)
+                if (request.BranchId == request.DestinationBranchId)
+                    throw new DomainException("La sucursal de origen y destino no pueden ser iguales.");
+
+                var destBranchStock = await _context.ProductBranchStocks
+                    .FirstOrDefaultAsync(x => x.ProductId == item.ProductId && x.BranchId == request.DestinationBranchId.Value, cancellationToken);
+
+                if (destBranchStock == null)
+                {
+                    destBranchStock = new Domain.Entities.ProductBranchStock(item.ProductId, request.DestinationBranchId.Value, 0, 0);
+                    _context.ProductBranchStocks.Add(destBranchStock);
+                }
+
+                // Validar stock si tiene control de existencia
+                if (product.ControlExistencia != ControlExistencia.SinControl && sourceBranchStock.Stock < item.Quantity)
+                {
+                    throw new DomainException($"Stock insuficiente en origen para realizar el traspaso del producto '{product.Name}'. Disponible: {sourceBranchStock.Stock}, Requerido: {item.Quantity}");
+                }
+
+                sourceBranchStock.ApplyMovement(-item.Quantity, InventoryMovementType.Transfer, batchReferenceId, $"Traspaso (Salida) a sucursal de destino. {request.Remarks}");
+                destBranchStock.ApplyMovement(item.Quantity, InventoryMovementType.Transfer, batchReferenceId, $"Traspaso (Entrada) desde sucursal de origen. {request.Remarks}");
+            }
+            else if (request.Type == InventoryMovementType.AdjustmentOutput)
             {
-                throw new DomainException($"Stock insuficiente para realizar el ajuste de salida. Disponible: {sourceBranchStock.Stock}, Requerido: {request.Quantity}");
-            }
+                // Validar stock si tiene control de existencia
+                if (product.ControlExistencia != ControlExistencia.SinControl && sourceBranchStock.Stock < item.Quantity)
+                {
+                    throw new DomainException($"Stock insuficiente para realizar el ajuste de salida del producto '{product.Name}'. Disponible: {sourceBranchStock.Stock}, Requerido: {item.Quantity}");
+                }
 
-            sourceBranchStock.ApplyMovement(-request.Quantity, InventoryMovementType.AdjustmentOutput, remarks: request.Remarks);
-        }
-        else
-        {
-            // Purchase o AdjustmentInput (Entradas positivas)
-            sourceBranchStock.ApplyMovement(request.Quantity, request.Type, remarks: request.Remarks);
+                sourceBranchStock.ApplyMovement(-item.Quantity, InventoryMovementType.AdjustmentOutput, batchReferenceId, remarks: request.Remarks);
+            }
+            else
+            {
+                // Purchase o AdjustmentInput (Entradas positivas)
+                sourceBranchStock.ApplyMovement(item.Quantity, request.Type, batchReferenceId, remarks: request.Remarks);
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);

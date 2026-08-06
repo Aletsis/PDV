@@ -47,11 +47,13 @@ public class RegisterInventoryMovementTests
         var handler = new RegisterInventoryMovementCommandHandler(context);
         var command = new RegisterInventoryMovementCommand
         {
-            ProductId = product.Id,
             BranchId = branch.Id,
-            Quantity = 5m,
             Type = InventoryMovementType.Purchase,
-            Remarks = "Compra de mercancía"
+            Remarks = "Compra de mercancía",
+            Items = new List<InventoryMovementItemCommand>
+            {
+                new() { ProductId = product.Id, Quantity = 5m }
+            }
         };
 
         // Act
@@ -94,11 +96,13 @@ public class RegisterInventoryMovementTests
         var handler = new RegisterInventoryMovementCommandHandler(context);
         var command = new RegisterInventoryMovementCommand
         {
-            ProductId = product.Id,
             BranchId = branch.Id,
-            Quantity = 3m,
             Type = InventoryMovementType.AdjustmentOutput,
-            Remarks = "Merma de botanas dañadas"
+            Remarks = "Merma de botanas dañadas",
+            Items = new List<InventoryMovementItemCommand>
+            {
+                new() { ProductId = product.Id, Quantity = 3m }
+            }
         };
 
         // Act
@@ -141,11 +145,13 @@ public class RegisterInventoryMovementTests
         var handler = new RegisterInventoryMovementCommandHandler(context);
         var command = new RegisterInventoryMovementCommand
         {
-            ProductId = product.Id,
             BranchId = branch.Id,
-            Quantity = 5m,
             Type = InventoryMovementType.AdjustmentOutput,
-            Remarks = "Merma grande"
+            Remarks = "Merma grande",
+            Items = new List<InventoryMovementItemCommand>
+            {
+                new() { ProductId = product.Id, Quantity = 5m }
+            }
         };
 
         // Act & Assert
@@ -175,12 +181,14 @@ public class RegisterInventoryMovementTests
         var handler = new RegisterInventoryMovementCommandHandler(context);
         var command = new RegisterInventoryMovementCommand
         {
-            ProductId = product.Id,
             BranchId = sourceBranch.Id,
             DestinationBranchId = destBranch.Id,
-            Quantity = 4m,
             Type = InventoryMovementType.Transfer,
-            Remarks = "Traspaso de excedente"
+            Remarks = "Traspaso de excedente",
+            Items = new List<InventoryMovementItemCommand>
+            {
+                new() { ProductId = product.Id, Quantity = 4m }
+            }
         };
 
         // Act
@@ -221,6 +229,65 @@ public class RegisterInventoryMovementTests
     }
 
     [Fact]
+    public async Task RegisterInventoryMovement_MultipleItems_AppliesStockChangesAndRegistersMovements()
+    {
+        // Arrange
+        var options = CreateNewContextOptions();
+        await using var context = new AppDbContext(options);
+
+        var product1 = new Product("Sabritas 40g", "SAB-40G", 15m, SaleType.Piece, TaxRateType.Rate16, "Botanas");
+        var product2 = new Product("Coca Cola 600ml", "COCA-600", 18m, SaleType.Piece, TaxRateType.Rate16, "Refrescos");
+        context.Products.AddRange(product1, product2);
+
+        var branch = new Branch("Sucursal Norte", "SN001", null, "5551112222");
+        context.Branches.Add(branch);
+
+        var stock1 = new ProductBranchStock(product1.Id, branch.Id, 10m, 2m);
+        var stock2 = new ProductBranchStock(product2.Id, branch.Id, 20m, 5m);
+        context.ProductBranchStocks.AddRange(stock1, stock2);
+
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new RegisterInventoryMovementCommandHandler(context);
+        var command = new RegisterInventoryMovementCommand
+        {
+            BranchId = branch.Id,
+            Type = InventoryMovementType.Purchase,
+            Remarks = "Compra lote mixto",
+            Items = new List<InventoryMovementItemCommand>
+            {
+                new() { ProductId = product1.Id, Quantity = 5m },
+                new() { ProductId = product2.Id, Quantity = 10m }
+            }
+        };
+
+        // Act
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        Assert.True(result);
+
+        var updatedStock1 = await context.ProductBranchStocks.FirstAsync(s => s.ProductId == product1.Id && s.BranchId == branch.Id);
+        var updatedStock2 = await context.ProductBranchStocks.FirstAsync(s => s.ProductId == product2.Id && s.BranchId == branch.Id);
+        Assert.Equal(15m, updatedStock1.Stock);
+        Assert.Equal(30m, updatedStock2.Stock);
+
+        var movements = await context.InventoryMovements.Where(m => m.BranchId == branch.Id).ToListAsync();
+        Assert.Equal(2, movements.Count);
+
+        var mov1 = movements.First(m => m.ProductId == product1.Id);
+        var mov2 = movements.First(m => m.ProductId == product2.Id);
+        Assert.Equal(5m, mov1.Quantity);
+        Assert.Equal(10m, mov2.Quantity);
+        Assert.Equal(InventoryMovementType.Purchase, mov1.Type);
+        Assert.Equal(InventoryMovementType.Purchase, mov2.Type);
+
+        // Deberían compartir el mismo ReferenceId (batchReferenceId)
+        Assert.NotNull(mov1.ReferenceId);
+        Assert.Equal(mov1.ReferenceId, mov2.ReferenceId);
+    }
+
+    [Fact]
     public async Task RegisterInventoryMovement_InLocalMode_ThrowsDomainException()
     {
         // Arrange
@@ -255,11 +322,13 @@ public class RegisterInventoryMovementTests
         var handler = new RegisterInventoryMovementCommandHandler(context);
         var command = new RegisterInventoryMovementCommand
         {
-            ProductId = productInDb.Id,
             BranchId = branchInDb.Id,
-            Quantity = 5m,
             Type = InventoryMovementType.Purchase,
-            Remarks = "Intento de compra en modo local"
+            Remarks = "Intento de compra en modo local",
+            Items = new List<InventoryMovementItemCommand>
+            {
+                new() { ProductId = productInDb.Id, Quantity = 5m }
+            }
         };
 
         // Act & Assert
