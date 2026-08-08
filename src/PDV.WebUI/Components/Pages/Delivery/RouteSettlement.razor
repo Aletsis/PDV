@@ -9,6 +9,7 @@
 @inject ISnackbar Snackbar
 @inject IIdentityService IdentityService
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject AuthenticationStateProvider AuthStateProvider
 @attribute [Authorize]
 
 <PageTitle>Liquidación de Rutas</PageTitle>
@@ -64,9 +65,9 @@
                                     <MudTd>@(context.Order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta")</MudTd>
                                     <MudTd>@context.Order.TotalAmount.ToString("C2")</MudTd>
                                     <MudTd>
-                                        <MudRadioGroup T="bool" SelectedOption="@context.Delivered" SelectedOptionChanged="@(val => OnOrderDeliveryStatusChanged(context, val))">
-                                            <MudRadio Option="@(true)" Color="Color.Success">Sí</MudRadio>
-                                            <MudRadio Option="@(false)" Color="Color.Error">No</MudRadio>
+                                        <MudRadioGroup T="bool" Value="@context.Delivered" ValueChanged="@(val => OnOrderDeliveryStatusChanged(context, val))">
+                                            <MudRadio T="bool" Value="true" Color="Color.Success">Sí</MudRadio>
+                                            <MudRadio T="bool" Value="false" Color="Color.Error">No</MudRadio>
                                         </MudRadioGroup>
                                     </MudTd>
                                     <MudTd>
@@ -174,10 +175,10 @@
         _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
         { 
             Status = DeliveryRouteStatus.EnRoute,
-            BranchId = ShiftSession.ActiveShift?.CashRegister?.BranchId
+            BranchId = ShiftSession.BranchId
         });
 
-        _users = await IdentityService.GetUsersAsync();
+        _users = await IdentityService.GetUsersAsync(default);
         _selectedRoute = null;
         _settlements.Clear();
         StateHasChanged();
@@ -227,11 +228,14 @@
 
         try
         {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.Identity?.Name ?? "system";
+
             var command = new SettleDeliveryRouteCommand
             {
                 RouteId = _selectedRoute!.Id,
-                CashRegisterId = ShiftSession.ActiveShift!.CashRegisterId,
-                UserId = ShiftSession.ActiveShift.UserId,
+                CashRegisterId = ShiftSession.ActiveCashRegisterId ?? Guid.Empty,
+                UserId = userId,
                 Settlements = _settlements.Select(s => new OrderSettlementResultDto
                 {
                     OrderId = s.Order.Id,

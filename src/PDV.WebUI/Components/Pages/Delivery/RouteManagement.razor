@@ -183,17 +183,17 @@
         _pendingOrders = await Mediator.Send(new GetOrdersQuery 
         { 
             Status = OrderStatus.Confirmed,
-            BranchId = ShiftSession.ActiveShift?.CashRegister?.BranchId
+            BranchId = ShiftSession.BranchId
         });
 
         // 2. Cargar repartidores / usuarios del sistema
-        _deliveryMen = await IdentityService.GetUsersAsync();
+        _deliveryMen = await IdentityService.GetUsersAsync(default);
 
         // 3. Cargar rutas activas en estado "EnRoute"
         _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
         { 
             Status = DeliveryRouteStatus.EnRoute,
-            BranchId = ShiftSession.ActiveShift?.CashRegister?.BranchId
+            BranchId = ShiftSession.BranchId
         });
 
         _selectedOrders.Clear();
@@ -222,7 +222,7 @@
             // 1. Crear la Ruta
             var createCommand = new CreateDeliveryRouteCommand
             {
-                BranchId = ShiftSession.ActiveShift!.CashRegister!.BranchId,
+                BranchId = ShiftSession.BranchId ?? Guid.Empty,
                 DeliveryManId = _selectedDeliveryManId,
                 OrderIds = _selectedOrders.Select(o => o.Id).ToList()
             };
@@ -234,7 +234,7 @@
             Snackbar.Add($"Ruta #{_selectedOrders.Count} despachada con éxito.", Severity.Success);
 
             // 3. Imprimir el comprobante de arqueo / manifiesto
-            await Mediator.Send(new PrintRouteManifestCommand(routeId, ShiftSession.ActiveShift.CashRegisterId));
+            await Mediator.Send(new PrintRouteManifestCommand(routeId, ShiftSession.ActiveCashRegisterId ?? Guid.Empty));
 
             await RefreshDataAsync();
         }
@@ -248,7 +248,7 @@
     {
         try
         {
-            await Mediator.Send(new PrintRouteManifestCommand(routeId, ShiftSession.ActiveShift!.CashRegisterId));
+            await Mediator.Send(new PrintRouteManifestCommand(routeId, ShiftSession.ActiveCashRegisterId ?? Guid.Empty));
             Snackbar.Add("Manifiesto enviado a la impresora.", Severity.Info);
         }
         catch (Exception ex)

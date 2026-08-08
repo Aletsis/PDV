@@ -6,7 +6,9 @@
 @using PDV.Application.Features.Products.Queries.GetProducts
 @using PDV.Application.Features.Orders.Commands.CreateOrder
 @using PDV.Application.Features.Orders.Commands.PrintOrderTicket
+@using PDV.Domain.Entities
 @using PDV.Domain.Enums
+@using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -332,7 +334,7 @@
             var command = new CreateOrderCommand
             {
                 ClientId = _selectedClient!.Id,
-                CashRegisterId = ShiftSession.ActiveShift!.CashRegisterId,
+                CashRegisterId = ShiftSession.ActiveCashRegisterId ?? Guid.Empty,
                 PaymentMethod = _paymentMethod,
                 UserId = userId,
                 Items = _cart.Select(x => new OrderCartItemDto
@@ -346,7 +348,7 @@
             Snackbar.Add("Pedido registrado exitosamente.", Severity.Success);
 
             // Imprimir el ticket de forma asíncrona
-            await Mediator.Send(new PrintOrderTicketCommand(orderId, ShiftSession.ActiveShift.CashRegisterId));
+            await Mediator.Send(new PrintOrderTicketCommand(orderId, ShiftSession.ActiveCashRegisterId ?? Guid.Empty));
 
             ClearOrder();
         }

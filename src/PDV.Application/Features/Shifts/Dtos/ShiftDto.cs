@@ -6,6 +6,7 @@ public class ShiftDto
 {
     public Guid Id { get; set; }
     public Guid CashRegisterId { get; set; }
+    public Guid? BranchId { get; set; }
     public string CashRegisterName { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public decimal InitialCash { get; set; }

@@ -40,6 +40,7 @@ public class GetActiveShiftByUserIdQueryHandler
         {
             Id = shift.Id,
             CashRegisterId = shift.CashRegisterId,
+            BranchId = shift.CashRegister?.BranchId,
             CashRegisterName = shift.CashRegister?.Name ?? string.Empty,
             UserId = shift.UserId,
             InitialCash = shift.InitialCash,

@@ -382,7 +382,8 @@
                             activeShift.CashRegisterId,
                             activeShift.CashRegisterName,
                             activeShift.InitialCash,
-                            activeShift.StartTime);
+                            activeShift.StartTime,
+                            activeShift.BranchId ?? cashRegister.BranchId);
                         
                         hasAlreadyOpenShift = true;
                         
@@ -492,7 +493,8 @@
                 cashRegister.Id,
                 cashRegister.Name,
                 initialCash,
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                cashRegister.BranchId
             );
 
             Snackbar.Add($"¡Turno abierto en {cashRegister.Name}! Fondo: ${initialCash:F2}", Severity.Success);
