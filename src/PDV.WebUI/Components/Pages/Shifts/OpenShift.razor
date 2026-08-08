@@ -353,18 +353,30 @@
                 cookieRegisterId = id;
             }
 
-            // Seleccionar caja
+            // Jerarquía de selección de caja:
+            // 1) Parámetro explícito de URL (?cashRegisterId=...)
+            // 2) Vinculación física por IP de la terminal (Máxima prioridad de red)
+            // 3) Asignación directa por usuario
+            // 4) Fallback: Cookie de terminal (solo si la caja guardada no tiene una IP en conflicto con la actual)
             if (CashRegisterId.HasValue && CashRegisterId.Value != Guid.Empty)
             {
                 cashRegister = await Mediator.Send(new GetCashRegisterQuery(CashRegisterId.Value));
             }
+            else if (registerByIp != null)
+            {
+                cashRegister = registerByIp;
+            }
+            else if (registerByUser != null)
+            {
+                cashRegister = registerByUser;
+            }
             else if (cookieRegisterId.HasValue)
             {
-                cashRegister = await Mediator.Send(new GetCashRegisterQuery(cookieRegisterId.Value));
-            }
-            else
-            {
-                cashRegister = registerByIp ?? registerByUser;
+                var candidate = await Mediator.Send(new GetCashRegisterQuery(cookieRegisterId.Value));
+                if (candidate != null && (string.IsNullOrEmpty(candidate.IpAddress) || candidate.IpAddress == clientIp))
+                {
+                    cashRegister = candidate;
+                }
             }
 
             // 4. Validar Turnos Activos
@@ -539,31 +551,25 @@
     {
         try
         {
-            var localIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_cash_register_id");
-            string? cookieIdStr = null;
-            var httpContext = HttpContextAccessor.HttpContext;
-            if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr))
-            {
-                cookieIdStr = idStr;
-            }
-
-            if (Guid.TryParse(localIdStr, out var localId))
-            {
-                if (cookieIdStr != localIdStr)
-                {
-                    await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={localIdStr}; path=/; max-age=2592000; Secure; SameSite=Lax'");
-                    if (cashRegister?.Id != localId)
-                    {
-                        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
-                        return;
-                    }
-                }
-            }
-            else if (cashRegister != null)
+            if (cashRegister != null)
             {
                 var regId = cashRegister.Id.ToString();
-                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_cash_register_id", regId);
-                await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={regId}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+                var localIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_cash_register_id");
+                string? cookieIdStr = null;
+                var httpContext = HttpContextAccessor.HttpContext;
+                if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr))
+                {
+                    cookieIdStr = idStr;
+                }
+
+                if (localIdStr != regId)
+                {
+                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_cash_register_id", regId);
+                }
+                if (cookieIdStr != regId)
+                {
+                    await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={regId}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+                }
             }
         }
         catch (Exception ex)
