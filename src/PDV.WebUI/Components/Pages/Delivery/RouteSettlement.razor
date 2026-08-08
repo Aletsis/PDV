@@ -66,8 +66,8 @@
                                     <MudTd>@context.Order.TotalAmount.ToString("C2")</MudTd>
                                     <MudTd>
                                         <MudRadioGroup T="bool" Value="@context.Delivered" ValueChanged="@(val => OnOrderDeliveryStatusChanged(context, val))">
-                                            <MudRadio T="bool" Value="true" Color="Color.Success">Sí</MudRadio>
-                                            <MudRadio T="bool" Value="false" Color="Color.Error">No</MudRadio>
+                                            <MudRadio T="bool" Value="@true" Color="Color.Success">Sí</MudRadio>
+                                            <MudRadio T="bool" Value="@false" Color="Color.Error">No</MudRadio>
                                         </MudRadioGroup>
                                     </MudTd>
                                     <MudTd>

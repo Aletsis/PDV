@@ -3,19 +3,35 @@
 @using PDV.Application.Features.DeliveryZones.Commands.CreateDeliveryZone
 @using PDV.Application.Features.DeliveryZones.Commands.DeleteDeliveryZone
 @using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
 @using PDV.Domain.Entities
 @inject IMediator Mediator
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
 @attribute [Authorize(Roles = "Admin,Manager")]
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudText Typo="Typo.h4" GutterBottom="true">Zonas de Reparto</MudText>
-    <MudText Typo="Typo.body1" Class="mb-4">Configure las zonas de reparto geográficas dibujando polígonos sobre el mapa.</MudText>
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" GutterBottom="true">Zonas de Reparto</MudText>
+            <MudText Typo="Typo.body1">Configure las zonas de reparto geográficas dibujando polígonos sobre el mapa asignados a cada sucursal.</MudText>
+        </div>
+        <div style="min-width: 250px;">
+            <MudSelect T="Guid?" Label="Filtrar por Sucursal" Value="_filterBranchId" ValueChanged="OnFilterBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem Value="@((Guid?)null)">Todas las Sucursales</MudSelectItem>
+                @foreach (var branch in _branches)
+                {
+                    <MudSelectItem Value="@((Guid?)branch.Id)">@branch.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </div>
 
     <MudGrid>
         <MudItem xs="12" md="8">
-            <MudCard Elevation="3" Style="height: 550px; position: relative;">
+            <MudCard Elevation="3" Style="height: 580px; position: relative;">
                 <MudCardContent Style="height: 100%; padding: 0;">
                     <div id="zone-map" style="height: 100%; width: 100%; border-radius: 4px;"></div>
                 </MudCardContent>
@@ -30,10 +46,17 @@
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent>
+                    <MudSelect T="Guid?" Label="Sucursal Responsable" @bind-Value="_selectedBranchId" Variant="Variant.Outlined" Class="mb-3" Required="true" AnchorOrigin="Origin.BottomCenter" HelperText="Seleccione a qué sucursal pertenece esta zona">
+                        @foreach (var branch in _branches)
+                        {
+                            <MudSelectItem Value="@((Guid?)branch.Id)">@branch.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+
                     <MudTextField @bind-Value="_zoneName" Label="Nombre de la Zona" Variant="Variant.Outlined" Class="mb-3" HelperText="Ej: Zona Metropolitana Sur" />
                     <MudNumericField @bind-Value="_deliveryCost" Label="Costo de Envío ($)" Variant="Variant.Outlined" Format="C2" Min="0" Class="mb-3" />
                     
-                    <MudText Typo="Typo.subtitle2" Color="Color.Info" Class="mb-2">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Info" Class="mb-1">
                         Puntos dibujados: @_currentCoords.Count
                     </MudText>
                     <MudText Typo="Typo.caption" Class="d-block mb-3">
@@ -54,13 +77,13 @@
             <MudCard Elevation="3">
                 <MudCardHeader>
                     <CardHeaderContent>
-                        <MudText Typo="Typo.h6">Zonas Registradas</MudText>
+                        <MudText Typo="Typo.h6">Zonas Registradas (@_zones.Count)</MudText>
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent Style="max-height: 250px; overflow-y: auto;">
                     @if (_zones == null || _zones.Count == 0)
                     {
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">No hay zonas configuradas actualmente.</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No hay zonas configuradas para la sucursal seleccionada.</MudText>
                     }
                     else
                     {
@@ -70,7 +93,13 @@
                                 <MudListItem Icon="@Icons.Material.Filled.LocationOn" IconColor="Color.Success">
                                     <div class="d-flex align-center justify-space-between w-100">
                                         <div>
-                                            <MudText Typo="Typo.body1">@zone.Name</MudText>
+                                            <div class="d-flex align-center gap-1">
+                                                <MudText Typo="Typo.body1" Class="font-weight-bold">@zone.Name</MudText>
+                                                @if (zone.Branch != null)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">@zone.Branch.Name</MudChip>
+                                                }
+                                            </div>
                                             <MudText Typo="Typo.caption" Color="Color.Secondary">Costo: @zone.DeliveryCost.ToString("C2")</MudText>
                                         </div>
                                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => DeleteZone(zone.Id)" />
@@ -88,15 +117,29 @@
 @code {
     private string _zoneName = string.Empty;
     private decimal _deliveryCost = 0m;
+    private Guid? _selectedBranchId;
+    private Guid? _filterBranchId;
+    private List<BranchDto> _branches = new();
     private List<double[]> _currentCoords = new();
     private List<DeliveryZone> _zones = new();
     private DotNetObjectReference<DeliveryZonesMap>? _dotNetRef;
 
-    private bool IsSaveEnabled => !string.IsNullOrWhiteSpace(_zoneName) && _currentCoords.Count >= 3;
+    private bool IsSaveEnabled => !string.IsNullOrWhiteSpace(_zoneName) && _currentCoords.Count >= 3 && _selectedBranchId.HasValue && _selectedBranchId.Value != Guid.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         _dotNetRef = DotNetObjectReference.Create(this);
+        _branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
+        
+        if (ShiftSession.BranchId.HasValue && _branches.Any(b => b.Id == ShiftSession.BranchId.Value))
+        {
+            _selectedBranchId = ShiftSession.BranchId.Value;
+        }
+        else if (_branches.Count > 0)
+        {
+            _selectedBranchId = _branches[0].Id;
+        }
+
         await LoadZonesAsync();
     }
 
@@ -110,9 +153,20 @@
         }
     }
 
+    private async Task OnFilterBranchChanged(Guid? branchId)
+    {
+        _filterBranchId = branchId;
+        if (branchId.HasValue)
+        {
+            _selectedBranchId = branchId.Value;
+        }
+        await LoadZonesAsync();
+        await RefreshMapZonesAsync();
+    }
+
     private async Task LoadZonesAsync()
     {
-        _zones = await Mediator.Send(new GetDeliveryZonesQuery { OnlyActive = true });
+        _zones = await Mediator.Send(new GetDeliveryZonesQuery { OnlyActive = true, BranchId = _filterBranchId });
     }
 
     private async Task RefreshMapZonesAsync()
@@ -136,6 +190,12 @@
 
     private async Task SaveZone()
     {
+        if (!_selectedBranchId.HasValue || _selectedBranchId.Value == Guid.Empty)
+        {
+            Snackbar.Add("Debe seleccionar una sucursal para la zona.", Severity.Warning);
+            return;
+        }
+
         try
         {
             // Convertir coordenadas a JSON array [[lat, lng], [lat, lng], ...]
@@ -144,7 +204,7 @@
             var command = new CreateDeliveryZoneCommand
             {
                 Name = _zoneName,
-                BranchId = Guid.Empty, // Asignada por la sucursal actual del manager en backend (o vacía por defecto)
+                BranchId = _selectedBranchId.Value,
                 PolygonCoordinatesJson = jsonCoords,
                 DeliveryCost = _deliveryCost
             };

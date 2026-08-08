@@ -27,7 +27,9 @@ public class GetDeliveryZonesQueryHandler : IRequestHandler<GetDeliveryZonesQuer
 
     public async Task<List<DeliveryZone>> Handle(GetDeliveryZonesQuery request, CancellationToken cancellationToken)
     {
-        var query = _context.DeliveryZones.AsQueryable();
+        var query = _context.DeliveryZones
+            .Include(z => z.Branch)
+            .AsQueryable();
 
         if (request.BranchId.HasValue)
         {
