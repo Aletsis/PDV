@@ -17,7 +17,7 @@ public static class AppDbContextSeed
         AppDbContext context)
     {
         // 1. Asegurar la existencia de los roles principales
-        var roles = new[] { "Admin", "Manager", "Cashier" };
+        var roles = new[] { "Admin", "Manager", "Cashier", "DeliveryMan" };
         foreach (var roleName in roles)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
@@ -54,7 +54,13 @@ public static class AppDbContextSeed
             new Permission("Modificar Precio / Descuento de Artículo", "sales.override_price", "Permite modificar el precio original de un artículo o aplicar descuento"),
             new Permission("Procesar Devolución / Reembolso", "sales.refund", "Permite procesar la devolución de mercancía de una venta pagada"),
             new Permission("Realizar Corte de Caja", "sales.cash_cut", "Permite realizar el corte de caja / cierre de turno"),
-            new Permission("Realizar Retiro de Efectivo", "sales.cash_collection", "Permite realizar retiros o cobros de efectivo de la caja")
+            new Permission("Realizar Retiro de Efectivo", "sales.cash_collection", "Permite realizar retiros o cobros de efectivo de la caja"),
+            new Permission("Crear/Editar Clientes", "clients.create_edit", "Permite crear y editar información de clientes"),
+            new Permission("Consultar Catálogo de Productos", "products.view_catalog", "Permite ver la lista de productos en modo consulta"),
+            new Permission("Capturar Pedidos", "orders.capture", "Permite capturar nuevos pedidos en caja"),
+            new Permission("Gestionar Rutas de Reparto", "orders.routes", "Permite crear, despachar y gestionar rutas de reparto"),
+            new Permission("Liquidar Cuentas de Ruta", "orders.settle", "Permite realizar la liquidación de cuentas de rutas de reparto"),
+            new Permission("Gestionar Zonas de Reparto", "delivery_zones.manage", "Permite configurar zonas de reparto en el mapa")
         };
 
         foreach (var p in permissions)

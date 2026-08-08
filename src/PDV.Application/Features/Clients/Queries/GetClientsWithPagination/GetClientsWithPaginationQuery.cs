@@ -25,7 +25,9 @@ public class GetClientsWithPaginationQueryHandler : IRequestHandler<GetClientsWi
 
     public async Task<PaginatedList<ClientDto>> Handle(GetClientsWithPaginationQuery request, CancellationToken cancellationToken)
     {
-        var query = _context.Clients.AsNoTracking();
+        var query = _context.Clients
+            .Include(c => c.DeliveryZone)
+            .AsNoTracking();
 
         if (!request.IncludeInactive)
         {
@@ -54,7 +56,11 @@ public class GetClientsWithPaginationQueryHandler : IRequestHandler<GetClientsWi
             IsActive = c.IsActive,
             ClientType = c.ClientType,
             FiscalRegime = c.FiscalRegime,
-            FiscalZipCode = c.FiscalZipCode
+            FiscalZipCode = c.FiscalZipCode,
+            Latitude = c.Latitude,
+            Longitude = c.Longitude,
+            DeliveryZoneId = c.DeliveryZoneId,
+            DeliveryZoneName = c.DeliveryZone != null ? c.DeliveryZone.Name : null
         });
 
         return await PaginatedList<ClientDto>.CreateAsync(projection, request.PageNumber, request.PageSize, cancellationToken);

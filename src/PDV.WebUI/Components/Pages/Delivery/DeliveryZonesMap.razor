@@ -1,0 +1,189 @@
+@page "/orders/zones"
+@using MediatR
+@using PDV.Application.Features.DeliveryZones.Commands.CreateDeliveryZone
+@using PDV.Application.Features.DeliveryZones.Commands.DeleteDeliveryZone
+@using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
+@using PDV.Domain.Entities
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Admin,Manager")]
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">Zonas de Reparto</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">Configure las zonas de reparto geográficas dibujando polígonos sobre el mapa.</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudCard Elevation="3" Style="height: 550px; position: relative;">
+                <MudCardContent Style="height: 100%; padding: 0;">
+                    <div id="zone-map" style="height: 100%; width: 100%; border-radius: 4px;"></div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="3" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Nueva Zona de Reparto</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudTextField @bind-Value="_zoneName" Label="Nombre de la Zona" Variant="Variant.Outlined" Class="mb-3" HelperText="Ej: Zona Metropolitana Sur" />
+                    <MudNumericField @bind-Value="_deliveryCost" Label="Costo de Envío ($)" Variant="Variant.Outlined" Format="C2" Min="0" Class="mb-3" />
+                    
+                    <MudText Typo="Typo.subtitle2" Color="Color.Info" Class="mb-2">
+                        Puntos dibujados: @_currentCoords.Count
+                    </MudText>
+                    <MudText Typo="Typo.caption" Class="d-block mb-3">
+                        Haga clic en el mapa para ir trazando el límite de la zona. Se necesitan al menos 3 puntos para formar un polígono.
+                    </MudText>
+
+                    <div class="d-flex gap-2">
+                        <MudButton OnClick="ClearDrawing" Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ClearAll" FullWidth="true">
+                            Limpiar
+                        </MudButton>
+                        <MudButton OnClick="SaveZone" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" FullWidth="true" Disabled="@(!IsSaveEnabled)">
+                            Guardar
+                        </MudButton>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Elevation="3">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Zonas Registradas</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Style="max-height: 250px; overflow-y: auto;">
+                    @if (_zones == null || _zones.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No hay zonas configuradas actualmente.</MudText>
+                    }
+                    else
+                    {
+                        <MudList T="DeliveryZone">
+                            @foreach (var zone in _zones)
+                            {
+                                <MudListItem Icon="@Icons.Material.Filled.LocationOn" IconColor="Color.Success">
+                                    <div class="d-flex align-center justify-space-between w-100">
+                                        <div>
+                                            <MudText Typo="Typo.body1">@zone.Name</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">Costo: @zone.DeliveryCost.ToString("C2")</MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => DeleteZone(zone.Id)" />
+                                    </div>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private string _zoneName = string.Empty;
+    private decimal _deliveryCost = 0m;
+    private List<double[]> _currentCoords = new();
+    private List<DeliveryZone> _zones = new();
+    private DotNetObjectReference<DeliveryZonesMap>? _dotNetRef;
+
+    private bool IsSaveEnabled => !string.IsNullOrWhiteSpace(_zoneName) && _currentCoords.Count >= 3;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _dotNetRef = DotNetObjectReference.Create(this);
+        await LoadZonesAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Guadalajara, Jalisco por defecto
+            await JS.InvokeVoidAsync("leafletHelper.initMap", "zone-map", _dotNetRef, 20.659698, -103.349609, 12);
+            await RefreshMapZonesAsync();
+        }
+    }
+
+    private async Task LoadZonesAsync()
+    {
+        _zones = await Mediator.Send(new GetDeliveryZonesQuery { OnlyActive = true });
+    }
+
+    private async Task RefreshMapZonesAsync()
+    {
+        await JS.InvokeVoidAsync("leafletHelper.showZones", "zone-map", _zones);
+    }
+
+    [JSInvokable]
+    public void OnMapClicked(double lat, double lng)
+    {
+        _currentCoords.Add(new double[] { lat, lng });
+        StateHasChanged();
+        JS.InvokeVoidAsync("leafletHelper.updateDrawPolygon", "zone-map", _currentCoords);
+    }
+
+    private async Task ClearDrawing()
+    {
+        _currentCoords.Clear();
+        await JS.InvokeVoidAsync("leafletHelper.updateDrawPolygon", "zone-map", _currentCoords);
+    }
+
+    private async Task SaveZone()
+    {
+        try
+        {
+            // Convertir coordenadas a JSON array [[lat, lng], [lat, lng], ...]
+            var jsonCoords = System.Text.Json.JsonSerializer.Serialize(_currentCoords);
+
+            var command = new CreateDeliveryZoneCommand
+            {
+                Name = _zoneName,
+                BranchId = Guid.Empty, // Asignada por la sucursal actual del manager en backend (o vacía por defecto)
+                PolygonCoordinatesJson = jsonCoords,
+                DeliveryCost = _deliveryCost
+            };
+
+            await Mediator.Send(command);
+            Snackbar.Add("Zona de reparto guardada exitosamente.", Severity.Success);
+
+            // Reiniciar campos
+            _zoneName = string.Empty;
+            _deliveryCost = 0m;
+            _currentCoords.Clear();
+
+            await JS.InvokeVoidAsync("leafletHelper.updateDrawPolygon", "zone-map", _currentCoords);
+            await LoadZonesAsync();
+            await RefreshMapZonesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar zona: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteZone(Guid id)
+    {
+        try
+        {
+            await Mediator.Send(new DeleteDeliveryZoneCommand(id));
+            Snackbar.Add("Zona de reparto eliminada.", Severity.Success);
+            await LoadZonesAsync();
+            await RefreshMapZonesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar zona: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+    }
+}

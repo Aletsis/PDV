@@ -1,0 +1,375 @@
+@page "/orders/capture"
+@using MediatR
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Clients.Queries.ListClients
+@using PDV.Application.Features.Products.Dtos
+@using PDV.Application.Features.Products.Queries.GetProducts
+@using PDV.Application.Features.Orders.Commands.CreateOrder
+@using PDV.Application.Features.Orders.Commands.PrintOrderTicket
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@attribute [Authorize]
+
+<PageTitle>Capturar Pedido</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    @if (!ShiftSession.HasActiveShift)
+    {
+        <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 4rem; color: var(--mud-palette-warning);" />
+            <MudText Typo="Typo.h5" Class="mt-4 font-weight-bold">Sin turno activo</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Debes abrir un turno de caja antes de capturar pedidos.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/pos"))">
+                Ir al Punto de Venta
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <MudText Typo="Typo.h4" GutterBottom="true" Class="font-weight-bold">Capturar Pedido en Caja</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">Capture los productos pesados directamente en caja para generar la comanda de reparto.</MudText>
+
+        <MudGrid>
+            <!-- Formulario de Selección (Cliente y Producto) -->
+            <MudItem xs="12" md="4">
+                <MudCard Elevation="3" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">1. Datos de Entrega</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudAutocomplete T="ClientDto" Label="Buscar Cliente" 
+                                         SearchFunc="SearchClients" 
+                                         Value="_selectedClient"
+                                         ValueChanged="OnClientChanged"
+                                         ToStringFunc="@(c => c == null ? "" : $"{c.Name} ({c.Code})")"
+                                         Variant="Variant.Outlined" 
+                                         Adornment="Adornment.End" 
+                                         AdornmentIcon="@Icons.Material.Filled.Search" 
+                                         Required="true"
+                                         Class="mb-3" />
+
+                        @if (_selectedClient != null)
+                        {
+                            <MudPaper Class="pa-3 bg-light border-solid border rounded-lg mb-3" Elevation="0">
+                                <MudText Typo="Typo.body2"><strong>Dirección:</strong> @(_selectedClient.Address ?? "Sin dirección registrada")</MudText>
+                                <MudText Typo="Typo.body2"><strong>Teléfono:</strong> @_selectedClient.Phone</MudText>
+                                @if (_selectedClient.DeliveryZoneId.HasValue)
+                                {
+                                    <div class="mt-2">
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.LocalShipping" Class="font-weight-bold">
+                                            @_selectedClient.DeliveryZoneName
+                                        </MudChip>
+                                        <MudText Typo="Typo.caption" Class="d-block mt-1">Costo de Envío: @_deliveryCost.ToString("C2")</MudText>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="mt-2">
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning" Class="font-weight-bold">
+                                            Sin Zona de Reparto
+                                        </MudChip>
+                                        <MudText Typo="Typo.caption" Class="d-block mt-1">El costo de envío será de $0.00</MudText>
+                                    </div>
+                                }
+                            </MudPaper>
+                        }
+
+                        <MudSelect T="string" @bind-Value="_paymentMethod" Label="Forma de Pago" Variant="Variant.Outlined" Class="mb-3">
+                            <MudSelectItem Value="@("Cash")">Efectivo</MudSelectItem>
+                            <MudSelectItem Value="@("CreditCard")">Tarjeta Bancaria</MudSelectItem>
+                        </MudSelect>
+                    </MudCardContent>
+                </MudCard>
+
+                <MudCard Elevation="3">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">2. Agregar Productos</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudAutocomplete T="ProductDto" Label="Buscar Producto" 
+                                         SearchFunc="SearchProducts" 
+                                         Value="_selectedProduct"
+                                         ValueChanged="OnProductSelected"
+                                         ToStringFunc="@(p => p == null ? "" : $"{p.Name} (${p.Price:F2})")"
+                                         Variant="Variant.Outlined" 
+                                         Class="mb-3" />
+
+                        @if (_selectedProduct != null)
+                        {
+                            <div class="d-flex align-center gap-3 mb-3">
+                                @if (_selectedProduct.SaleType == "Bulk")
+                                {
+                                    <MudNumericField @bind-Value="_weight" Label="Peso Exacto (kg)" Variant="Variant.Outlined" Min="0.001M" Format="F3" Step="0.05M" Class="flex-grow-1" />
+                                }
+                                else
+                                {
+                                    <MudNumericField @bind-Value="_pieces" Label="Piezas" Variant="Variant.Outlined" Min="1" Class="flex-grow-1" />
+                                }
+
+                                <MudButton OnClick="AddToOrder" Variant="Variant.Filled" Color="Color.Primary" Class="mt-1" Style="height: 56px;">
+                                    Agregar
+                                </MudButton>
+                            </div>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Carrito y Totales -->
+            <MudItem xs="12" md="8">
+                <MudCard Elevation="3" Style="min-height: 500px;" Class="d-flex flex-column justify-space-between">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6" Class="mb-3">Detalle del Pedido</MudText>
+                        
+                        @if (_cart.Count == 0)
+                        {
+                            <div class="d-flex flex-column align-center justify-center py-8">
+                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Style="font-size: 3rem; color: var(--mud-palette-action-disabled);" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">El pedido está vacío. Agregue productos para comenzar.</MudText>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudTable Items="@_cart" Hover="true" Dense="true" Elevation="0">
+                                <HeaderContent>
+                                    <MudTh>Código</MudTh>
+                                    <MudTh>Producto</MudTh>
+                                    <MudTh>Cantidad/Peso</MudTh>
+                                    <MudTh>P. Unitario</MudTh>
+                                    <MudTh>Total</MudTh>
+                                    <MudTh Style="width: 50px;"></MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.Product.Code</MudTd>
+                                    <MudTd>@context.Product.Name</MudTd>
+                                    <MudTd>
+                                        @if (context.Product.SaleType == "Bulk")
+                                        {
+                                            <span>@context.Quantity.ToString("F3") kg</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@((int)context.Quantity) pz</span>
+                                        }
+                                    </MudTd>
+                                    <MudTd>@context.Product.Price.ToString("C2")</MudTd>
+                                    <MudTd>@context.Total.ToString("C2")</MudTd>
+                                    <MudTd>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => RemoveFromCart(context)" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    </MudCardContent>
+
+                    <MudCardActions Class="d-flex flex-column pa-4 border-t">
+                        <div class="d-flex justify-space-between w-100 mb-2">
+                            <MudText Typo="Typo.body1">Subtotal:</MudText>
+                            <MudText Typo="Typo.body1">@_subtotal.ToString("C2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between w-100 mb-2">
+                            <MudText Typo="Typo.body1">IVA:</MudText>
+                            <MudText Typo="Typo.body1">@_taxes.ToString("C2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between w-100 mb-2">
+                            <MudText Typo="Typo.body1">Costo de Envío:</MudText>
+                            <MudText Typo="Typo.body1">@_deliveryCost.ToString("C2")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between w-100 mb-4">
+                            <MudText Typo="Typo.h5" Class="font-weight-bold">TOTAL:</MudText>
+                            <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">@_total.ToString("C2")</MudText>
+                        </div>
+
+                        <div class="d-flex gap-2 w-100">
+                            <MudButton OnClick="ClearOrder" Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.DeleteSweep" FullWidth="true" Disabled="@(_cart.Count == 0)">
+                                Limpiar Pedido
+                            </MudButton>
+                            <MudButton OnClick="SubmitOrder" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.CheckCircle" FullWidth="true" Disabled="@(!CanSubmit)">
+                                Registrar Pedido
+                            </MudButton>
+                        </div>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private ClientDto? _selectedClient;
+    private ProductDto? _selectedProduct;
+    private string _paymentMethod = "Cash";
+    private decimal _weight = 1.000m;
+    private int _pieces = 1;
+    private List<CartItem> _cart = new();
+
+    private List<ClientDto> _allClients = new();
+    private List<ProductDto> _allProducts = new();
+    private List<DeliveryZone> _zones = new();
+
+    private decimal _subtotal => _cart.Sum(x => x.Total);
+    private decimal _taxes => _cart.Sum(x => x.Total * GetTaxRatePercent(x.Product.TaxRate) / 100m);
+    private decimal _deliveryCost = 0m;
+    private decimal _total => _subtotal + _taxes + _deliveryCost;
+
+    private bool CanSubmit => _selectedClient != null && _cart.Count > 0 && ShiftSession.HasActiveShift;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ShiftSession.HasActiveShift)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _allClients = await Mediator.Send(new ListClientsQuery { IncludeInactive = false });
+        _allProducts = await Mediator.Send(new GetProductsQuery());
+        _zones = await Mediator.Send(new GetDeliveryZonesQuery { OnlyActive = true });
+    }
+
+    private Task<IEnumerable<ClientDto>> SearchClients(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<ClientDto>>(_allClients);
+
+        var search = value.Trim().ToLower();
+        return Task.FromResult<IEnumerable<ClientDto>>(
+            _allClients.Where(x => x.Name.ToLower().Contains(search) || x.Code.ToLower().Contains(search))
+        );
+    }
+
+    private Task<IEnumerable<ProductDto>> SearchProducts(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<ProductDto>>(_allProducts.Where(p => p.IsActive));
+
+        var search = value.Trim().ToLower();
+        return Task.FromResult<IEnumerable<ProductDto>>(
+            _allProducts.Where(x => x.IsActive && (x.Name.ToLower().Contains(search) || x.Code.ToLower().Contains(search)))
+        );
+    }
+
+    private void OnClientChanged(ClientDto client)
+    {
+        _selectedClient = client;
+        if (client != null && client.DeliveryZoneId.HasValue)
+        {
+            var zone = _zones.FirstOrDefault(z => z.Id == client.DeliveryZoneId.Value);
+            _deliveryCost = zone?.DeliveryCost ?? 0m;
+        }
+        else
+        {
+            _deliveryCost = 0m;
+        }
+    }
+
+    private void OnProductSelected(ProductDto product)
+    {
+        _selectedProduct = product;
+        _weight = 1.000m;
+        _pieces = 1;
+    }
+
+    private void AddToOrder()
+    {
+        if (_selectedProduct == null) return;
+
+        decimal qty = _selectedProduct.SaleType == "Bulk" ? _weight : _pieces;
+        
+        var existing = _cart.FirstOrDefault(x => x.Product.Id == _selectedProduct.Id);
+        if (existing != null)
+        {
+            existing.Quantity += qty;
+        }
+        else
+        {
+            _cart.Add(new CartItem
+            {
+                Product = _selectedProduct,
+                Quantity = qty
+            });
+        }
+
+        _selectedProduct = null;
+        Snackbar.Add("Producto agregado al pedido.", Severity.Info);
+    }
+
+    private void RemoveFromCart(CartItem item)
+    {
+        _cart.Remove(item);
+    }
+
+    private void ClearOrder()
+    {
+        _cart.Clear();
+        _selectedClient = null;
+        _selectedProduct = null;
+        _deliveryCost = 0m;
+        _paymentMethod = "Cash";
+    }
+
+    private async Task SubmitOrder()
+    {
+        if (!CanSubmit) return;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            string userId = user.Identity?.Name ?? "system";
+
+            var command = new CreateOrderCommand
+            {
+                ClientId = _selectedClient!.Id,
+                CashRegisterId = ShiftSession.ActiveShift!.CashRegisterId,
+                PaymentMethod = _paymentMethod,
+                UserId = userId,
+                Items = _cart.Select(x => new OrderCartItemDto
+                {
+                    ProductId = x.Product.Id,
+                    Quantity = x.Quantity
+                }).ToList()
+            };
+
+            var orderId = await Mediator.Send(command);
+            Snackbar.Add("Pedido registrado exitosamente.", Severity.Success);
+
+            // Imprimir el ticket de forma asíncrona
+            await Mediator.Send(new PrintOrderTicketCommand(orderId, ShiftSession.ActiveShift.CashRegisterId));
+
+            ClearOrder();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al registrar pedido: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private decimal GetTaxRatePercent(string taxRate)
+    {
+        return taxRate switch
+        {
+            "Rate16" => 16m,
+            "Rate8" => 8m,
+            _ => 0m
+        };
+    }
+
+    private class CartItem
+    {
+        public ProductDto Product { get; set; } = null!;
+        public decimal Quantity { get; set; }
+        public decimal Total => Quantity * Product.Price;
+    }
+}

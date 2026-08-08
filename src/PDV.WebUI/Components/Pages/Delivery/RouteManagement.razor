@@ -1,0 +1,259 @@
+@page "/orders/routes"
+@using MediatR
+@using PDV.Application.Features.DeliveryRoutes.Commands.CreateDeliveryRoute
+@using PDV.Application.Features.DeliveryRoutes.Commands.DispatchDeliveryRoute
+@using PDV.Application.Features.DeliveryRoutes.Commands.PrintRouteManifest
+@using PDV.Application.Features.DeliveryRoutes.Queries.GetDeliveryRoutes
+@using PDV.Application.Features.Orders.Queries.GetOrders
+@using PDV.Application.Common.Interfaces
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IIdentityService IdentityService
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@attribute [Authorize]
+
+<PageTitle>Gestión de Rutas</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" GutterBottom="true" Class="font-weight-bold">Gestión de Rutas de Reparto</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">Agrupe los pedidos confirmados por zona y asígnelos a rutas de reparto.</MudText>
+
+    @if (!ShiftSession.HasActiveShift)
+    {
+        <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 4rem; color: var(--mud-palette-warning);" />
+            <MudText Typo="Typo.h5" Class="mt-4 font-weight-bold">Sin turno activo</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Debes abrir un turno de caja antes de gestionar rutas.</MudText>
+        </div>
+    }
+    else
+    {
+        <MudGrid>
+            <!-- Lista de Pedidos Pendientes de Ruteo -->
+            <MudItem xs="12" md="8">
+                <MudCard Elevation="3" Style="height: 100%; min-height: 550px;" Class="d-flex flex-column justify-space-between">
+                    <MudCardContent>
+                        <div class="d-flex align-center justify-space-between mb-4">
+                            <MudText Typo="Typo.h6">Pedidos Pendientes de Ruteo</MudText>
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Autorenew" OnClick="RefreshDataAsync">
+                                Actualizar
+                            </MudChip>
+                        </div>
+
+                        @if (_pendingOrders == null || _pendingOrders.Count == 0)
+                        {
+                            <div class="d-flex flex-column align-center justify-center py-8">
+                                <MudIcon Icon="@Icons.Material.Filled.DoneAll" Style="font-size: 3rem; color: var(--mud-palette-success);" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">No hay pedidos pendientes de entrega.</MudText>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudTable T="Order" Items="@_pendingOrders" MultiSelection="true" @bind-SelectedItems="_selectedOrders" Hover="true" Dense="true" Elevation="0">
+                                <HeaderContent>
+                                    <MudTh>Folio</MudTh>
+                                    <MudTh>Fecha/Hora</MudTh>
+                                    <MudTh>Cliente</MudTh>
+                                    <MudTh>Zona</MudTh>
+                                    <MudTh>Total</MudTh>
+                                    <MudTh>Estado / Alerta</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.Series-@context.Folio</MudTd>
+                                    <MudTd>@context.OrderDate.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                                    <MudTd>@(context.Client?.Name ?? "Público General")</MudTd>
+                                    <MudTd>
+                                        @if (context.DeliveryZone != null)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">@context.DeliveryZone.Name</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <span class="mud-text-secondary">—</span>
+                                        }
+                                    </MudTd>
+                                    <MudTd>@context.TotalAmount.ToString("C2")</MudTd>
+                                    <MudTd>
+                                        @if (IsOrderDelayed(context))
+                                        {
+                                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.NewReleases" Class="font-weight-medium">
+                                                RETRASADO (>45 min)
+                                            </MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule" Class="font-weight-medium">
+                                                En Espera
+                                            </MudChip>
+                                        }
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    </MudCardContent>
+
+                    <MudCardActions Class="border-t pa-4 d-flex align-center justify-space-between bg-light rounded-b-lg">
+                        <MudText Typo="Typo.subtitle2">
+                            Seleccionados: @_selectedOrders.Count pedido(s)
+                        </MudText>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+
+            <!-- Panel de Creación de Ruta -->
+            <MudItem xs="12" md="4">
+                <MudCard Elevation="3" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Asignar y Despachar Ruta</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudSelect T="string" @bind-Value="_selectedDeliveryManId" Label="Seleccionar Repartidor" Variant="Variant.Outlined" Required="true" Class="mb-4" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person">
+                            @foreach (var user in _deliveryMen)
+                            {
+                                <MudSelectItem Value="@user.Id">@user.FullName</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudButton OnClick="CreateAndDispatchRoute" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.LocalShipping" FullWidth="true" Disabled="@(!CanCreateRoute)" Class="py-3">
+                            Despachar Ruta
+                        </MudButton>
+                    </MudCardContent>
+                </MudCard>
+
+                <MudCard Elevation="3">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Rutas Activas (En Tránsito)</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Style="max-height: 250px; overflow-y: auto;">
+                        @if (_activeRoutes == null || _activeRoutes.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">No hay rutas activas en este momento.</MudText>
+                        }
+                        else
+                        {
+                            <MudList T="DeliveryRoute">
+                                @foreach (var route in _activeRoutes)
+                                {
+                                    <MudListItem Icon="@Icons.Material.Filled.DepartureBoard" IconColor="Color.Info">
+                                        <div class="d-flex align-center justify-space-between w-100">
+                                            <div>
+                                                <MudText Typo="Typo.body1">Ruta #@route.Folio</MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">Repartidor: @GetDeliveryManName(route.DeliveryManId)</MudText>
+                                            </div>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Size="Size.Small" OnClick="() => PrintRoute(route.Id)" />
+                                        </div>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private List<Order> _pendingOrders = new();
+    private HashSet<Order> _selectedOrders = new();
+    private List<UserSyncDataDto> _deliveryMen = new();
+    private List<DeliveryRoute> _activeRoutes = new();
+
+    private string _selectedDeliveryManId = string.Empty;
+
+    private bool CanCreateRoute => !string.IsNullOrWhiteSpace(_selectedDeliveryManId) && _selectedOrders.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ShiftSession.HasActiveShift)
+        {
+            await RefreshDataAsync();
+        }
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        // 1. Cargar pedidos en estado "Confirmed" (Listos para reparto)
+        _pendingOrders = await Mediator.Send(new GetOrdersQuery 
+        { 
+            Status = OrderStatus.Confirmed,
+            BranchId = ShiftSession.ActiveShift?.CashRegister?.BranchId
+        });
+
+        // 2. Cargar repartidores / usuarios del sistema
+        _deliveryMen = await IdentityService.GetUsersAsync();
+
+        // 3. Cargar rutas activas en estado "EnRoute"
+        _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
+        { 
+            Status = DeliveryRouteStatus.EnRoute,
+            BranchId = ShiftSession.ActiveShift?.CashRegister?.BranchId
+        });
+
+        _selectedOrders.Clear();
+        _selectedDeliveryManId = string.Empty;
+        StateHasChanged();
+    }
+
+    private bool IsOrderDelayed(Order order)
+    {
+        // Si tiene más de 45 minutos en espera, marcar como retrasado
+        return order.OrderDate.AddMinutes(45) < DateTime.UtcNow;
+    }
+
+    private string GetDeliveryManName(string userId)
+    {
+        var user = _deliveryMen.FirstOrDefault(u => u.Id == userId);
+        return user?.FullName ?? userId;
+    }
+
+    private async Task CreateAndDispatchRoute()
+    {
+        if (!CanCreateRoute) return;
+
+        try
+        {
+            // 1. Crear la Ruta
+            var createCommand = new CreateDeliveryRouteCommand
+            {
+                BranchId = ShiftSession.ActiveShift!.CashRegister!.BranchId,
+                DeliveryManId = _selectedDeliveryManId,
+                OrderIds = _selectedOrders.Select(o => o.Id).ToList()
+            };
+
+            var routeId = await Mediator.Send(createCommand);
+
+            // 2. Despachar la Ruta automáticamente
+            await Mediator.Send(new DispatchDeliveryRouteCommand { RouteId = routeId });
+            Snackbar.Add($"Ruta #{_selectedOrders.Count} despachada con éxito.", Severity.Success);
+
+            // 3. Imprimir el comprobante de arqueo / manifiesto
+            await Mediator.Send(new PrintRouteManifestCommand(routeId, ShiftSession.ActiveShift.CashRegisterId));
+
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al despachar la ruta: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task PrintRoute(Guid routeId)
+    {
+        try
+        {
+            await Mediator.Send(new PrintRouteManifestCommand(routeId, ShiftSession.ActiveShift!.CashRegisterId));
+            Snackbar.Add("Manifiesto enviado a la impresora.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al imprimir manifiesto: {ex.Message}", Severity.Error);
+        }
+    }
+}

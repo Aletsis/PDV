@@ -24,5 +24,13 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
             a.Property(x => x.ZipCode).HasMaxLength(20).HasColumnName("ZipCode");
             a.Property(x => x.Country).HasMaxLength(100).HasColumnName("Country");
         });
+
+        entity.HasOne(e => e.DeliveryZone)
+              .WithMany()
+              .HasForeignKey(e => e.DeliveryZoneId)
+              .OnDelete(DeleteBehavior.SetNull);
+
+        entity.Property(e => e.Latitude).HasPrecision(9, 6);
+        entity.Property(e => e.Longitude).HasPrecision(9, 6);
     }
 }

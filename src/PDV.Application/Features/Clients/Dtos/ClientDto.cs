@@ -13,4 +13,8 @@ public class ClientDto
     public PDV.Domain.Enums.ClientType ClientType { get; set; }
     public string? FiscalRegime { get; set; }
     public string? FiscalZipCode { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public Guid? DeliveryZoneId { get; set; }
+    public string? DeliveryZoneName { get; set; }
 }

@@ -8,6 +8,14 @@
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager,Cashier">
         <MudNavLink Href="pos" Icon="@Icons.Material.Filled.PointOfSale">Punto de Venta</MudNavLink>
+        <MudNavGroup Title="Reparto y Pedidos" Icon="@Icons.Material.Filled.LocalShipping" Expanded="false">
+            <MudNavLink Href="orders/capture" Icon="@Icons.Material.Filled.AddShoppingCart">Capturar Pedido</MudNavLink>
+            <MudNavLink Href="orders/routes" Icon="@Icons.Material.Filled.Map">Gestión de Rutas</MudNavLink>
+            <MudNavLink Href="orders/settlement" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Liquidación de Rutas</MudNavLink>
+            <AuthorizeView Roles="Admin,Manager" Context="innerContext">
+                <MudNavLink Href="orders/zones" Icon="@Icons.Material.Filled.Explore">Zonas de Reparto</MudNavLink>
+            </AuthorizeView>
+        </MudNavGroup>
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager">
         <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>

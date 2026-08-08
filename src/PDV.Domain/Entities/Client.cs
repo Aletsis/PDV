@@ -19,6 +19,12 @@ public class Client : BaseEntity, IAggregateRoot
     public bool IsActive { get; private set; }
     public string? FiscalRegime { get; private set; }
     public string? FiscalZipCode { get; private set; }
+    
+    // Logística y Reparto
+    public Guid? DeliveryZoneId { get; private set; }
+    public DeliveryZone? DeliveryZone { get; private set; }
+    public double? Latitude { get; private set; }
+    public double? Longitude { get; private set; }
 
 #pragma warning disable CS8618
     private Client() { } // For EF Core
@@ -148,6 +154,17 @@ public class Client : BaseEntity, IAggregateRoot
         {
             FiscalZipCode = null;
         }
+    }
+
+    public void SetCoordinates(double? latitude, double? longitude)
+    {
+        Latitude = latitude;
+        Longitude = longitude;
+    }
+
+    public void AssignDeliveryZone(Guid? deliveryZoneId)
+    {
+        DeliveryZoneId = deliveryZoneId;
     }
 
     public void Deactivate()

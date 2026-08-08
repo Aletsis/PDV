@@ -1,0 +1,260 @@
+@page "/orders/settlement"
+@using MediatR
+@using PDV.Application.Features.DeliveryRoutes.Commands.SettleDeliveryRoute
+@using PDV.Application.Features.DeliveryRoutes.Queries.GetDeliveryRoutes
+@using PDV.Application.Common.Interfaces
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IIdentityService IdentityService
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@attribute [Authorize]
+
+<PageTitle>Liquidación de Rutas</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" GutterBottom="true" Class="font-weight-bold">Liquidación de Rutas de Reparto</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">Registre los resultados de entrega y liquide las cuentas de los repartidores al volver a sucursal.</MudText>
+
+    @if (!ShiftSession.HasActiveShift)
+    {
+        <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 4rem; color: var(--mud-palette-warning);" />
+            <MudText Typo="Typo.h5" Class="mt-4 font-weight-bold">Sin turno activo</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Debes abrir un turno de caja antes de liquidar rutas.</MudText>
+        </div>
+    }
+    else
+    {
+        <MudGrid>
+            <!-- Selección de Ruta y Detalle de Liquidación -->
+            <MudItem xs="12" md="8">
+                <MudCard Elevation="3" Class="mb-4">
+                    <MudCardContent>
+                        <MudSelect T="DeliveryRoute" Label="Seleccionar Ruta en Tránsito" Value="_selectedRoute" ValueChanged="OnRouteSelected" Variant="Variant.Outlined" Class="mb-4">
+                            @foreach (var route in _activeRoutes)
+                            {
+                                <MudSelectItem Value="@route">Ruta #@route.Folio (@GetDeliveryManName(route.DeliveryManId))</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        @if (_selectedRoute == null)
+                        {
+                            <div class="d-flex flex-column align-center justify-center py-8">
+                                <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Style="font-size: 3rem; color: var(--mud-palette-action-disabled);" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">Seleccione una ruta en tránsito para iniciar el arqueo de liquidación.</MudText>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.h6" Class="mb-3">Pedidos en la Ruta</MudText>
+                            <MudTable Items="@_settlements" Hover="true" Dense="true" Elevation="0">
+                                <HeaderContent>
+                                    <MudTh>Pedido</MudTh>
+                                    <MudTh>Cliente</MudTh>
+                                    <MudTh>Método Pago</MudTh>
+                                    <MudTh>Total</MudTh>
+                                    <MudTh>¿Entregado?</MudTh>
+                                    <MudTh>Motivo (Si no se entregó)</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.Order.Series-@context.Order.Folio</MudTd>
+                                    <MudTd>@(context.Order.Client?.Name ?? "Público General")</MudTd>
+                                    <MudTd>@(context.Order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta")</MudTd>
+                                    <MudTd>@context.Order.TotalAmount.ToString("C2")</MudTd>
+                                    <MudTd>
+                                        <MudRadioGroup T="bool" SelectedOption="@context.Delivered" SelectedOptionChanged="@(val => OnOrderDeliveryStatusChanged(context, val))">
+                                            <MudRadio Option="@(true)" Color="Color.Success">Sí</MudRadio>
+                                            <MudRadio Option="@(false)" Color="Color.Error">No</MudRadio>
+                                        </MudRadioGroup>
+                                    </MudTd>
+                                    <MudTd>
+                                        @if (!context.Delivered)
+                                        {
+                                            <MudSelect T="string" @bind-Value="@context.ReturnReason" Placeholder="Seleccione motivo" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px;">
+                                                <MudSelectItem Value="@("Cliente Ausente")" />
+                                                <MudSelectItem Value="@("Dirección Incorrecta")" />
+                                                <MudSelectItem Value="@("Rechazado por Cliente")" />
+                                                <MudSelectItem Value="@("Producto Dañado")" />
+                                                <MudSelectItem Value="@("Otro")" />
+                                            </MudSelect>
+                                        }
+                                        else
+                                        {
+                                            <span class="mud-text-secondary">—</span>
+                                        }
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Resumen de Cuentas (Arqueo Final) -->
+            <MudItem xs="12" md="4">
+                <MudCard Elevation="3" Style="height: 100%;" Class="d-flex flex-column justify-space-between">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Resumen del Arqueo</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (_selectedRoute == null)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">El resumen estará disponible al seleccionar una ruta.</MudText>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-3">
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body1">Pedidos Totales:</MudText>
+                                    <MudText Typo="Typo.body1" Class="font-weight-bold">@_settlements.Count</MudText>
+                                </div>
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body1" Color="Color.Success">Entregados:</MudText>
+                                    <MudText Typo="Typo.body1" Color="Color.Success" Class="font-weight-bold">@_settlements.Count(s => s.Delivered)</MudText>
+                                </div>
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body1" Color="Color.Error">Devueltos:</MudText>
+                                    <MudText Typo="Typo.body1" Color="Color.Error" Class="font-weight-bold">@_settlements.Count(s => !s.Delivered)</MudText>
+                                </div>
+                                <MudDivider Class="my-2" />
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.subtitle1">Efectivo a Entregar:</MudText>
+                                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@_cashTotal.ToString("C2")</MudText>
+                                </div>
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.subtitle1">Vouchers a Entregar:</MudText>
+                                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@_cardTotal.ToString("C2")</MudText>
+                                </div>
+                                <MudDivider Class="my-2" />
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.h5" Class="font-weight-bold">Total Arqueo:</MudText>
+                                    <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">@_grandTotal.ToString("C2")</MudText>
+                                </div>
+                            </div>
+                        }
+                    </MudCardContent>
+                    <MudCardActions Class="pa-4 border-t">
+                        <MudButton OnClick="SettleRoute" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AssignmentTurnedIn" FullWidth="true" Disabled="@(!CanSettle)" Class="py-3">
+                            Confirmar Liquidación y Crear Ventas
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private List<DeliveryRoute> _activeRoutes = new();
+    private List<UserSyncDataDto> _users = new();
+    private DeliveryRoute? _selectedRoute;
+
+    private List<SettlementItem> _settlements = new();
+
+    private decimal _cashTotal => _settlements.Where(s => s.Delivered && s.Order.PaymentMethod == PaymentMethodType.Cash).Sum(s => s.Order.TotalAmount);
+    private decimal _cardTotal => _settlements.Where(s => s.Delivered && s.Order.PaymentMethod == PaymentMethodType.CreditCard).Sum(s => s.Order.TotalAmount);
+    private decimal _grandTotal => _cashTotal + _cardTotal;
+
+    private bool CanSettle => _selectedRoute != null && _settlements.All(s => s.Delivered || !string.IsNullOrWhiteSpace(s.ReturnReason));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ShiftSession.HasActiveShift)
+        {
+            await RefreshDataAsync();
+        }
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
+        { 
+            Status = DeliveryRouteStatus.EnRoute,
+            BranchId = ShiftSession.ActiveShift?.CashRegister?.BranchId
+        });
+
+        _users = await IdentityService.GetUsersAsync();
+        _selectedRoute = null;
+        _settlements.Clear();
+        StateHasChanged();
+    }
+
+    private string GetDeliveryManName(string userId)
+    {
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        return user?.FullName ?? userId;
+    }
+
+    private void OnRouteSelected(DeliveryRoute route)
+    {
+        _selectedRoute = route;
+        _settlements.Clear();
+        if (route != null)
+        {
+            foreach (var order in route.Orders)
+            {
+                _settlements.Add(new SettlementItem
+                {
+                    Order = order,
+                    Delivered = true,
+                    ReturnReason = string.Empty
+                });
+            }
+        }
+    }
+
+    private void OnOrderDeliveryStatusChanged(SettlementItem item, bool delivered)
+    {
+        item.Delivered = delivered;
+        if (delivered)
+        {
+            item.ReturnReason = string.Empty;
+        }
+        else
+        {
+            item.ReturnReason = "Cliente Ausente"; // Opción por defecto
+        }
+        StateHasChanged();
+    }
+
+    private async Task SettleRoute()
+    {
+        if (!CanSettle) return;
+
+        try
+        {
+            var command = new SettleDeliveryRouteCommand
+            {
+                RouteId = _selectedRoute!.Id,
+                CashRegisterId = ShiftSession.ActiveShift!.CashRegisterId,
+                UserId = ShiftSession.ActiveShift.UserId,
+                Settlements = _settlements.Select(s => new OrderSettlementResultDto
+                {
+                    OrderId = s.Order.Id,
+                    Delivered = s.Delivered,
+                    ReturnReason = s.ReturnReason
+                }).ToList()
+            };
+
+            await Mediator.Send(command);
+            Snackbar.Add("La ruta ha sido liquidada correctamente. Las ventas correspondientes se han registrado en caja.", Severity.Success);
+
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al liquidar la ruta: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private class SettlementItem
+    {
+        public Order Order { get; set; } = null!;
+        public bool Delivered { get; set; } = true;
+        public string? ReturnReason { get; set; } = string.Empty;
+    }
+}

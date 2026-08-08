@@ -135,8 +135,9 @@ public class OrderDomainTests
         order.Confirm();
 
         // 1. Assign Route (Confirm -> Routed/Confirmed)
-        order.AssignRoute("R-01", "user-router");
-        Assert.Equal("R-01", order.RouteId);
+        var routeId = Guid.NewGuid();
+        order.AssignRoute(routeId, "user-router");
+        Assert.Equal(routeId, order.DeliveryRouteId);
 
         // 2. Assign Delivery Man (EnRoute)
         order.AssignDeliveryMan("delivery-1");
@@ -156,7 +157,7 @@ public class OrderDomainTests
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 2m, 15m, 0m, isTaxExempt: true));
         order.Confirm();
-        order.AssignRoute("R-01", "user-router");
+        order.AssignRoute(Guid.NewGuid(), "user-router");
         order.AssignDeliveryMan("delivery-1");
         order.MarkAsDelivered();
 

@@ -35,7 +35,8 @@ public class ClientsTests
         await using var context = new AppDbContext(options);
 
         var mockSyncService = new Mock<IComercialApiSyncService>();
-        var handler = new CreateClientCommandHandler(context, mockSyncService.Object);
+        var mockGeocodingService = new Mock<IGeocodingService>();
+        var handler = new CreateClientCommandHandler(context, mockSyncService.Object, mockGeocodingService.Object);
         var command = new CreateClientCommand
         {
             Code = "C001",
@@ -78,7 +79,8 @@ public class ClientsTests
         await context.SaveChangesAsync(CancellationToken.None);
 
         var mockSyncService = new Mock<IComercialApiSyncService>();
-        var handler = new UpdateClientCommandHandler(context, mockSyncService.Object);
+        var mockGeocodingService = new Mock<IGeocodingService>();
+        var handler = new UpdateClientCommandHandler(context, mockSyncService.Object, mockGeocodingService.Object);
         var command = new UpdateClientCommand
         {
             Id = existingClient.Id,

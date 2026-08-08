@@ -34,6 +34,9 @@ public static class DependencyInjection
         services.AddScoped<ISystemConfigurationRepository, SystemConfigurationRepository>();
         services.AddScoped<IFolioSequenceRepository, FolioSequenceRepository>();
         services.AddScoped<ITicketSequenceRepository, TicketSequenceRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IDeliveryRouteRepository, DeliveryRouteRepository>();
+        services.AddScoped<IDeliveryZoneRepository, DeliveryZoneRepository>();
 
 
         // Registrar servicios comunes
@@ -46,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IPacService, MockPacService>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IPermissionService, PermissionService>();
+        services.AddHttpClient<IGeocodingService, GeocodingService>();
 
         // Registrar Event Bus (in-memory de forma predeterminada)
         services.AddSingleton<IEventBus, Common.InMemoryEventBus>();

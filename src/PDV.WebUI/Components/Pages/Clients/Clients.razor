@@ -125,6 +125,18 @@
                     <PropertyColumn Property="x => x.Name" Title="Nombre" />
                     <PropertyColumn Property="x => x.TaxId" Title="RFC / ID Fiscal" />
                     <PropertyColumn Property="x => x.Phone" Title="Teléfono" />
+                    <TemplateColumn Title="Zona de Reparto">
+                        <CellTemplate>
+                            @if (context.Item.DeliveryZoneId.HasValue)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.LocalShipping" Class="font-weight-medium">@context.Item.DeliveryZoneName</MudChip>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">—</MudText>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
                     <TemplateColumn Title="Estado">
                         <CellTemplate>
                             @if (context.Item.IsActive)
@@ -213,6 +225,25 @@
                         <MudTextField @bind-Value="currentClient.Address" Label="Dirección Completa" 
                                       Variant="Variant.Outlined" Placeholder="Calle, Número, Colonia, C.P., Ciudad"
                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Home" />
+                        
+                        @if (currentClient.DeliveryZoneId.HasValue)
+                        {
+                            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" Class="font-weight-medium mt-1">
+                                Zona: @currentClient.DeliveryZoneName
+                            </MudChip>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(currentClient.Address))
+                        {
+                            <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="font-weight-medium mt-1">
+                                Sin Zona de Reparto
+                            </MudChip>
+                        }
+                        @if (currentClient.Latitude.HasValue && currentClient.Longitude.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                Coordenadas: @currentClient.Latitude.Value.ToString("F6"), @currentClient.Longitude.Value.ToString("F6")
+                            </MudText>
+                        }
                     </div>
                 </MudItem>
             </MudGrid>

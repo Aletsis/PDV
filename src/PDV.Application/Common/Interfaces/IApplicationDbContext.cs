@@ -38,6 +38,10 @@ public interface IApplicationDbContext
     DbSet<InboxMessage> InboxMessages { get; }
     DbSet<SyncConflict> SyncConflicts { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<DeliveryZone> DeliveryZones { get; }
+    DbSet<Order> Orders { get; }
+    DbSet<OrderItem> OrderItems { get; }
+    DbSet<DeliveryRoute> DeliveryRoutes { get; }
     DbSet<TEntity> Set<TEntity>() where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     Task BeginTransactionAsync(CancellationToken cancellationToken);

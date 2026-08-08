@@ -18,7 +18,9 @@ public class ListClientsQueryHandler : IRequestHandler<ListClientsQuery, List<Cl
 
     public async Task<List<ClientDto>> Handle(ListClientsQuery request, CancellationToken cancellationToken)
     {
-        var query = _context.Clients.AsQueryable();
+        var query = _context.Clients
+            .Include(c => c.DeliveryZone)
+            .AsQueryable();
 
         if (!request.IncludeInactive)
         {
@@ -38,7 +40,11 @@ public class ListClientsQueryHandler : IRequestHandler<ListClientsQuery, List<Cl
                 IsActive = c.IsActive,
                 ClientType = c.ClientType,
                 FiscalRegime = c.FiscalRegime,
-                FiscalZipCode = c.FiscalZipCode
+                FiscalZipCode = c.FiscalZipCode,
+                Latitude = c.Latitude,
+                Longitude = c.Longitude,
+                DeliveryZoneId = c.DeliveryZoneId,
+                DeliveryZoneName = c.DeliveryZone != null ? c.DeliveryZone.Name : null
             })
             .ToListAsync(cancellationToken);
     }

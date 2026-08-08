@@ -47,11 +47,16 @@ public class UpdateClientCommandHandler : IRequestHandler<UpdateClientCommand, b
 {
     private readonly IApplicationDbContext _context;
     private readonly IComercialApiSyncService _comercialSyncService;
+    private readonly IGeocodingService _geocodingService;
 
-    public UpdateClientCommandHandler(IApplicationDbContext context, IComercialApiSyncService comercialSyncService)
+    public UpdateClientCommandHandler(
+        IApplicationDbContext context, 
+        IComercialApiSyncService comercialSyncService,
+        IGeocodingService geocodingService)
     {
         _context = context;
         _comercialSyncService = comercialSyncService;
+        _geocodingService = geocodingService;
     }
 
     public async Task<bool> Handle(UpdateClientCommand request, CancellationToken cancellationToken)
@@ -67,7 +72,50 @@ public class UpdateClientCommandHandler : IRequestHandler<UpdateClientCommand, b
 
         if (!string.IsNullOrWhiteSpace(request.Address))
         {
+            bool addressChanged = entity.Address == null || entity.Address.Street != request.Address;
+
             entity.UpdateAddress(Address.Create(request.Address, "N/A", "N/A", "00000", "México"));
+
+            if (addressChanged)
+            {
+                var (lat, lon) = await _geocodingService.GeocodeAddressQueryAsync(request.Address, cancellationToken);
+                if (lat.HasValue && lon.HasValue)
+                {
+                    entity.SetCoordinates(lat.Value, lon.Value);
+
+                    var zones = await _context.DeliveryZones
+                        .Where(z => z.IsActive)
+                        .ToListAsync(cancellationToken);
+
+                    Guid? matchedZoneId = null;
+                    foreach (var zone in zones)
+                    {
+                        try
+                        {
+                            var coordList = System.Text.Json.JsonSerializer.Deserialize<List<List<double>>>(zone.PolygonCoordinatesJson);
+                            if (coordList != null && coordList.Count >= 3)
+                            {
+                                var polygon = coordList.Select(c => (c[0], c[1])).ToList();
+                                if (_geocodingService.IsPointInPolygon(lat.Value, lon.Value, polygon))
+                                {
+                                    matchedZoneId = zone.Id;
+                                    break;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Resiliencia
+                        }
+                    }
+                    entity.AssignDeliveryZone(matchedZoneId);
+                }
+                else
+                {
+                    entity.SetCoordinates(null, null);
+                    entity.AssignDeliveryZone(null);
+                }
+            }
         }
 
         if (request.IsActive && !entity.IsActive)

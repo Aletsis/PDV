@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="@Assets["PDV.WebUI.styles.css"]" />
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <ImportMap />
     <link rel="icon" type="image/png" href="/api/logos/app" />
     <HeadOutlet @rendermode="InteractiveServer" />
@@ -19,6 +20,8 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/leaflet-helper.js"></script>
     <script src="js/printer-proxy.js"></script>
 </body>
 

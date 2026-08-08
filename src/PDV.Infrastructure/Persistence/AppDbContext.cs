@@ -76,6 +76,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public DbSet<InboxMessage> InboxMessages { get; set; }
     public DbSet<SyncConflict> SyncConflicts { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<DeliveryZone> DeliveryZones { get; set; }
+    public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderItem> OrderItems { get; set; }
+    public DbSet<DeliveryRoute> DeliveryRoutes { get; set; }
 
     // ──────────────────────────────────────────────
     // Configuración del modelo

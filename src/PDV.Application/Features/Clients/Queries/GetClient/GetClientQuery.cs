@@ -18,7 +18,9 @@ public class GetClientQueryHandler : IRequestHandler<GetClientQuery, ClientDto?>
 
     public async Task<ClientDto?> Handle(GetClientQuery request, CancellationToken cancellationToken)
     {
-        var client = await _context.Clients.FindAsync(new object[] { request.Id }, cancellationToken);
+        var client = await _context.Clients
+            .Include(c => c.DeliveryZone)
+            .FirstOrDefaultAsync(c => c.Id == request.Id, cancellationToken);
 
         if (client == null)
             return null;
@@ -35,7 +37,11 @@ public class GetClientQueryHandler : IRequestHandler<GetClientQuery, ClientDto?>
             IsActive = client.IsActive,
             ClientType = client.ClientType,
             FiscalRegime = client.FiscalRegime,
-            FiscalZipCode = client.FiscalZipCode
+            FiscalZipCode = client.FiscalZipCode,
+            Latitude = client.Latitude,
+            Longitude = client.Longitude,
+            DeliveryZoneId = client.DeliveryZoneId,
+            DeliveryZoneName = client.DeliveryZone != null ? client.DeliveryZone.Name : null
         };
     }
 }

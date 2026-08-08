@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 
@@ -6,13 +10,13 @@ namespace PDV.Domain.Repositories;
 public interface IOrderRepository : ICrudRepository<Order>
 {
     /// <summary>Obtiene un pedido cargando explícitamente sus ítems y desgloses.</summary>
-    Task<Order?> GetByIdWithItemsAsync(int id, CancellationToken cancellationToken = default);
+    Task<Order?> GetByIdWithItemsAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>Obtiene pedidos asociados a un cliente específico.</summary>
-    Task<List<Order>> GetByClientIdAsync(int clientId, CancellationToken cancellationToken = default);
+    Task<List<Order>> GetByClientIdAsync(Guid clientId, CancellationToken cancellationToken = default);
 
     /// <summary>Obtiene pedidos asociados a una ruta específica.</summary>
-    Task<List<Order>> GetByRouteIdAsync(string routeId, CancellationToken cancellationToken = default);
+    Task<List<Order>> GetByRouteIdAsync(Guid routeId, CancellationToken cancellationToken = default);
 
     /// <summary>Obtiene pedidos asociados a un repartidor específico.</summary>
     Task<List<Order>> GetByDeliveryManIdAsync(string deliveryManId, CancellationToken cancellationToken = default);
@@ -48,22 +52,22 @@ public interface IOrderRepository : ICrudRepository<Order>
     Task<List<Order>> GetByAuthorizedAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Obtiene pedidos asociados a una caja registradora específica.</summary>
-    Task<List<Order>> GetByCashRegisterIdAsync(int cashRegisterId, CancellationToken cancellationToken = default);
+    Task<List<Order>> GetByCashRegisterIdAsync(Guid cashRegisterId, CancellationToken cancellationToken = default);
 
     /// <summary>Obtiene pedidos asociados a una sucursal específica.</summary>
-    Task<List<Order>> GetByBranchIdAsync(int branchId, CancellationToken cancellationToken = default);
+    Task<List<Order>> GetByBranchIdAsync(Guid branchId, CancellationToken cancellationToken = default);
 
     /// <summary>Obtiene un pedido específico por su caja registradora, serie y folio.</summary>
-    Task<Order?> GetByFolioAsync(int? cashRegisterId, string series, int folio, CancellationToken cancellationToken = default);
+    Task<Order?> GetByFolioAsync(Guid? cashRegisterId, string series, int folio, CancellationToken cancellationToken = default);
 
     /// <summary>Busca pedidos por múltiples criterios opcionales.</summary>
     Task<List<Order>> GetByCriteriaAsync(
-        int? clientId, 
-        int? cashRegisterId,
-        int? branchId,
+        Guid? clientId, 
+        Guid? cashRegisterId,
+        Guid? branchId,
         string? series,
         int? folio,
-        string? routeId, 
+        Guid? routeId, 
         string? deliveryManId, 
         string? takenById, 
         string? filledById, 
@@ -76,4 +80,3 @@ public interface IOrderRepository : ICrudRepository<Order>
         bool? isAuthorized, 
         CancellationToken cancellationToken = default);
 }
-

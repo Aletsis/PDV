@@ -24,12 +24,16 @@ public class Order : BaseEntity, IAggregateRoot
     public int Folio { get; private set; }
 
     // Asignaciones y personal
-    public string? RouteId { get; private set; }
+    public Guid? DeliveryRouteId { get; private set; }
+    public DeliveryRoute? DeliveryRoute { get; private set; }
+    public Guid? DeliveryZoneId { get; private set; }
+    public DeliveryZone? DeliveryZone { get; private set; }
     public string? DeliveryManId { get; private set; }
     public string? TakenById { get; private set; }
     public string? FilledById { get; private set; }
     public string? CapturedById { get; private set; }
     public string? RoutedById { get; private set; }
+    public string? ReturnReason { get; private set; }
 
     public DateTime OrderDate { get; private set; }
     public OrderStatus Status { get; private set; } = OrderStatus.Pending;
@@ -54,6 +58,7 @@ public class Order : BaseEntity, IAggregateRoot
         Guid branchId,
         Guid? clientId,
         PaymentMethodType paymentMethod,
+        Guid? deliveryZoneId = null,
         string? takenById = null,
         string? capturedById = null,
         string? series = null,
@@ -66,6 +71,7 @@ public class Order : BaseEntity, IAggregateRoot
         BranchId = branchId;
         ClientId = clientId;
         PaymentMethod = paymentMethod;
+        DeliveryZoneId = deliveryZoneId;
         TakenById = takenById;
         CapturedById = capturedById;
         Series = series;
@@ -140,19 +146,19 @@ public class Order : BaseEntity, IAggregateRoot
         AddDomainEvent(new OrderConfirmedEvent(Id));
     }
 
-    public void AssignRoute(string routeId, string routedById)
+    public void AssignRoute(Guid routeId, string routedById)
     {
         if (Status != OrderStatus.Confirmed) throw new DomainException("El pedido debe estar confirmado para ser enrutado.");
-        if (string.IsNullOrWhiteSpace(routeId)) throw new DomainException("El ID de la ruta es requerido.");
 
-        RouteId = routeId;
+        DeliveryRouteId = routeId;
         RoutedById = routedById;
-        AddDomainEvent(new OrderRoutedEvent(Id, routeId, routedById));
+        Status = OrderStatus.Routed;
+        AddDomainEvent(new OrderRoutedEvent(Id, routeId.ToString(), routedById));
     }
 
     public void AssignDeliveryMan(string deliveryManId)
     {
-        if (string.IsNullOrWhiteSpace(RouteId)) throw new DomainException("Debe estar enrutado primero.");
+        if (!DeliveryRouteId.HasValue) throw new DomainException("Debe estar enrutado primero.");
         DeliveryManId = deliveryManId;
         Status = OrderStatus.EnRoute;
         AddDomainEvent(new OrderDeliveryAssignedEvent(Id, deliveryManId));
@@ -165,10 +171,12 @@ public class Order : BaseEntity, IAggregateRoot
         AddDomainEvent(new OrderDeliveredEvent(Id));
     }
 
-    public void MarkAsReturned()
+    public void MarkAsReturned(string reason)
     {
         if (Status != OrderStatus.EnRoute) throw new DomainException("Solo un pedido en ruta puede ser devuelto.");
+        if (string.IsNullOrWhiteSpace(reason)) throw new DomainException("Se requiere un motivo para registrar la devolución.");
         Status = OrderStatus.Returned;
+        ReturnReason = reason;
         AddDomainEvent(new OrderReturnedEvent(Id));
     }
     

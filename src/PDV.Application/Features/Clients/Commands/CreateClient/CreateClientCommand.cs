@@ -45,11 +45,16 @@ public class CreateClientCommandHandler : IRequestHandler<CreateClientCommand, G
 {
     private readonly IApplicationDbContext _context;
     private readonly IComercialApiSyncService _comercialSyncService;
+    private readonly IGeocodingService _geocodingService;
 
-    public CreateClientCommandHandler(IApplicationDbContext context, IComercialApiSyncService comercialSyncService)
+    public CreateClientCommandHandler(
+        IApplicationDbContext context, 
+        IComercialApiSyncService comercialSyncService,
+        IGeocodingService geocodingService)
     {
         _context = context;
         _comercialSyncService = comercialSyncService;
+        _geocodingService = geocodingService;
     }
 
     public async Task<Guid> Handle(CreateClientCommand request, CancellationToken cancellationToken)
@@ -65,6 +70,38 @@ public class CreateClientCommandHandler : IRequestHandler<CreateClientCommand, G
         if (!string.IsNullOrWhiteSpace(request.Address))
         {
             entity.UpdateAddress(Address.Create(request.Address, "N/A", "N/A", "00000", "México"));
+
+            // Geolocalizar y resolver zona automáticamente
+            var (lat, lon) = await _geocodingService.GeocodeAddressQueryAsync(request.Address, cancellationToken);
+            if (lat.HasValue && lon.HasValue)
+            {
+                entity.SetCoordinates(lat.Value, lon.Value);
+
+                var zones = await _context.DeliveryZones
+                    .Where(z => z.IsActive)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var zone in zones)
+                {
+                    try
+                    {
+                        var coordList = System.Text.Json.JsonSerializer.Deserialize<List<List<double>>>(zone.PolygonCoordinatesJson);
+                        if (coordList != null && coordList.Count >= 3)
+                        {
+                            var polygon = coordList.Select(c => (c[0], c[1])).ToList();
+                            if (_geocodingService.IsPointInPolygon(lat.Value, lon.Value, polygon))
+                            {
+                                entity.AssignDeliveryZone(zone.Id);
+                                break;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Resiliencia ante errores de deserialización
+                    }
+                }
+            }
         }
 
         _context.Clients.Add(entity);
