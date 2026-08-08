@@ -42,6 +42,7 @@ public class GetActiveShiftByUserIdQueryHandler
             CashRegisterId = shift.CashRegisterId,
             BranchId = shift.CashRegister?.BranchId,
             CashRegisterName = shift.CashRegister?.Name ?? string.Empty,
+            CashRegisterMode = shift.CashRegister?.Mode ?? CashRegisterMode.SalesFloor,
             UserId = shift.UserId,
             InitialCash = shift.InitialCash,
             StartTime = shift.StartTime,

@@ -12,4 +12,5 @@ public class ShiftDto
     public decimal InitialCash { get; set; }
     public DateTime StartTime { get; set; }
     public ShiftStatus Status { get; set; }
+    public CashRegisterMode CashRegisterMode { get; set; } = CashRegisterMode.SalesFloor;
 }

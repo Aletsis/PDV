@@ -1,8 +1,12 @@
 @page "/"
 @namespace PDV.WebUI.Components.Pages
+@using MediatR
 @using Microsoft.AspNetCore.Components.Authorization
+@using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId
+@using PDV.Domain.Enums
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
+@inject IMediator Mediator
 
 <PageTitle>PDV — Inicio</PageTitle>
 
@@ -16,6 +20,23 @@
         {
             Navigation.NavigateTo("/login", replace: true);
             return;
+        }
+
+        // Si el usuario ya tiene un turno abierto activo, consultar el modo de su caja y redirigir
+        var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var activeShift = await Mediator.Send(new GetActiveShiftByUserIdQuery(userId));
+            if (activeShift != null)
+            {
+                if (activeShift.CashRegisterMode == CashRegisterMode.Orders)
+                {
+                    Navigation.NavigateTo("/orders/capture", replace: true);
+                    return;
+                }
+                Navigation.NavigateTo("/pos", replace: true);
+                return;
+            }
         }
 
         if (user.IsInRole("Admin") || user.IsInRole("Manager"))

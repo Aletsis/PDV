@@ -193,9 +193,18 @@
                         <MudText Typo="Typo.body1" Class="text-white-50">
                             La caja <strong>@cashRegister.Name</strong> ya cuenta con un turno abierto y está lista para operar.
                         </MudText>
-                        <MudButton Variant="Variant.Filled" Color="Color.Success" Href="/pos" Class="mt-4 py-3" Style="border-radius: 12px; font-weight: 600;">
-                            Ir al Punto de Venta
-                        </MudButton>
+                        @if (cashRegister.Mode == CashRegisterMode.Orders)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" Href="/orders/capture" Class="mt-4 py-3" Style="border-radius: 12px; font-weight: 600;">
+                                Ir a Captura de Pedidos
+                            </MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" Href="/pos" Class="mt-4 py-3" Style="border-radius: 12px; font-weight: 600;">
+                                Ir al Punto de Venta
+                            </MudButton>
+                        }
                     </MudStack>
                 </MudPaper>
             }
@@ -401,7 +410,14 @@
                         
                         if (!CashRegisterId.HasValue)
                         {
-                            Navigation.NavigateTo("/pos", replace: true);
+                            if (cashRegister.Mode == CashRegisterMode.Orders)
+                            {
+                                Navigation.NavigateTo("/orders/capture", replace: true);
+                            }
+                            else
+                            {
+                                Navigation.NavigateTo("/pos", replace: true);
+                            }
                         }
                     }
                     else
@@ -511,8 +527,15 @@
 
             Snackbar.Add($"¡Turno abierto en {cashRegister.Name}! Fondo: ${initialCash:F2}", Severity.Success);
 
-            // Redirigir al POS
-            Navigation.NavigateTo("/pos", replace: true);
+            // Redirigir según el modo de la caja
+            if (cashRegister.Mode == CashRegisterMode.Orders)
+            {
+                Navigation.NavigateTo("/orders/capture", replace: true);
+            }
+            else
+            {
+                Navigation.NavigateTo("/pos", replace: true);
+            }
         }
         catch (Exception ex)
         {

@@ -6,6 +6,8 @@ using PDV.Infrastructure.Identity;
 using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp;
 using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters;
 using PDV.Application.Features.Shifts.Queries.GetActiveShift;
+using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId;
+using PDV.Domain.Enums;
 
 namespace PDV.WebUI.Controllers;
 
@@ -47,7 +49,21 @@ public class AccountController : Controller
         if (!result.Succeeded)
             return Redirect($"/login?error=InvalidCredentials&returnUrl={returnUrl}");
 
-        // Redirigir estrictamente por rol del usuario
+        // Si el usuario ya tiene un turno abierto activo, consultar el modo de su caja y redirigir a la terminal que le corresponde
+        if (user != null)
+        {
+            var activeShift = await _mediator.Send(new GetActiveShiftByUserIdQuery(user.Id));
+            if (activeShift != null)
+            {
+                if (activeShift.CashRegisterMode == CashRegisterMode.Orders)
+                {
+                    return Redirect("/orders/capture");
+                }
+                return Redirect("/pos");
+            }
+        }
+
+        // Redirigir por rol del usuario si no hay turno activo previo
         var roles = user is not null
             ? await _userManager.GetRolesAsync(user)
             : Array.Empty<string>() as IList<string>;
