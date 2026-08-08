@@ -458,6 +458,9 @@ public class SyncWorker : BackgroundService
         // 7. Pull Users
         await PullUsersDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
 
+        // 8. Pull Delivery Zones
+        await PullDeliveryZonesDeltaAsync(serverBaseUrl, lastPullTime, stoppingToken);
+
         SaveLastPullTime(currentSyncStartTime);
     }
 
@@ -1607,6 +1610,87 @@ public class SyncWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to connect to SignalR hub at {HubUrl}", hubUrl);
+        }
+    }
+
+    private async Task PullDeliveryZonesDeltaAsync(string serverBaseUrl, DateTime lastPullTime, CancellationToken stoppingToken)
+    {
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/sync/delivery-zones-delta?since={Uri.EscapeDataString(lastPullTime.ToString("o"))}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(endpoint, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Delivery zones pull sync failed. Server returned: {StatusCode}", response.StatusCode);
+                return;
+            }
+
+            var deltas = await response.Content.ReadFromJsonAsync<List<PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZonesDelta.DeliveryZoneSyncDto>>(cancellationToken: stoppingToken);
+            if (deltas == null || !deltas.Any())
+            {
+                return;
+            }
+
+            _logger.LogInformation("Received {Count} delivery zone deltas from server. Syncing locally...", deltas.Count);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            foreach (var dto in deltas)
+            {
+                var existing = await db.DeliveryZones.IgnoreQueryFilters().FirstOrDefaultAsync(z => z.Id == dto.Id, stoppingToken);
+
+                if (existing == null)
+                {
+                    var zone = new DeliveryZone(
+                        name: dto.Name,
+                        branchId: dto.BranchId,
+                        polygonCoordinatesJson: dto.PolygonCoordinatesJson,
+                        deliveryCost: dto.DeliveryCost
+                    );
+                    zone.SetId(dto.Id);
+
+                    if (!dto.IsActive)
+                    {
+                        zone.Deactivate();
+                    }
+
+                    if (dto.IsDeleted)
+                    {
+                        zone.SoftDelete("SystemSync");
+                    }
+
+                    zone.ClearDomainEvents();
+                    db.DeliveryZones.Add(zone);
+                }
+                else
+                {
+                    existing.Update(dto.Name, dto.PolygonCoordinatesJson, dto.DeliveryCost);
+
+                    if (dto.IsActive && !existing.IsActive)
+                    {
+                        existing.Activate();
+                    }
+                    else if (!dto.IsActive && existing.IsActive)
+                    {
+                        existing.Deactivate();
+                    }
+
+                    if (dto.IsDeleted && !existing.IsDeleted)
+                    {
+                        existing.SoftDelete("SystemSync");
+                    }
+
+                    existing.ClearDomainEvents();
+                }
+            }
+
+            await db.SaveChangesAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error pulling delivery zones delta from server.");
         }
     }
 

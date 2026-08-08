@@ -280,6 +280,22 @@ public class SyncController : ControllerBase
         }
     }
 
+    [HttpGet("delivery-zones-delta")]
+    public async Task<IActionResult> GetDeliveryZonesDelta([FromQuery] DateTime? since)
+    {
+        try
+        {
+            var sinceUtc = since?.ToUniversalTime() ?? DateTime.MinValue;
+            var result = await _mediator.Send(new PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZonesDelta.GetDeliveryZonesDeltaQuery(sinceUtc));
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting delivery zones delta since {Since}", since);
+            return Problem(ex.Message);
+        }
+    }
+
     [HttpGet("active-shift-by-user/{userId}")]
     public async Task<IActionResult> GetActiveShiftByUserId([FromRoute] string userId)
     {
