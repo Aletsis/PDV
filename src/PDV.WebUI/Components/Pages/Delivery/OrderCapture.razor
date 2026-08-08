@@ -1,11 +1,15 @@
-@page "/orders/capture"
 @using MediatR
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
 @using PDV.Application.Features.Clients.Dtos
 @using PDV.Application.Features.Clients.Queries.ListClients
 @using PDV.Application.Features.Products.Dtos
 @using PDV.Application.Features.Products.Queries.GetProducts
 @using PDV.Application.Features.Orders.Commands.CreateOrder
 @using PDV.Application.Features.Orders.Commands.PrintOrderTicket
+@using PDV.Application.Features.Shifts.Dtos
+@using PDV.Application.Features.Shifts.Queries.GetActiveShift
+@using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
 @using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
@@ -14,6 +18,7 @@
 @inject NavigationManager Navigation
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JS
 @attribute [Authorize]
 
@@ -227,6 +232,56 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!ShiftSession.HasActiveShift)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            var currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            ShiftDto? activeShift = null;
+
+            // 1. Intentar restaurar por ID del usuario autenticado
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                activeShift = await Mediator.Send(new GetActiveShiftByUserIdQuery(currentUserId));
+            }
+
+            // 2. Si no se encontró por usuario, intentar restaurar por IP de la terminal
+            if (activeShift == null)
+            {
+                try
+                {
+                    var httpContext = HttpContextAccessor.HttpContext;
+                    var rawIp = httpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+                    var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
+                    if (!string.IsNullOrEmpty(clientIp))
+                    {
+                        var cashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+                        if (cashRegister != null)
+                        {
+                            activeShift = await Mediator.Send(new GetActiveShiftByCashRegisterQuery(cashRegister.Id));
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback silencioso
+                }
+            }
+
+            // Si se encontró turno activo, hidratar ShiftSession
+            if (activeShift != null)
+            {
+                ShiftSession.SetActive(
+                    activeShift.Id,
+                    activeShift.CashRegisterId,
+                    activeShift.CashRegisterName,
+                    activeShift.InitialCash,
+                    activeShift.StartTime,
+                    activeShift.BranchId);
+            }
+        }
+
         if (ShiftSession.HasActiveShift)
         {
             await LoadDataAsync();
@@ -329,7 +384,7 @@
         {
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
-            string userId = user.Identity?.Name ?? "system";
+            string userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "system";
 
             var command = new CreateOrderCommand
             {

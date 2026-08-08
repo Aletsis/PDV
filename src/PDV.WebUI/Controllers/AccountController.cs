@@ -56,6 +56,10 @@ public class AccountController : Controller
         {
             return Redirect("/shift/open");
         }
+        else if (roles.Contains("Telephonist"))
+        {
+            return Redirect("/orders/capture");
+        }
         else if (roles.Contains("Admin") || roles.Contains("Manager"))
         {
             return Redirect("/dashboard");

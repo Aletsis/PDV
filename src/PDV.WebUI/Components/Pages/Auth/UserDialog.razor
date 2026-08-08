@@ -23,8 +23,9 @@
                               Disabled="@IsEdit"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountCircle" />
 
-                <MudTextField @bind-Value="Model.Email" Label="Email"
+                <MudTextField @bind-Value="Model.Email" Label="@(IsEmailRequired ? "Email *" : "Email (Opcional)")"
                               Variant="Variant.Outlined" InputType="InputType.Email"
+                              Required="@IsEmailRequired" RequiredError="El correo electrónico es obligatorio para este rol"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
 
                 @if (!IsEdit)
@@ -89,6 +90,9 @@
 
     private MudForm userForm = null!;
     private bool isSaving = false;
+    private bool IsEmailRequired => !string.IsNullOrWhiteSpace(Model.SelectedRole) &&
+        (Model.SelectedRole.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+         Model.SelectedRole.Equals("Manager", StringComparison.OrdinalIgnoreCase));
 
     private void Cancel() => MudDialog.Cancel();
 

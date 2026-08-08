@@ -48,7 +48,7 @@ public class SecurityTests
         Assert.True(identityOptions.Password.RequireNonAlphanumeric);
         Assert.True(identityOptions.Password.RequireUppercase);
         Assert.Equal(8, identityOptions.Password.RequiredLength);
-        Assert.True(identityOptions.User.RequireUniqueEmail);
+        Assert.False(identityOptions.User.RequireUniqueEmail);
     }
 
     [Fact]
@@ -219,5 +219,58 @@ public class SecurityTests
         // Act & Assert Delete
         context.Entry(log).State = EntityState.Deleted;
         await Assert.ThrowsAsync<InvalidOperationException>(() => context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task TelephonistRole_And_OptionalEmail_ShouldBeSupported()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(opt =>
+            opt.UseInMemoryDatabase($"PDV_Telephonist_Test_{Guid.NewGuid()}"));
+        
+        var mockConfig = new Mock<IConfiguration>();
+        mockConfig.Setup(c => c["RunMode"]).Returns("Local");
+        services.AddSingleton<IConfiguration>(mockConfig.Object);
+        services.AddLogging();
+        services.AddCommonInfrastructureServices();
+
+        var serviceProvider = services.BuildServiceProvider();
+        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var context = serviceProvider.GetRequiredService<AppDbContext>();
+
+        // Act - Seed
+        await AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
+
+        // Assert - Roles Exist
+        Assert.True(await roleManager.RoleExistsAsync("Telephonist"));
+        Assert.True(await roleManager.RoleExistsAsync("Cashier"));
+
+        // Assert - Permissions for Telephonist
+        var telephonistRole = await roleManager.FindByNameAsync("Telephonist");
+        Assert.NotNull(telephonistRole);
+        var rolePermissions = await context.RolePermissions
+            .Where(rp => rp.RoleId == telephonistRole.Id)
+            .Join(context.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => p.Code)
+            .ToListAsync();
+
+        Assert.Contains("products.view_catalog", rolePermissions);
+        Assert.Contains("clients.create_edit", rolePermissions);
+        Assert.Contains("orders.capture", rolePermissions);
+
+        // Act - Create user with null email
+        var cashierUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserName = "cajero_sin_correo",
+            Email = null,
+            FullName = "Cajero Operativo",
+            IsActive = true
+        };
+
+        var result = await userManager.CreateAsync(cashierUser, "Password123!");
+        Assert.True(result.Succeeded);
+        Assert.Null(cashierUser.Email);
     }
 }

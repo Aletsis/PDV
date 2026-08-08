@@ -30,6 +30,12 @@
             return;
         }
 
+        if (user.IsInRole("Telephonist"))
+        {
+            Navigation.NavigateTo("/orders/capture", replace: true);
+            return;
+        }
+
         // Sin rol asignado → dashboard por defecto
         Navigation.NavigateTo("/dashboard", replace: true);
     }

@@ -8,10 +8,14 @@
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager,Cashier">
         <MudNavLink Href="pos" Icon="@Icons.Material.Filled.PointOfSale">Punto de Venta</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Roles="Admin,Manager,Cashier,Telephonist">
         <MudNavGroup Title="Reparto y Pedidos" Icon="@Icons.Material.Filled.LocalShipping" Expanded="false">
             <MudNavLink Href="orders/capture" Icon="@Icons.Material.Filled.AddShoppingCart">Capturar Pedido</MudNavLink>
-            <MudNavLink Href="orders/routes" Icon="@Icons.Material.Filled.Map">Gestión de Rutas</MudNavLink>
-            <MudNavLink Href="orders/settlement" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Liquidación de Rutas</MudNavLink>
+            <AuthorizeView Roles="Admin,Manager,Cashier" Context="routesContext">
+                <MudNavLink Href="orders/routes" Icon="@Icons.Material.Filled.Map">Gestión de Rutas</MudNavLink>
+                <MudNavLink Href="orders/settlement" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Liquidación de Rutas</MudNavLink>
+            </AuthorizeView>
             <AuthorizeView Roles="Admin,Manager" Context="innerContext">
                 <MudNavLink Href="orders/zones" Icon="@Icons.Material.Filled.Explore">Zonas de Reparto</MudNavLink>
             </AuthorizeView>
@@ -19,12 +23,20 @@
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager">
         <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Roles="Admin,Manager,Telephonist">
         <MudNavLink Href="products" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Roles="Admin,Manager">
         @if (!isLocalMode)
         {
             <MudNavLink Href="inventory" Icon="@Icons.Material.Filled.Inventory2">Inventario</MudNavLink>
         }
+    </AuthorizeView>
+    <AuthorizeView Roles="Admin,Manager,Telephonist">
         <MudNavLink Href="clients" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
+    </AuthorizeView>
+    <AuthorizeView Roles="Admin,Manager">
         <MudNavLink Href="invoices" Icon="@Icons.Material.Filled.Description">Facturas</MudNavLink>
     </AuthorizeView>
     <AuthorizeView Roles="Admin">
