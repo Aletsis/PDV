@@ -16,6 +16,14 @@ public record UpdateClientCommand : IRequest<bool>
     public string Name { get; set; } = string.Empty;
     public string TaxId { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public string Street { get; set; } = string.Empty;
+    public string? ExteriorNumber { get; set; }
+    public string? InteriorNumber { get; set; }
+    public string? Colony { get; set; }
+    public string ZipCode { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string Country { get; set; } = "México";
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
@@ -70,15 +78,36 @@ public class UpdateClientCommandHandler : IRequestHandler<UpdateClientCommand, b
         entity.UpdateProfile(request.Name, request.TaxId);
         entity.UpdateContactInfo(request.Phone, request.Email);
 
-        if (!string.IsNullOrWhiteSpace(request.Address))
+        var street = !string.IsNullOrWhiteSpace(request.Street) ? request.Street : request.Address;
+        if (!string.IsNullOrWhiteSpace(street) || !string.IsNullOrWhiteSpace(request.Colony))
         {
-            bool addressChanged = entity.Address == null || entity.Address.Street != request.Address;
+            var city = !string.IsNullOrWhiteSpace(request.City) ? request.City : "N/A";
+            var state = !string.IsNullOrWhiteSpace(request.State) ? request.State : "N/A";
+            var zipCode = !string.IsNullOrWhiteSpace(request.ZipCode) ? request.ZipCode : "00000";
+            var country = !string.IsNullOrWhiteSpace(request.Country) ? request.Country : "México";
 
-            entity.UpdateAddress(Address.Create(request.Address, "N/A", "N/A", "00000", "México"));
+            var newAddress = Address.Create(
+                street: string.IsNullOrWhiteSpace(street) ? "N/A" : street,
+                city: city,
+                state: state,
+                zipCode: zipCode,
+                country: country,
+                exteriorNumber: request.ExteriorNumber,
+                interiorNumber: request.InteriorNumber,
+                colony: request.Colony
+            );
+
+            bool addressChanged = entity.Address == null || entity.Address != newAddress;
+
+            entity.UpdateAddress(newAddress);
 
             if (addressChanged)
             {
-                var (lat, lon) = await _geocodingService.GeocodeAddressQueryAsync(request.Address, cancellationToken);
+                var addressQuery = newAddress.ToFullAddressString();
+                if (string.IsNullOrWhiteSpace(addressQuery))
+                    addressQuery = street;
+
+                var (lat, lon) = await _geocodingService.GeocodeAddressQueryAsync(addressQuery, cancellationToken);
                 if (lat.HasValue && lon.HasValue)
                 {
                     entity.SetCoordinates(lat.Value, lon.Value);

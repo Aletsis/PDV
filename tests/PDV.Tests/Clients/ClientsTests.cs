@@ -42,7 +42,14 @@ public class ClientsTests
             Code = "C001",
             Name = "Cliente de Prueba S.A.",
             TaxId = "XAXX010101000",
-            Address = "Calle Falsa 123",
+            Street = "Calle Falsa",
+            ExteriorNumber = "123",
+            InteriorNumber = "2",
+            Colony = "Centro",
+            ZipCode = "06000",
+            City = "CDMX",
+            State = "CDMX",
+            Country = "México",
             Phone = "5551234567",
             Email = "prueba@cliente.com"
         };
@@ -58,7 +65,14 @@ public class ClientsTests
         Assert.Equal("C001", client!.Code);
         Assert.Equal("Cliente de Prueba S.A.", client!.Name);
         Assert.Equal("XAXX010101000", client.TaxId);
-        Assert.Equal("Calle Falsa 123", client.Address?.Street);
+        Assert.Equal("Calle Falsa", client.Address?.Street);
+        Assert.Equal("123", client.Address?.ExteriorNumber);
+        Assert.Equal("2", client.Address?.InteriorNumber);
+        Assert.Equal("Centro", client.Address?.Colony);
+        Assert.Equal("06000", client.Address?.ZipCode);
+        Assert.Equal("CDMX", client.Address?.City);
+        Assert.Equal("CDMX", client.Address?.State);
+        Assert.Equal("México", client.Address?.Country);
 
         // Validar que se registró el OutboxMessage con el nombre del evento correcto
         var outboxMessage = await context.OutboxMessages
@@ -87,7 +101,13 @@ public class ClientsTests
             Code = "C001-Updated",
             Name = "Juan Perez Lopez",
             TaxId = "PEJJ800101AAA",
-            Address = "Av. Siempre Viva 742",
+            Street = "Av. Siempre Viva",
+            ExteriorNumber = "742",
+            Colony = "Springfield Norte",
+            ZipCode = "44100",
+            City = "Guadalajara",
+            State = "Jalisco",
+            Country = "México",
             Phone = "5550000000",
             Email = "juan.perez@correo.com",
             IsActive = true
@@ -104,7 +124,12 @@ public class ClientsTests
         Assert.Equal("C001-Updated", client!.Code);
         Assert.Equal("Juan Perez Lopez", client!.Name);
         Assert.Equal("PEJJ800101AAA", client.TaxId);
-        Assert.Equal("Av. Siempre Viva 742", client.Address?.Street);
+        Assert.Equal("Av. Siempre Viva", client.Address?.Street);
+        Assert.Equal("742", client.Address?.ExteriorNumber);
+        Assert.Equal("Springfield Norte", client.Address?.Colony);
+        Assert.Equal("44100", client.Address?.ZipCode);
+        Assert.Equal("Guadalajara", client.Address?.City);
+        Assert.Equal("Jalisco", client.Address?.State);
         Assert.Equal("juan.perez@correo.com", client.Email);
 
         // Validar outbox del evento Update correcto

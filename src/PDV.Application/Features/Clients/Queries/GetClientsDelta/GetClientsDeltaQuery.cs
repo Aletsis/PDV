@@ -20,6 +20,9 @@ public class ClientSyncDto
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Street { get; set; }
+    public string? ExteriorNumber { get; set; }
+    public string? InteriorNumber { get; set; }
+    public string? Colony { get; set; }
     public string? City { get; set; }
     public string? State { get; set; }
     public string? ZipCode { get; set; }
@@ -55,6 +58,9 @@ public class GetClientsDeltaQueryHandler : IRequestHandler<GetClientsDeltaQuery,
                 Phone = c.Phone,
                 Email = c.Email,
                 Street = c.Address != null ? c.Address.Street : null,
+                ExteriorNumber = c.Address != null ? c.Address.ExteriorNumber : null,
+                InteriorNumber = c.Address != null ? c.Address.InteriorNumber : null,
+                Colony = c.Address != null ? c.Address.Colony : null,
                 City = c.Address != null ? c.Address.City : null,
                 State = c.Address != null ? c.Address.State : null,
                 ZipCode = c.Address != null ? c.Address.ZipCode : null,

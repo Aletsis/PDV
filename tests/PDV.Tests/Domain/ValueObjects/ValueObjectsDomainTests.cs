@@ -81,14 +81,35 @@ public class ValueObjectsDomainTests
     public void Address_Create_InitializesProperties()
     {
         // Act
-        var address = Address.Create("Calle Falsa 123", "Centro", "CDMX", "06000", "Mexico");
+        var address = Address.Create("Calle Falsa", "Centro", "CDMX", "06000", "Mexico", "123", "4B", "Del Valle");
 
         // Assert
-        Assert.Equal("Calle Falsa 123", address.Street);
+        Assert.Equal("Calle Falsa", address.Street);
+        Assert.Equal("123", address.ExteriorNumber);
+        Assert.Equal("4B", address.InteriorNumber);
+        Assert.Equal("Del Valle", address.Colony);
         Assert.Equal("Centro", address.City);
         Assert.Equal("CDMX", address.State);
         Assert.Equal("06000", address.ZipCode);
         Assert.Equal("Mexico", address.Country);
+    }
+
+    [Fact]
+    public void Address_ToFullAddressString_FormatsCompleteString()
+    {
+        // Arrange
+        var address = Address.Create("Av. Reforma", "Cuauhtémoc", "CDMX", "06500", "México", "222", "Piso 5", "Juárez");
+
+        // Act
+        var fullStr = address.ToFullAddressString();
+
+        // Assert
+        Assert.Contains("Av. Reforma #222 Int. Piso 5", fullStr);
+        Assert.Contains("Col. Juárez", fullStr);
+        Assert.Contains("C.P. 06500", fullStr);
+        Assert.Contains("Cuauhtémoc", fullStr);
+        Assert.Contains("CDMX", fullStr);
+        Assert.Contains("México", fullStr);
     }
 
     [Fact]

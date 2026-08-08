@@ -521,7 +521,10 @@ public class SyncWorker : BackgroundService
                             dto.City ?? "N/A", 
                             dto.State ?? "N/A", 
                             dto.ZipCode ?? "00000", 
-                            dto.Country ?? "México");
+                            dto.Country ?? "México",
+                            dto.ExteriorNumber,
+                            dto.InteriorNumber,
+                            dto.Colony);
                         client.UpdateAddress(address);
                     }
 
@@ -564,7 +567,10 @@ public class SyncWorker : BackgroundService
                                 dto.City ?? "N/A", 
                                 dto.State ?? "N/A", 
                                 dto.ZipCode ?? "00000", 
-                                dto.Country ?? "México");
+                                dto.Country ?? "México",
+                                dto.ExteriorNumber,
+                                dto.InteriorNumber,
+                                dto.Colony);
                             existing.UpdateAddress(address);
                         }
 

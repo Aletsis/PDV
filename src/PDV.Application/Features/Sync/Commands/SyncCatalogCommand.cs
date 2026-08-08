@@ -558,18 +558,17 @@ public class SyncCatalogCommandHandler : IRequestHandler<SyncCatalogCommand, Syn
                 {
                     var addresses = await addrResponse.Content.ReadFromJsonAsync<List<DomicilioSyncDto>>(cancellationToken: cancellationToken);
                     var fiscalAddr = addresses?.FirstOrDefault(a => a.TipoDireccion == 0);
-                    if (fiscalAddr != null && !string.IsNullOrWhiteSpace(fiscalAddr.Calle))
+                    if (fiscalAddr != null && (!string.IsNullOrWhiteSpace(fiscalAddr.Calle) || !string.IsNullOrWhiteSpace(fiscalAddr.Colonia)))
                     {
-                        var street = string.IsNullOrWhiteSpace(fiscalAddr.NumeroExterior) 
-                            ? fiscalAddr.Calle 
-                            : $"{fiscalAddr.Calle} {fiscalAddr.NumeroExterior} {fiscalAddr.NumeroInterior}".Trim();
-
                         var localAddress = PDV.Domain.ValueObjects.Address.Create(
-                            street: street,
+                            street: string.IsNullOrWhiteSpace(fiscalAddr.Calle) ? "N/A" : fiscalAddr.Calle,
                             city: string.IsNullOrWhiteSpace(fiscalAddr.Ciudad) ? "N/A" : fiscalAddr.Ciudad,
                             state: string.IsNullOrWhiteSpace(fiscalAddr.Estado) ? "N/A" : fiscalAddr.Estado,
                             zipCode: string.IsNullOrWhiteSpace(fiscalAddr.CodigoPostal) ? "00000" : fiscalAddr.CodigoPostal,
-                            country: string.IsNullOrWhiteSpace(fiscalAddr.Pais) ? "México" : fiscalAddr.Pais
+                            country: string.IsNullOrWhiteSpace(fiscalAddr.Pais) ? "México" : fiscalAddr.Pais,
+                            exteriorNumber: fiscalAddr.NumeroExterior,
+                            interiorNumber: fiscalAddr.NumeroInterior,
+                            colony: fiscalAddr.Colonia
                         );
                         clientAddresses[dto.Id] = localAddress;
                     }

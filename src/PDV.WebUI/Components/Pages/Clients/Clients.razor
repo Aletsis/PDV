@@ -171,7 +171,7 @@
 </div>
 
 <!-- Add/Edit Dialog -->
-<MudDialog @bind-Visible="isDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = false })">
+<MudDialog @bind-Visible="isDialogVisible" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true, BackdropClick = false })">
     <TitleContent>
         <div class="d-flex align-center gap-2">
             <MudIcon Icon="@(isEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Color="Color.Primary" Size="Size.Medium" />
@@ -182,9 +182,9 @@
         <MudForm @ref="clientForm" ValidationDelay="300">
             <MudGrid>
                 <!-- General Section -->
-                <MudItem xs="12" md="6">
+                <MudItem xs="12" md="5">
                     <div class="d-flex flex-column gap-4">
-                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DATOS GENERALES</MudText>
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DATOS GENERALES Y CONTACTO</MudText>
                         
                         <MudTextField @bind-Value="currentClient.Code" Label="Código" 
                                       Variant="Variant.Outlined" Required="true" RequiredError="El código del cliente es obligatorio"
@@ -199,48 +199,102 @@
                                       Variant="Variant.Outlined" Required="true" RequiredError="El RFC es obligatorio"
                                       HelperText="Ingrese a 12 o 13 dígitos sin guiones (ej. GOMP820325XX1)"
                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Assignment" />
+
+                        <MudTextField @bind-Value="currentClient.Phone" Label="Número Telefónico" 
+                                      Variant="Variant.Outlined" HelperText="Ej: 10 dígitos sin espacios"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
+
+                        <MudTextField @bind-Value="currentClient.Email" Label="Correo Electrónico" 
+                                      Variant="Variant.Outlined" HelperText="Ej: ejemplo@dominio.com"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
                         
                         @if (isEdit)
                         {
-                            <div class="d-flex align-center gap-2 mt-2">
+                            <div class="d-flex align-center gap-2 mt-1">
                                 <MudSwitch @bind-Value="currentClient.IsActive" Color="Color.Success" Label="¿Cliente Activo?" />
                             </div>
                         }
                     </div>
                 </MudItem>
 
-                <!-- Contact & Address Section -->
-                <MudItem xs="12" md="6">
-                    <div class="d-flex flex-column gap-4">
-                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">CONTACTO Y DIRECCIÓN</MudText>
+                <!-- Structured Address Section -->
+                <MudItem xs="12" md="7">
+                    <div class="d-flex flex-column gap-3">
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DOMICILIO FISCAL / ENTREGA</MudText>
                         
-                        <MudTextField @bind-Value="currentClient.Email" Label="Correo Electrónico" 
-                                      Variant="Variant.Outlined" HelperText="Ej: ejemplo@dominio.com"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
-                        
-                        <MudTextField @bind-Value="currentClient.Phone" Label="Número Telefónico" 
-                                      Variant="Variant.Outlined" HelperText="Ej: 10 dígitos sin espacios"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
-                        
-                        <MudTextField @bind-Value="currentClient.Address" Label="Dirección Completa" 
-                                      Variant="Variant.Outlined" Placeholder="Calle, Número, Colonia, C.P., Ciudad"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Home" />
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="8">
+                                <MudTextField @bind-Value="currentClient.Street" Label="Calle" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Nombre de la calle o avenida"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.LocationOn" />
+                            </MudItem>
+                            <MudItem xs="6" sm="2">
+                                <MudTextField @bind-Value="currentClient.ExteriorNumber" Label="Núm. Ext." 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="123" />
+                            </MudItem>
+                            <MudItem xs="6" sm="2">
+                                <MudTextField @bind-Value="currentClient.InteriorNumber" Label="Núm. Int." 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="A-1" />
+                            </MudItem>
+
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="currentClient.Colony" Label="Colonia / Asentamiento" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: Centro, Las Palmas" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="currentClient.ZipCode" Label="Código Postal (C.P.)" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="5 dígitos" />
+                            </MudItem>
+
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="currentClient.City" Label="Ciudad / Municipio" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: Guadalajara" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="currentClient.State" Label="Estado" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: Jalisco" />
+                            </MudItem>
+
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="currentClient.Country" Label="País" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="México" />
+                            </MudItem>
+                        </MudGrid>
+
+                        <div class="mt-2 p-3 border rounded-lg bg-surface">
+                            <div class="d-flex align-center gap-1 mb-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Map" Size="Size.Small" Color="Color.Info" />
+                                <MudText Typo="Typo.caption" Class="font-weight-bold">Dirección Completa Generada (Geocodificador):</MudText>
+                            </div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-style: italic;">
+                                @(string.IsNullOrWhiteSpace(GetFullAddressString(currentClient)) ? "Sin dirección capturada" : GetFullAddressString(currentClient))
+                            </MudText>
+                        </div>
                         
                         @if (currentClient.DeliveryZoneId.HasValue)
                         {
-                            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" Class="font-weight-medium mt-1">
+                            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" Class="font-weight-medium">
                                 Zona: @currentClient.DeliveryZoneName
                             </MudChip>
                         }
-                        else if (!string.IsNullOrWhiteSpace(currentClient.Address))
+                        else if (!string.IsNullOrWhiteSpace(GetFullAddressString(currentClient)))
                         {
-                            <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="font-weight-medium mt-1">
-                                Sin Zona de Reparto
+                            <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="font-weight-medium">
+                                Se resolverá zona automáticamente al guardar
                             </MudChip>
                         }
+
                         @if (currentClient.Latitude.HasValue && currentClient.Longitude.HasValue)
                         {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
                                 Coordenadas: @currentClient.Latitude.Value.ToString("F6"), @currentClient.Longitude.Value.ToString("F6")
                             </MudText>
                         }
@@ -385,9 +439,38 @@
         filterActive = val;
     }
 
+    private string GetFullAddressString(ClientDto client)
+    {
+        var parts = new List<string>();
+        var streetPart = client.Street?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(client.ExteriorNumber))
+            streetPart += $" #{client.ExteriorNumber.Trim()}";
+        if (!string.IsNullOrWhiteSpace(client.InteriorNumber))
+            streetPart += $" Int. {client.InteriorNumber.Trim()}";
+
+        if (!string.IsNullOrWhiteSpace(streetPart))
+            parts.Add(streetPart);
+        if (!string.IsNullOrWhiteSpace(client.Colony))
+            parts.Add($"Col. {client.Colony.Trim()}");
+        if (!string.IsNullOrWhiteSpace(client.ZipCode) && client.ZipCode != "00000")
+            parts.Add($"C.P. {client.ZipCode.Trim()}");
+        if (!string.IsNullOrWhiteSpace(client.City) && client.City != "N/A")
+            parts.Add(client.City.Trim());
+        if (!string.IsNullOrWhiteSpace(client.State) && client.State != "N/A")
+            parts.Add(client.State.Trim());
+        if (!string.IsNullOrWhiteSpace(client.Country))
+            parts.Add(client.Country.Trim());
+
+        return string.Join(", ", parts);
+    }
+
     private void OpenCreateDialog()
     {
-        currentClient = new ClientDto { IsActive = true };
+        currentClient = new ClientDto 
+        { 
+            IsActive = true,
+            Country = "México"
+        };
         isEdit = false;
         isDialogVisible = true;
     }
@@ -401,9 +484,21 @@
             Name = client.Name,
             TaxId = client.TaxId,
             Address = client.Address,
+            Street = client.Street,
+            ExteriorNumber = client.ExteriorNumber,
+            InteriorNumber = client.InteriorNumber,
+            Colony = client.Colony,
+            ZipCode = client.ZipCode,
+            City = client.City,
+            State = client.State,
+            Country = string.IsNullOrWhiteSpace(client.Country) ? "México" : client.Country,
             Phone = client.Phone,
             Email = client.Email,
-            IsActive = client.IsActive
+            IsActive = client.IsActive,
+            DeliveryZoneId = client.DeliveryZoneId,
+            DeliveryZoneName = client.DeliveryZoneName,
+            Latitude = client.Latitude,
+            Longitude = client.Longitude
         };
         isEdit = true;
         isDialogVisible = true;
@@ -433,6 +528,8 @@
         try
         {
             _saving = true;
+            var fullAddress = GetFullAddressString(currentClient);
+
             if (isEdit)
             {
                 var command = new UpdateClientCommand
@@ -441,7 +538,15 @@
                     Code = currentClient.Code,
                     Name = currentClient.Name,
                     TaxId = currentClient.TaxId,
-                    Address = currentClient.Address,
+                    Address = fullAddress,
+                    Street = currentClient.Street,
+                    ExteriorNumber = currentClient.ExteriorNumber,
+                    InteriorNumber = currentClient.InteriorNumber,
+                    Colony = currentClient.Colony,
+                    ZipCode = currentClient.ZipCode,
+                    City = currentClient.City,
+                    State = currentClient.State,
+                    Country = currentClient.Country,
                     Phone = currentClient.Phone,
                     Email = currentClient.Email,
                     IsActive = currentClient.IsActive
@@ -456,7 +561,15 @@
                     Code = currentClient.Code,
                     Name = currentClient.Name,
                     TaxId = currentClient.TaxId,
-                    Address = currentClient.Address,
+                    Address = fullAddress,
+                    Street = currentClient.Street,
+                    ExteriorNumber = currentClient.ExteriorNumber,
+                    InteriorNumber = currentClient.InteriorNumber,
+                    Colony = currentClient.Colony,
+                    ZipCode = currentClient.ZipCode,
+                    City = currentClient.City,
+                    State = currentClient.State,
+                    Country = currentClient.Country,
                     Phone = currentClient.Phone,
                     Email = currentClient.Email
                 };

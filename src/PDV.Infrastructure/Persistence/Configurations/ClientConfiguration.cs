@@ -19,6 +19,9 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.OwnsOne(e => e.Address, a =>
         {
             a.Property(x => x.Street).HasMaxLength(150).HasColumnName("Street");
+            a.Property(x => x.ExteriorNumber).HasMaxLength(50).HasColumnName("ExteriorNumber");
+            a.Property(x => x.InteriorNumber).HasMaxLength(50).HasColumnName("InteriorNumber");
+            a.Property(x => x.Colony).HasMaxLength(150).HasColumnName("Colony");
             a.Property(x => x.City).HasMaxLength(100).HasColumnName("City");
             a.Property(x => x.State).HasMaxLength(100).HasColumnName("State");
             a.Property(x => x.ZipCode).HasMaxLength(20).HasColumnName("ZipCode");

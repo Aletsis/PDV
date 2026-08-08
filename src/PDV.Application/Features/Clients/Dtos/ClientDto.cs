@@ -7,6 +7,14 @@ public class ClientDto
     public string Name { get; set; } = string.Empty;
     public string TaxId { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public string Street { get; set; } = string.Empty;
+    public string? ExteriorNumber { get; set; }
+    public string? InteriorNumber { get; set; }
+    public string? Colony { get; set; }
+    public string ZipCode { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string Country { get; set; } = "México";
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; }
@@ -18,3 +26,4 @@ public class ClientDto
     public Guid? DeliveryZoneId { get; set; }
     public string? DeliveryZoneName { get; set; }
 }
+

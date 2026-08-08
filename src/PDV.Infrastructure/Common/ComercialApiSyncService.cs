@@ -200,7 +200,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
 
             var commercialId = await response.Content.ReadFromJsonAsync<int>(cancellationToken: cancellationToken);
 
-            if (client.Address != null && !string.IsNullOrWhiteSpace(client.Address.Street))
+            if (client.Address != null && (!string.IsNullOrWhiteSpace(client.Address.Street) || !string.IsNullOrWhiteSpace(client.Address.Colony)))
             {
                 var addressPayload = new CreateDomicilioCommandDto
                 {
@@ -208,10 +208,13 @@ public class ComercialApiSyncService : IComercialApiSyncService
                     TipoCatalogo = 1,
                     TipoDireccion = 0, // Fiscal
                     Calle = client.Address.Street,
+                    NumeroExterior = client.Address.ExteriorNumber ?? string.Empty,
+                    NumeroInterior = client.Address.InteriorNumber ?? string.Empty,
+                    Colonia = client.Address.Colony ?? string.Empty,
                     CodigoPostal = client.Address.ZipCode,
                     Ciudad = client.Address.City,
                     Estado = client.Address.State,
-                    Pais = client.Address.Country,
+                    Pais = string.IsNullOrWhiteSpace(client.Address.Country) ? "México" : client.Address.Country,
                     Email = client.Email,
                     Telefono1 = client.Phone
                 };
@@ -271,7 +274,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
             var addresses = await addrResponse.Content.ReadFromJsonAsync<List<DomicilioDto>>(cancellationToken: cancellationToken);
             var fiscalAddress = addresses?.FirstOrDefault(a => a.TipoDireccion == 0);
 
-            if (client.Address != null && !string.IsNullOrWhiteSpace(client.Address.Street))
+            if (client.Address != null && (!string.IsNullOrWhiteSpace(client.Address.Street) || !string.IsNullOrWhiteSpace(client.Address.Colony)))
             {
                 if (fiscalAddress != null)
                 {
@@ -279,10 +282,13 @@ public class ComercialApiSyncService : IComercialApiSyncService
                     var updateAddrPayload = new UpdateDomicilioCommandDto
                     {
                         Calle = client.Address.Street,
+                        NumeroExterior = client.Address.ExteriorNumber ?? string.Empty,
+                        NumeroInterior = client.Address.InteriorNumber ?? string.Empty,
+                        Colonia = client.Address.Colony ?? string.Empty,
                         CodigoPostal = client.Address.ZipCode,
                         Ciudad = client.Address.City,
                         Estado = client.Address.State,
-                        Pais = client.Address.Country,
+                        Pais = string.IsNullOrWhiteSpace(client.Address.Country) ? "México" : client.Address.Country,
                         Email = client.Email,
                         Telefono1 = client.Phone
                     };
@@ -303,10 +309,13 @@ public class ComercialApiSyncService : IComercialApiSyncService
                         TipoCatalogo = 1,
                         TipoDireccion = 0,
                         Calle = client.Address.Street,
+                        NumeroExterior = client.Address.ExteriorNumber ?? string.Empty,
+                        NumeroInterior = client.Address.InteriorNumber ?? string.Empty,
+                        Colonia = client.Address.Colony ?? string.Empty,
                         CodigoPostal = client.Address.ZipCode,
                         Ciudad = client.Address.City,
                         Estado = client.Address.State,
-                        Pais = client.Address.Country,
+                        Pais = string.IsNullOrWhiteSpace(client.Address.Country) ? "México" : client.Address.Country,
                         Email = client.Email,
                         Telefono1 = client.Phone
                     };
