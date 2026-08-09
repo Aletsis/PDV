@@ -7,5 +7,6 @@ public enum InventoryMovementType
     Return = 3,
     AdjustmentInput = 4,
     AdjustmentOutput = 5,
-    Transfer = 6
+    Transfer = 6,
+    InitialInventory = 7
 }

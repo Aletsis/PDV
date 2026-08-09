@@ -1,0 +1,184 @@
+@using MediatR
+@using MudBlazor
+@using PDV.Application.Features.Products.Dtos
+@using PDV.Application.Features.Products.Queries.GetProductBranchStocks
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog Class="premium-branch-stock-dialog">
+    <DialogContent>
+        <div class="d-flex flex-column gap-4">
+            <!-- Product Header Summary -->
+            <div class="product-summary-card pa-4 rounded-xl d-flex align-center justify-space-between flex-wrap gap-3">
+                <div class="d-flex align-center gap-3">
+                    <div class="product-icon-box rounded-lg d-flex align-center justify-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Primary" Size="Size.Medium" />
+                    </div>
+                    <div class="d-flex flex-column">
+                        <span class="text-caption text-secondary font-weight-medium">Código: @ProductCode</span>
+                        <span class="text-h6 font-weight-bold" style="line-height: 1.2;">@ProductName</span>
+                    </div>
+                </div>
+
+                <div class="d-flex align-center gap-4">
+                    <div class="d-flex flex-column align-end">
+                        <span class="text-caption text-secondary">Existencia Global</span>
+                        <span class="text-h6 font-weight-bolder @(totalStock <= 0 ? "text-error" : "text-primary")">
+                            @totalStock.ToString("N2")
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Branch Stock Table -->
+            @if (isLoading)
+            {
+                <div class="d-flex justify-center align-center py-8">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Medium" />
+                </div>
+            }
+            else if (!branchStocks.Any())
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="rounded-lg">
+                    No se encontraron sucursales registradas en el sistema.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTable Items="@branchStocks" Elevation="0" Hover="true" Striped="true" Dense="false" 
+                          Class="branch-stock-table border border-solid rounded-xl">
+                    <HeaderContent>
+                        <MudTh Style="font-weight: 700;">Sucursal</MudTh>
+                        <MudTh Style="font-weight: 700; text-align: right;">Stock Actual</MudTh>
+                        <MudTh Style="font-weight: 700; text-align: right;">Stock Mínimo</MudTh>
+                        <MudTh Style="font-weight: 700; text-align: center;">Estado</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Sucursal">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Small" Color="Color.Default" Class="opacity-75" />
+                                <div>
+                                    <div class="font-weight-semibold">@context.BranchName</div>
+                                    <div class="text-caption text-secondary">Código: @context.BranchCode</div>
+                                </div>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Stock Actual" Style="text-align: right;">
+                            <span class="font-weight-bold @(context.IsOutOfStock ? "text-error" : (context.IsLowStock ? "text-warning" : "text-primary"))" style="font-size: 1.05rem;">
+                                @context.Stock.ToString("N2")
+                            </span>
+                        </MudTd>
+                        <MudTd DataLabel="Stock Mínimo" Style="text-align: right;">
+                            <span class="text-secondary font-weight-medium">
+                                @context.MinStock.ToString("N2")
+                            </span>
+                        </MudTd>
+                        <MudTd DataLabel="Estado" Style="text-align: center;">
+                            @if (context.IsOutOfStock)
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" 
+                                         Icon="@Icons.Material.Filled.Cancel" Style="font-weight: 600;">
+                                    Agotado
+                                </MudChip>
+                            }
+                            else if (context.IsLowStock)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" 
+                                         Icon="@Icons.Material.Filled.Warning" Style="font-weight: 600;">
+                                    Bajo Stock
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" 
+                                         Icon="@Icons.Material.Filled.CheckCircle" Style="font-weight: 600;">
+                                    Disponible
+                                </MudChip>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                    <FooterContent>
+                        <MudTFootRow Class="font-weight-bold" Style="background: rgba(255,255,255,0.02);">
+                            <MudTd>Total Consolidado</MudTd>
+                            <MudTd Style="text-align: right; font-size: 1.05rem; color: var(--mud-palette-primary);">
+                                @totalStock.ToString("N2")
+                            </MudTd>
+                            <MudTd Style="text-align: right;">-</MudTd>
+                            <MudTd Style="text-align: center;">
+                                @branchStocks.Count sucursal(es)
+                            </MudTd>
+                        </MudTFootRow>
+                    </FooterContent>
+                </MudTable>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close" 
+                   Style="border-radius: 10px; text-transform: none; font-weight: 600; padding: 8px 24px;">
+            Cerrar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .premium-branch-stock-dialog {
+        background: rgba(30, 30, 30, 0.96) !important;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px !important;
+    }
+
+    .product-summary-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .product-icon-box {
+        width: 44px;
+        height: 44px;
+        background: rgba(33, 150, 243, 0.12);
+        border: 1px solid rgba(33, 150, 243, 0.25);
+    }
+
+    .branch-stock-table {
+        background: rgba(255, 255, 255, 0.02) !important;
+        border-color: rgba(255, 255, 255, 0.06) !important;
+    }
+</style>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid ProductId { get; set; }
+    [Parameter] public string ProductName { get; set; } = string.Empty;
+    [Parameter] public string ProductCode { get; set; } = string.Empty;
+
+    private List<ProductBranchStockDto> branchStocks = new();
+    private bool isLoading = true;
+    private decimal totalStock => branchStocks.Sum(s => s.Stock);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBranchStockData();
+    }
+
+    private async Task LoadBranchStockData()
+    {
+        isLoading = true;
+        try
+        {
+            branchStocks = await Mediator.Send(new GetProductBranchStocksQuery(ProductId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar existencias por sucursal: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

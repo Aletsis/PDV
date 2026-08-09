@@ -135,8 +135,11 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
         var branches = await _context.Branches.ToListAsync(cancellationToken);
         foreach (var b in branches)
         {
-            decimal stockVal = (b.Id == activeBranchId) ? request.Stock : 0m;
-            var branchStock = new ProductBranchStock(entity.Id, b.Id, stockVal, request.MinStock);
+            var branchStock = new ProductBranchStock(entity.Id, b.Id, 0m, request.MinStock);
+            if (b.Id == activeBranchId && request.Stock > 0)
+            {
+                branchStock.ApplyMovement(request.Stock, PDV.Domain.Enums.InventoryMovementType.InitialInventory, remarks: "Inventario inicial");
+            }
             _context.ProductBranchStocks.Add(branchStock);
         }
 

@@ -7,6 +7,8 @@
 @using PDV.Application.Features.Departments.Queries.GetDepartments
 @using PDV.Application.Features.Departments.Dtos
 @using PDV.Application.Features.UnidadesMedida
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
 @inject IMediator Mediator
 
 <MudDialog Class="premium-product-dialog">
@@ -67,9 +69,30 @@
                         <MudItem xs="12" sm="6" md="3">
                             <MudNumericField Label="Costo Adquisición" @bind-Value="Model.Cost" For="@(() => Model.Cost)" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
                         </MudItem>
-                        <MudItem xs="12" sm="6" md="3">
-                            <MudNumericField Label="Stock Actual" @bind-Value="Model.Stock" For="@(() => Model.Stock)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
-                        </MudItem>
+
+                        @if (Model.Id == Guid.Empty)
+                        {
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudSelect T="Guid?" Label="Sucursal Entrada" @bind-Value="Model.BranchId" For="@(() => Model.BranchId)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input">
+                                    @foreach (var b in branches)
+                                    {
+                                        <MudSelectItem T="Guid?" Value="@((Guid?)b.Id)">@b.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="6" md="3">
+                                <MudNumericField Label="Stock Inicial" @bind-Value="Model.Stock" For="@(() => Model.Stock)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" HelperText="Kardex: Inventario Inicial" />
+                            </MudItem>
+                        }
+                        else
+                        {
+                            <MudItem xs="12" sm="6" md="6">
+                                <MudAlert Severity="MudBlazor.Severity.Info" Variant="Variant.Outlined" Dense="true" Class="rounded-lg">
+                                    Para modificar existencias, registra un movimiento en <MudLink Href="/inventory" Typo="Typo.body2" Color="Color.Primary"><b>Movimientos de Inventario</b></MudLink> (auditoría/Kardex).
+                                </MudAlert>
+                            </MudItem>
+                        }
+
                         <MudItem xs="12" sm="6" md="3">
                             <MudNumericField Label="Stock Mínimo" @bind-Value="Model.MinStock" For="@(() => Model.MinStock)" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Alerta de reorden" Class="premium-input" />
                         </MudItem>
@@ -195,6 +218,7 @@
     private List<CategoryDto> categories = new();
     private List<DepartmentDto> departments = new();
     private List<UnidadMedidaDto> unidadesMedida = new();
+    private List<BranchDto> branches = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -203,6 +227,12 @@
             categories = await Mediator.Send(new GetCategoriesQuery(IncludeInactive: false));
             departments = await Mediator.Send(new GetDepartmentsQuery(IncludeInactive: false));
             unidadesMedida = await Mediator.Send(new GetUnidadesMedidaQuery());
+            branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
+
+            if (Model.BranchId == null && branches.Any())
+            {
+                Model.BranchId = branches.First().Id;
+            }
         }
         catch (Exception)
         {
@@ -231,6 +261,7 @@
     public class ProductViewModel
     {
         public Guid Id { get; set; }
+        public Guid? BranchId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public string? Plu { get; set; }

@@ -127,6 +127,7 @@ else
                                Margin="Margin.Dense"
                                Class="premium-input">
                         <MudSelectItem T="InventoryMovementType?" Value="null">Todos los tipos</MudSelectItem>
+                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.InitialInventory">Inventario Inicial</MudSelectItem>
                         <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Purchase">Compras</MudSelectItem>
                         <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentInput">Ajustes Entrada</MudSelectItem>
                         <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentOutput">Mermas / Ajustes Salida</MudSelectItem>
@@ -193,6 +194,9 @@ else
                     <MudTd>
                         @switch (context.Type)
                         {
+                            case InventoryMovementType.InitialInventory:
+                                <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.Inventory">Inv. Inicial</MudChip>
+                                break;
                             case InventoryMovementType.Sale:
                                 <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.PointOfSale">Venta</MudChip>
                                 break;

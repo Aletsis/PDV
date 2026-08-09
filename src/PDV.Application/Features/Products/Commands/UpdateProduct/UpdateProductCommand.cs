@@ -143,12 +143,11 @@ public class UpdateProductCommandHandler : IRequestHandler<UpdateProductCommand>
                 .FirstOrDefaultAsync(s => s.ProductId == entity.Id && s.BranchId == activeBranchId.Value, cancellationToken);
             if (branchStock == null)
             {
-                branchStock = new ProductBranchStock(entity.Id, activeBranchId.Value, request.Stock, request.MinStock);
+                branchStock = new ProductBranchStock(entity.Id, activeBranchId.Value, 0, request.MinStock);
                 _context.ProductBranchStocks.Add(branchStock);
             }
             else
             {
-                branchStock.AdjustStock(request.Stock);
                 branchStock.UpdateMinStock(request.MinStock);
             }
         }

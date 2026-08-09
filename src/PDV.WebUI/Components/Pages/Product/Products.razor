@@ -10,6 +10,8 @@
 @using PDV.Application.Features.Categories.Queries.GetCategories
 @using PDV.Application.Features.Departments.Dtos
 @using PDV.Application.Features.Departments.Queries.GetDepartments
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -98,9 +100,18 @@
                                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                                IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense"
                                Clearable="true" Style="min-width: 250px;" />
+
+                <MudSelect T="Guid?" Value="filterBranchId" ValueChanged="OnBranchFilterChanged" Label="Sucursal" 
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 220px; min-width: 170px;">
+                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">Todas las Sucursales</MudSelectItem>
+                    @foreach (var branch in branches)
+                    {
+                        <MudSelectItem T="Guid?" Value="@((Guid?)branch.Id)">@branch.Name</MudSelectItem>
+                    }
+                </MudSelect>
                 
                 <MudSelect T="int?" @bind-Value="filterType" Label="Tipo" 
-                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 160px; min-width: 140px;">
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 150px; min-width: 130px;">
                     <MudSelectItem T="int?" Value="@((int?)null)">Todos los Tipos</MudSelectItem>
                     <MudSelectItem T="int?" Value="@(1)">Productos</MudSelectItem>
                     <MudSelectItem T="int?" Value="@(2)">Paquetes</MudSelectItem>
@@ -108,7 +119,7 @@
                 </MudSelect>
 
                 <MudSelect T="string" @bind-Value="filterCategory" Label="Categoría" 
-                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 200px; min-width: 160px;">
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px; min-width: 150px;">
                     <MudSelectItem Value="@(string.Empty)">Todas las Categorías</MudSelectItem>
                     @foreach (var cat in categories)
                     {
@@ -117,7 +128,7 @@
                 </MudSelect>
                 
                 <MudSelect T="string" @bind-Value="filterDepartment" Label="Departamento" 
-                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 200px; min-width: 160px;">
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px; min-width: 150px;">
                     <MudSelectItem Value="@(string.Empty)">Todos los Departamentos</MudSelectItem>
                     @foreach (var dept in departments)
                     {
@@ -148,7 +159,7 @@
                             EmptyMessage="No se encontraron productos registrados en el catálogo que coincidan con los filtros."
                             EmptyIcon="@Icons.Material.Filled.Inventory"
                             SkeletonRows="6"
-                            SkeletonColumns="7">
+                            SkeletonColumns="8">
             <MudDataGrid T="ProductDto" Items="@filteredProducts" Filterable="false" Hover="true" Striped="true" 
                          Dense="false" Elevation="0" Class="border border-solid rounded-lg">
                 <Columns>
@@ -157,18 +168,44 @@
                     <PropertyColumn Property="x => x.Name" Title="Nombre" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
                     <PropertyColumn Property="x => x.Price" Title="Precio Menudeo" Format="C2" />
                     <PropertyColumn Property="x => x.WholesalePrice" Title="Precio Mayoreo" Format="C2" />
+                    <TemplateColumn Title="Existencia" HeaderStyle="width: 120px;">
+                        <CellTemplate>
+                            <div class="d-flex align-center gap-1">
+                                <span class="font-weight-bold @(context.Item.Stock <= 0 ? "text-error" : (context.Item.MinStock > 0 && context.Item.Stock <= context.Item.MinStock ? "text-warning" : "text-primary"))">
+                                    @context.Item.Stock.ToString("N2")
+                                </span>
+                                @if (context.Item.Stock <= 0)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Small" Title="Sin existencias" />
+                                }
+                                else if (context.Item.MinStock > 0 && context.Item.Stock <= context.Item.MinStock)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Color="Color.Warning" Size="Size.Small" Title="Bajo stock mínimo" />
+                                }
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.MinStock" Title="Stock Mín." Format="N2" HeaderStyle="width: 100px;" />
                     
-                    @if (!isLocalMode)
-                    {
-                        <TemplateColumn Title="Acciones" HeaderStyle="width: 120px;" CellClass="d-flex justify-end gap-1">
-                            <CellTemplate>
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
-                                               OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
-                                               OnClick="@(() => DeleteProduct(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
-                            </CellTemplate>
-                        </TemplateColumn>
-                    }
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 140px;" CellClass="d-flex justify-end gap-1">
+                        <CellTemplate>
+                            <MudTooltip Text="Ver Stock por Sucursal">
+                                <MudIconButton Icon="@Icons.Material.Filled.Storefront" Color="Color.Info" Size="Size.Small" 
+                                               OnClick="@(() => OpenBranchStockDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.08);" />
+                            </MudTooltip>
+                            @if (!isLocalMode)
+                            {
+                                <MudTooltip Text="Editar Producto">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                                   OnClick="@(() => OpenEditDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.05);" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar Producto">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                                   OnClick="@(() => DeleteProduct(context.Item))" Style="background-color: rgba(244, 67, 54, 0.05);" />
+                                </MudTooltip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
                 </Columns>
                 <PagerContent>
                     <MudDataGridPager T="ProductDto" />
@@ -182,6 +219,7 @@
     private List<ProductDto> products = new();
     private List<CategoryDto> categories = new();
     private List<DepartmentDto> departments = new();
+    private List<BranchDto> branches = new();
     private bool isLocalMode = false;
     private bool isLoading = false;
 
@@ -193,6 +231,7 @@
 
     // Search and filter parameters
     private string searchString = "";
+    private Guid? filterBranchId = null;
     private bool? filterActive = true; // Default to showing only Active products
     private int? filterType = 1; // Default to products
     private string filterCategory = string.Empty; // Default to all
@@ -223,6 +262,7 @@
     {
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
         await LoadSyncStatus();
+        await LoadBranches();
         await LoadData();
         
         try
@@ -241,6 +281,18 @@
         catch (Exception)
         {
             // fallback
+        }
+    }
+
+    private async Task LoadBranches()
+    {
+        try
+        {
+            branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
+        }
+        catch (Exception)
+        {
+            branches = new();
         }
     }
 
@@ -270,7 +322,7 @@
         isLoading = true;
         try
         {
-            products = await Mediator.Send(new GetProductsQuery());
+            products = await Mediator.Send(new GetProductsQuery(BranchId: filterBranchId));
             CalculateMetrics();
         }
         catch (Exception ex)
@@ -302,9 +354,28 @@
         outOfStockProductsCount = products.Count(p => p.IsActive && p.Stock <= 0);
     }
 
+    private async Task OnBranchFilterChanged(Guid? val)
+    {
+        filterBranchId = val;
+        await LoadData();
+    }
+
     private void OnFilterActiveChanged(bool? val)
     {
         filterActive = val;
+    }
+
+    private async Task OpenBranchStockDialog(ProductDto product)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ProductBranchStockDialog.ProductId), product.Id },
+            { nameof(ProductBranchStockDialog.ProductName), product.Name },
+            { nameof(ProductBranchStockDialog.ProductCode), product.Code }
+        };
+
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<ProductBranchStockDialog>("Existencias por Sucursal", parameters, options);
     }
 
     private async Task OpenCreateDialog()
@@ -329,6 +400,7 @@
                 WholesaleMinQuantity = model.WholesaleMinQuantity,
                 Stock = model.Stock,
                 MinStock = model.MinStock,
+                BranchId = model.BranchId,
                 Category = model.Category,
                 SaleType = model.SaleType,
                 TaxRate = model.TaxRate,
