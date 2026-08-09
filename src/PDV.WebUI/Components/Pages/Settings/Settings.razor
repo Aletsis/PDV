@@ -425,21 +425,24 @@ else
         </MudTabPanel>
 
         @* ── API Comercial Panel ───────────────────────────────────── *@
-        <MudTabPanel Text="API Comercial" Icon="@Icons.Material.Filled.Hub">
+        <MudTabPanel Text="API Comercial (PAC)" Icon="@Icons.Material.Filled.Hub">
             <div class="settings-card">
                 <div class="settings-section-title">
                     <MudIcon Icon="@Icons.Material.Filled.Hub" />
-                    Integración con Sistema Comercial
+                    Integración con Sistema Comercial y PAC Unificado
                 </div>
-                <MudText Typo="Typo.body2" Class="mb-6" Style="color: rgba(255,255,255,0.5);">Configura la URL base y la llave de API para conectar el Punto de Venta con tu sistema Comercial.</MudText>
+                <MudText Typo="Typo.body2" Class="mb-6" Style="color: rgba(255,255,255,0.5);">Configura la URL base y la llave de API para conectar el Punto de Venta con el sistema Comercial para sincronización y timbrado de CFDIs (PAC unificado).</MudText>
 
                 <MudGrid>
                     <MudItem xs="12">
                         <div style="background: linear-gradient(135deg, rgba(100,181,246,0.07) 0%, rgba(129,212,250,0.04) 100%); border: 1px solid rgba(100,181,246,0.18); border-radius: 12px; padding: 20px 24px; margin-bottom: 8px;">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
                                 <MudIcon Icon="@Icons.Material.Filled.Info" Style="color: #64b5f6; font-size: 1.1rem;" />
-                                <MudText Typo="Typo.body2" Style="color: #90caf9;">La API Key se almacena de forma segura y se usa en cada petición al sistema Comercial como encabezado de autenticación.</MudText>
+                                <MudText Typo="Typo.body2" Style="color: #90caf9; font-weight: 500;">PAC Unificado y Sincronización Automática</MudText>
                             </MudStack>
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.7);">
+                                Esta conexión habilita la facturación directa e individual, facturación global de turnos, y sincronización bidireccional de clientes y productos con el sistema Comercial.
+                            </MudText>
                         </div>
                     </MudItem>
 

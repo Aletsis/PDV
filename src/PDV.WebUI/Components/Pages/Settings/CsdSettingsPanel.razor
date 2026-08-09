@@ -125,40 +125,52 @@
             <MudDivider Class="my-4" />
         </MudItem>
 
-        <!-- ── PAC Settings ── -->
+        <!-- ── PAC Settings (API Comercial como PAC Unificado) ── -->
         <MudItem xs="12">
             <div class="settings-section-title" style="color: #ffb74d;">
                 <MudIcon Icon="@Icons.Material.Filled.CloudSync" />
-                Configuración del PAC (Timbrado de Invoices)
+                PAC Unificado / Proveedor de Timbrado (API Comercial)
             </div>
+            <MudText Typo="Typo.body2" Class="mb-3" Style="color: rgba(255,255,255,0.5);">
+                El timbrado y generación de CFDIs (facturas individuales y globales) se canaliza mediante la API de Comercial y servicios PAC certificados con el CSD del emisor.
+            </MudText>
+            @if (!string.IsNullOrWhiteSpace(Configuration.ComercialApiUrl))
+            {
+                <div class="d-flex align-center gap-2 mb-3 px-3 py-2" style="background: rgba(100,181,246,0.08); border-radius: 8px; border: 1px solid rgba(100,181,246,0.2);">
+                    <MudIcon Icon="@Icons.Material.Filled.Hub" Size="Size.Small" Color="Color.Info" />
+                    <MudText Typo="Typo.caption" Style="color: #90caf9;">
+                        API Comercial conectada en: <strong>@Configuration.ComercialApiUrl</strong> (Canal de Timbrado Directo y Global Activo)
+                    </MudText>
+                </div>
+            }
         </MudItem>
 
         <MudItem xs="12" md="8">
             <MudTextField @bind-Value="_pacUrl" 
-                          Label="URL del Webservice del PAC" 
+                          Label="URL del Webservice del PAC / API Comercial" 
                           Variant="Variant.Outlined" 
                           Required="true"
-                          HelperText="Dirección de la API del PAC para enviar el timbrado"
+                          HelperText="Dirección del endpoint PAC o API Comercial para timbrado fiscal"
                           Adornment="Adornment.Start" 
                           AdornmentIcon="@Icons.Material.Filled.Language" />
         </MudItem>
 
         <MudItem xs="12" md="4">
             <MudTextField @bind-Value="_pacApiUser" 
-                          Label="Usuario de API PAC" 
+                          Label="Usuario de API PAC / Comercial" 
                           Variant="Variant.Outlined" 
                           Required="true"
-                          HelperText="Identificador de cuenta con el PAC"
+                          HelperText="Identificador de cuenta o usuario emisor"
                           Adornment="Adornment.Start" 
                           AdornmentIcon="@Icons.Material.Filled.AccountCircle" />
         </MudItem>
 
         <MudItem xs="12" md="6">
             <MudTextField @bind-Value="_pacApiKey" 
-                          Label="API Key / Contraseña PAC" 
+                          Label="API Key / Token de PAC" 
                           Variant="Variant.Outlined" 
                           InputType="InputType.Password" 
-                          HelperText="Clave secreta asociada al usuario del PAC"
+                          HelperText="Clave secreta o token de autenticación del PAC"
                           Adornment="Adornment.Start" 
                           AdornmentIcon="@Icons.Material.Filled.VpnKey" />
         </MudItem>
