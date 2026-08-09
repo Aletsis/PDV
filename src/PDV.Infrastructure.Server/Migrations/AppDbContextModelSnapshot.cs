@@ -2809,11 +2809,26 @@ namespace PDV.Infrastructure.Server.Migrations
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("City");
 
+                            b1.Property<string>("Colony")
+                                .HasMaxLength(150)
+                                .HasColumnType("character varying(150)")
+                                .HasColumnName("Colony");
+
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("Country");
+
+                            b1.Property<string>("ExteriorNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("ExteriorNumber");
+
+                            b1.Property<string>("InteriorNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("InteriorNumber");
 
                             b1.Property<string>("State")
                                 .IsRequired()
@@ -3031,11 +3046,26 @@ namespace PDV.Infrastructure.Server.Migrations
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("City");
 
+                            b1.Property<string>("Colony")
+                                .HasMaxLength(150)
+                                .HasColumnType("character varying(150)")
+                                .HasColumnName("Colony");
+
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("Country");
+
+                            b1.Property<string>("ExteriorNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("ExteriorNumber");
+
+                            b1.Property<string>("InteriorNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("InteriorNumber");
 
                             b1.Property<string>("State")
                                 .IsRequired()
@@ -3080,10 +3110,19 @@ namespace PDV.Infrastructure.Server.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)");
 
+                            b1.Property<string>("Colony")
+                                .HasColumnType("text");
+
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(50)
                                 .HasColumnType("character varying(50)");
+
+                            b1.Property<string>("ExteriorNumber")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("InteriorNumber")
+                                .HasColumnType("text");
 
                             b1.Property<string>("State")
                                 .IsRequired()
@@ -3757,10 +3796,19 @@ namespace PDV.Infrastructure.Server.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)");
 
+                            b1.Property<string>("Colony")
+                                .HasColumnType("text");
+
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("ExteriorNumber")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("InteriorNumber")
+                                .HasColumnType("text");
 
                             b1.Property<string>("State")
                                 .IsRequired()

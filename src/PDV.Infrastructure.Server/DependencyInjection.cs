@@ -17,6 +17,7 @@ public static class DependencyInjection
                 connectionString,
                 b => b.MigrationsAssembly(typeof(DependencyInjection).Assembly.FullName)
                       .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .AddInterceptors(interceptor);
         });
 
