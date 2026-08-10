@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\PDV.Application\PDV.Application.csproj" />
     <ProjectReference Include="..\..\src\PDV.Infrastructure\PDV.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\PDV.Infrastructure.Local\PDV.Infrastructure.Local.csproj" />
+    <ProjectReference Include="..\..\src\PDV.HardwareAgent\PDV.HardwareAgent.csproj" />
   </ItemGroup>
 
 </Project>

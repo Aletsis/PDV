@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using PDV.Application.Common.Interfaces;
+using PDV.HardwareAgent.Contracts.Enums;
+using PDV.HardwareAgent.Contracts.Models;
 using PDV.HardwareAgent.Contracts.Requests;
+using PDV.HardwareAgent.Services;
 
 namespace PDV.HardwareAgent.Endpoints;
 
@@ -10,155 +12,203 @@ public static class PrinterEndpoints
     {
         var group = app.MapGroup("/api");
 
-        // Health check endpoint for the PWA to verify the agent is running
+        // 1. Health check del agente
         app.MapGet("/health", () => Results.Ok(new
         {
             Status = "Healthy",
             Agent = "PDV Hardware Agent",
-            Version = "1.0.0",
+            Version = "2.0.0",
             Machine = Environment.MachineName,
             Timestamp = DateTime.UtcNow
         }));
 
-        // Endpoint: Print formatted plain text
+        // 2. Endpoint Unificado: Ejecución de trabajo de impresión estructurado
+        group.MapPost("/print/job", async (
+            [FromBody] PrintJobRequest request,
+            [FromServices] IPrinterManager printerManager,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await printerManager.PrintJobAsync(request, cancellationToken);
+            return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+        });
+
+        // 3. Endpoint Diagnóstico: Comprobar conectividad y estado de la impresora
+        group.MapPost("/printer/status", async (
+            [FromBody] PrinterStatusRequest request,
+            [FromServices] IPrinterManager printerManager,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Target))
+                return Results.BadRequest("Target is required.");
+
+            var status = await printerManager.CheckStatusAsync(request.Target, cancellationToken);
+            return Results.Ok(status);
+        });
+
+        // 4. Endpoints de Descubrimiento de Dispositivos Locales
+        group.MapGet("/devices/all", async ([FromServices] IPrinterManager printerManager) =>
+        {
+            var devices = await printerManager.GetLocalDevicesAsync();
+            return Results.Ok(devices);
+        });
+
+        group.MapGet("/devices/ports", async ([FromServices] IPrinterManager printerManager) =>
+        {
+            var devices = await printerManager.GetLocalDevicesAsync();
+            return Results.Ok(devices.SerialPorts);
+        });
+
+        group.MapGet("/devices/printers", async ([FromServices] IPrinterManager printerManager) =>
+        {
+            var devices = await printerManager.GetLocalDevicesAsync();
+            return Results.Ok(devices.InstalledPrinters);
+        });
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 5. Endpoints de Compatibilidad hacia atrás (PWA / WebUI existente)
+        // ──────────────────────────────────────────────────────────────────────────
+
         group.MapPost("/print/text", async (
             [FromBody] PrintTextRequest request,
-            [FromServices] IEscPosPrinter printer,
+            [FromServices] IPrinterManager printerManager,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Ip)) return Results.BadRequest("Ip is required.");
-            var port = request.Port <= 0 ? 9100 : request.Port;
 
-            try
+            var job = new PrintJobRequest
             {
-                await printer.PrintTextAsync(request.Ip, port, request.Text ?? string.Empty, request.EncodingCodePage, cancellationToken);
-                return Results.Accepted();
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Printing failed");
-            }
+                Target = NormalizeEndpoint(request.Ip, request.Port),
+                ContentType = PrintJobContentType.Text,
+                Data = request.Text ?? string.Empty,
+                CodePage = request.EncodingCodePage ?? 1252,
+                AutoCut = true,
+                PartialCut = true
+            };
+
+            var result = await printerManager.PrintJobAsync(job, cancellationToken);
+            return result.Success ? Results.Accepted() : Results.Problem(detail: result.ErrorMessage, title: result.ErrorCode);
         });
 
-        // Endpoint: Print raw bytes (Base64)
         group.MapPost("/print/raw", async (
             [FromBody] PrintRawRequest request,
-            [FromServices] IEscPosPrinter printer,
+            [FromServices] IPrinterManager printerManager,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Ip)) return Results.BadRequest("Ip is required.");
             if (string.IsNullOrWhiteSpace(request.DataBase64)) return Results.BadRequest("DataBase64 is required.");
-            var port = request.Port <= 0 ? 9100 : request.Port;
 
-            try
+            var job = new PrintJobRequest
             {
-                var rawBytes = Convert.FromBase64String(request.DataBase64);
-                await printer.PrintRawAsync(request.Ip, port, rawBytes, cancellationToken);
-                return Results.Accepted();
-            }
-            catch (FormatException)
-            {
-                return Results.BadRequest("DataBase64 contains invalid Base64 format.");
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Printing failed");
-            }
+                Target = NormalizeEndpoint(request.Ip, request.Port),
+                ContentType = PrintJobContentType.RawBase64,
+                Data = request.DataBase64,
+                AutoCut = false // RAW payload typically includes its own cut
+            };
+
+            var result = await printerManager.PrintJobAsync(job, cancellationToken);
+            return result.Success ? Results.Accepted() : Results.Problem(detail: result.ErrorMessage, title: result.ErrorCode);
         });
 
-        // Endpoint: Print image (PNG/JPG Base64)
         group.MapPost("/print/image", async (
             [FromBody] PrintImageRequest request,
-            [FromServices] IEscPosPrinter printer,
+            [FromServices] IPrinterManager printerManager,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Ip)) return Results.BadRequest("Ip is required.");
             if (string.IsNullOrWhiteSpace(request.ImageBase64)) return Results.BadRequest("ImageBase64 is required.");
-            var port = request.Port <= 0 ? 9100 : request.Port;
-            var maxWidth = request.MaxWidth <= 0 ? 384 : request.MaxWidth;
 
-            try
+            var job = new PrintJobRequest
             {
-                var bytes = Convert.FromBase64String(request.ImageBase64);
-                await printer.PrintImageAsync(request.Ip, port, bytes, maxWidth, cancellationToken);
-                return Results.Accepted();
-            }
-            catch (FormatException)
-            {
-                return Results.BadRequest("ImageBase64 contains invalid Base64 format.");
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Printing failed");
-            }
+                Target = NormalizeEndpoint(request.Ip, request.Port),
+                ContentType = PrintJobContentType.ImageBase64,
+                Data = request.ImageBase64,
+                MaxWidth = request.MaxWidth <= 0 ? 384 : request.MaxWidth,
+                AutoCut = true,
+                PartialCut = true
+            };
+
+            var result = await printerManager.PrintJobAsync(job, cancellationToken);
+            return result.Success ? Results.Accepted() : Results.Problem(detail: result.ErrorMessage, title: result.ErrorCode);
         });
 
-        // Endpoint: Print Barcode
         group.MapPost("/print/barcode", async (
             [FromBody] PrintBarcodeRequest request,
-            [FromServices] IEscPosPrinter printer,
+            [FromServices] IPrinterManager printerManager,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Ip)) return Results.BadRequest("Ip is required.");
             if (string.IsNullOrWhiteSpace(request.Data)) return Results.BadRequest("Data is required.");
-            var port = request.Port <= 0 ? 9100 : request.Port;
-            var barcodeType = request.BarcodeType <= 0 ? 73 : request.BarcodeType;
-            var height = request.Height <= 0 ? 100 : request.Height;
 
-            try
+            var job = new PrintJobRequest
             {
-                await printer.PrintBarcodeAsync(request.Ip, port, request.Data, barcodeType, height, cancellationToken);
-                return Results.Accepted();
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Printing failed");
-            }
+                Target = NormalizeEndpoint(request.Ip, request.Port),
+                ContentType = PrintJobContentType.Barcode,
+                Data = request.Data,
+                BarcodeType = request.BarcodeType <= 0 ? 73 : request.BarcodeType,
+                BarcodeHeight = request.Height <= 0 ? 100 : request.Height,
+                AutoCut = true,
+                PartialCut = true
+            };
+
+            var result = await printerManager.PrintJobAsync(job, cancellationToken);
+            return result.Success ? Results.Accepted() : Results.Problem(detail: result.ErrorMessage, title: result.ErrorCode);
         });
 
-        // Endpoint: Print QR Code
         group.MapPost("/print/qr", async (
             [FromBody] PrintQrRequest request,
-            [FromServices] IEscPosPrinter printer,
+            [FromServices] IPrinterManager printerManager,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Ip)) return Results.BadRequest("Ip is required.");
             if (string.IsNullOrWhiteSpace(request.Data)) return Results.BadRequest("Data is required.");
-            var port = request.Port <= 0 ? 9100 : request.Port;
-            var moduleSize = request.ModuleSize <= 0 ? 4 : request.ModuleSize;
-            var errorLevel = request.ErrorLevel <= 0 ? 48 : request.ErrorLevel;
 
-            try
+            var job = new PrintJobRequest
             {
-                await printer.PrintQrAsync(request.Ip, port, request.Data, moduleSize, errorLevel, cancellationToken);
-                return Results.Accepted();
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Printing failed");
-            }
+                Target = NormalizeEndpoint(request.Ip, request.Port),
+                ContentType = PrintJobContentType.QrCode,
+                Data = request.Data,
+                QrModuleSize = request.ModuleSize <= 0 ? 4 : request.ModuleSize,
+                QrErrorLevel = request.ErrorLevel <= 0 ? 48 : request.ErrorLevel,
+                AutoCut = true,
+                PartialCut = true
+            };
+
+            var result = await printerManager.PrintJobAsync(job, cancellationToken);
+            return result.Success ? Results.Accepted() : Results.Problem(detail: result.ErrorMessage, title: result.ErrorCode);
         });
 
-        // Endpoint: Open Cash Drawer
         group.MapPost("/drawer/open", async (
             [FromBody] DrawerRequest request,
-            [FromServices] IEscPosPrinter printer,
+            [FromServices] IPrinterManager printerManager,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Ip)) return Results.BadRequest("Ip is required.");
-            var port = request.Port <= 0 ? 9100 : request.Port;
 
-            try
+            var job = new PrintJobRequest
             {
-                await printer.OpenDrawerAsync(request.Ip, port, cancellationToken);
-                return Results.Accepted();
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Opening cash drawer failed");
-            }
+                Target = NormalizeEndpoint(request.Ip, request.Port),
+                ContentType = PrintJobContentType.Text,
+                Data = string.Empty,
+                OpenDrawerBefore = true,
+                AutoCut = false
+            };
+
+            var result = await printerManager.PrintJobAsync(job, cancellationToken);
+            return result.Success ? Results.Accepted() : Results.Problem(detail: result.ErrorMessage, title: result.ErrorCode);
         });
 
         return app;
     }
+
+    private static string NormalizeEndpoint(string ipOrUri, int port)
+    {
+        if (ipOrUri.Contains("://")) return ipOrUri;
+        var p = port <= 0 ? 9100 : port;
+        return $"tcp://{ipOrUri}:{p}";
+    }
+}
+
+public class PrinterStatusRequest
+{
+    public string Target { get; set; } = string.Empty;
 }
