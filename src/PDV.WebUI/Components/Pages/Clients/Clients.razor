@@ -207,6 +207,39 @@
                         <MudTextField @bind-Value="currentClient.Email" Label="Correo Electrónico" 
                                       Variant="Variant.Outlined" HelperText="Ej: ejemplo@dominio.com"
                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
+
+                        <MudSelect T="string" @bind-Value="currentClient.FiscalRegime" Label="Régimen Fiscal" 
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" 
+                                   HelperText="Catálogo SAT (CFDI 4.0)"
+                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountBalance">
+                            <MudSelectItem Value="@("601")">601 - General de Ley Personas Morales</MudSelectItem>
+                            <MudSelectItem Value="@("603")">603 - Personas Morales con Fines no Lucrativos</MudSelectItem>
+                            <MudSelectItem Value="@("605")">605 - Sueldos y Salarios e Ingresos Asimilados</MudSelectItem>
+                            <MudSelectItem Value="@("606")">606 - Arrendamiento</MudSelectItem>
+                            <MudSelectItem Value="@("612")">612 - Personas Físicas con Actividades Empresariales y Profesionales</MudSelectItem>
+                            <MudSelectItem Value="@("616")">616 - Sin obligaciones fiscales</MudSelectItem>
+                            <MudSelectItem Value="@("621")">621 - Incorporación Fiscal</MudSelectItem>
+                            <MudSelectItem Value="@("625")">625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas</MudSelectItem>
+                            <MudSelectItem Value="@("626")">626 - Régimen Simplificado de Confianza (RESICO)</MudSelectItem>
+                        </MudSelect>
+
+                        <MudSelect T="string" @bind-Value="currentClient.CfdiUse" Label="Uso del CFDI" 
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" 
+                                   HelperText="Uso preferente para comprobantes fiscales"
+                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Description">
+                            <MudSelectItem Value="@("G01")">G01 - Adquisición de mercancías</MudSelectItem>
+                            <MudSelectItem Value="@("G02")">G02 - Devoluciones, descuentos o bonificaciones</MudSelectItem>
+                            <MudSelectItem Value="@("G03")">G03 - Gastos en general</MudSelectItem>
+                            <MudSelectItem Value="@("I01")">I01 - Construcciones</MudSelectItem>
+                            <MudSelectItem Value="@("I02")">I02 - Mobilario y equipo de oficina</MudSelectItem>
+                            <MudSelectItem Value="@("I04")">I04 - Equipo de cómputo y accesorios</MudSelectItem>
+                            <MudSelectItem Value="@("I08")">I08 - Otra maquinaria y equipo</MudSelectItem>
+                            <MudSelectItem Value="@("D01")">D01 - Honorarios médicos, dentales y gastos hospitalarios</MudSelectItem>
+                            <MudSelectItem Value="@("D02")">D02 - Gastos médicos por incapacidad o discapacidad</MudSelectItem>
+                            <MudSelectItem Value="@("D04")">D04 - Donativos</MudSelectItem>
+                            <MudSelectItem Value="@("S01")">S01 - Sin efectos fiscales</MudSelectItem>
+                            <MudSelectItem Value="@("CP01")">CP01 - Pagos</MudSelectItem>
+                        </MudSelect>
                         
                         @if (isEdit)
                         {
@@ -469,7 +502,9 @@
         currentClient = new ClientDto 
         { 
             IsActive = true,
-            Country = "México"
+            Country = "México",
+            FiscalRegime = "616",
+            CfdiUse = "S01"
         };
         isEdit = false;
         isDialogVisible = true;
@@ -494,6 +529,8 @@
             Country = string.IsNullOrWhiteSpace(client.Country) ? "México" : client.Country,
             Phone = client.Phone,
             Email = client.Email,
+            FiscalRegime = client.FiscalRegime,
+            CfdiUse = client.CfdiUse,
             IsActive = client.IsActive,
             DeliveryZoneId = client.DeliveryZoneId,
             DeliveryZoneName = client.DeliveryZoneName,
@@ -549,6 +586,8 @@
                     Country = currentClient.Country,
                     Phone = currentClient.Phone,
                     Email = currentClient.Email,
+                    FiscalRegime = currentClient.FiscalRegime,
+                    CfdiUse = currentClient.CfdiUse,
                     IsActive = currentClient.IsActive
                 };
                 await Mediator.Send(command);
@@ -571,7 +610,9 @@
                     State = currentClient.State,
                     Country = currentClient.Country,
                     Phone = currentClient.Phone,
-                    Email = currentClient.Email
+                    Email = currentClient.Email,
+                    FiscalRegime = currentClient.FiscalRegime,
+                    CfdiUse = currentClient.CfdiUse
                 };
                 await Mediator.Send(command);
                 Snackbar.Add("Cliente creado exitosamente", Severity.Success);

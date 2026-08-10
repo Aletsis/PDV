@@ -25,6 +25,8 @@ public record CreateClientCommand : IRequest<Guid>
     public string Country { get; set; } = "México";
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string? FiscalRegime { get; set; }
+    public string? CfdiUse { get; set; }
 }
 
 public class CreateClientCommandValidator : AbstractValidator<CreateClientCommand>
@@ -72,7 +74,10 @@ public class CreateClientCommandHandler : IRequestHandler<CreateClientCommand, G
             request.Name,
             request.TaxId,
             request.Phone,
-            request.Email
+            request.Email,
+            fiscalRegime: request.FiscalRegime,
+            fiscalZipCode: !string.IsNullOrWhiteSpace(request.ZipCode) && request.ZipCode != "00000" ? request.ZipCode : null,
+            cfdiUse: request.CfdiUse
         );
 
         var street = !string.IsNullOrWhiteSpace(request.Street) ? request.Street : request.Address;

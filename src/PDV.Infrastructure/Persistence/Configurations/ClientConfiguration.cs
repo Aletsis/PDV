@@ -15,6 +15,7 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.Property(e => e.Email).HasMaxLength(100);
         entity.Property(e => e.FiscalRegime).HasMaxLength(10);
         entity.Property(e => e.FiscalZipCode).HasMaxLength(10);
+        entity.Property(e => e.CfdiUse).HasMaxLength(10);
 
         entity.OwnsOne(e => e.Address, a =>
         {

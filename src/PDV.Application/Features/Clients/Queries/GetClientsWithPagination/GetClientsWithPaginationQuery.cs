@@ -65,6 +65,7 @@ public class GetClientsWithPaginationQueryHandler : IRequestHandler<GetClientsWi
             ClientType = c.ClientType,
             FiscalRegime = c.FiscalRegime,
             FiscalZipCode = c.FiscalZipCode,
+            CfdiUse = c.CfdiUse,
             Latitude = c.Latitude,
             Longitude = c.Longitude,
             DeliveryZoneId = c.DeliveryZoneId,

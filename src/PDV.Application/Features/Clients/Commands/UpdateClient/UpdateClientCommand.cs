@@ -26,6 +26,8 @@ public record UpdateClientCommand : IRequest<bool>
     public string Country { get; set; } = "México";
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string? FiscalRegime { get; set; }
+    public string? CfdiUse { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -77,6 +79,10 @@ public class UpdateClientCommandHandler : IRequestHandler<UpdateClientCommand, b
         entity.ChangeCode(request.Code);
         entity.UpdateProfile(request.Name, request.TaxId);
         entity.UpdateContactInfo(request.Phone, request.Email);
+        entity.UpdateFiscalProfile(
+            request.FiscalRegime, 
+            !string.IsNullOrWhiteSpace(request.ZipCode) && request.ZipCode != "00000" ? request.ZipCode : null, 
+            request.CfdiUse);
 
         var street = !string.IsNullOrWhiteSpace(request.Street) ? request.Street : request.Address;
         if (!string.IsNullOrWhiteSpace(street) || !string.IsNullOrWhiteSpace(request.Colony))

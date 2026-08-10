@@ -157,7 +157,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
         try
         {
             using var httpClient = await CreateHttpClientAsync(cancellationToken);
-            var endpoint = $"api/Clientes?search={Uri.EscapeDataString(code)}&onlyActive=false";
+            var endpoint = $"api/Clientes?search={Uri.EscapeDataString(code.Trim())}&onlyActive=false";
             var response = await httpClient.GetAsync(endpoint, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -169,7 +169,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
             var result = await response.Content.ReadFromJsonAsync<PaginatedResultDto<ClienteDto>>(cancellationToken: cancellationToken);
             if (result == null || result.Items == null) return false;
 
-            return result.Items.Any(i => i.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase));
+            return result.Items.Any(i => (i.Codigo ?? "").Trim().Equals(code.Trim(), StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception ex)
         {
@@ -183,11 +183,14 @@ public class ComercialApiSyncService : IComercialApiSyncService
         try
         {
             using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var rfc = string.IsNullOrWhiteSpace(client.TaxId) ? "XAXX010101000" : client.TaxId.Trim();
             var payload = new CreateClienteCommandDto
             {
-                Codigo = client.Code,
-                RazonSocial = client.Name,
-                RFC = client.TaxId
+                Codigo = client.Code.Trim(),
+                RazonSocial = client.Name.Trim(),
+                RFC = rfc,
+                RegimenFiscal = client.FiscalRegime,
+                UsoCFDI = client.CfdiUse
             };
 
             var response = await httpClient.PostAsJsonAsync("api/Clientes", payload, cancellationToken);
@@ -202,21 +205,24 @@ public class ComercialApiSyncService : IComercialApiSyncService
 
             if (client.Address != null && (!string.IsNullOrWhiteSpace(client.Address.Street) || !string.IsNullOrWhiteSpace(client.Address.Colony)))
             {
+                var street = !string.IsNullOrWhiteSpace(client.Address.Street) ? client.Address.Street.Trim() : (!string.IsNullOrWhiteSpace(client.Address.Colony) ? client.Address.Colony.Trim() : "Conocido");
+                var email = !string.IsNullOrWhiteSpace(client.Email) && client.Email.Contains('@') ? client.Email.Trim() : string.Empty;
+
                 var addressPayload = new CreateDomicilioCommandDto
                 {
-                    CodigoCatalogo = client.Code,
+                    CodigoCatalogo = client.Code.Trim(),
                     TipoCatalogo = 1,
                     TipoDireccion = 0, // Fiscal
-                    Calle = client.Address.Street,
+                    Calle = street,
                     NumeroExterior = client.Address.ExteriorNumber ?? string.Empty,
                     NumeroInterior = client.Address.InteriorNumber ?? string.Empty,
                     Colonia = client.Address.Colony ?? string.Empty,
-                    CodigoPostal = client.Address.ZipCode,
-                    Ciudad = client.Address.City,
-                    Estado = client.Address.State,
+                    CodigoPostal = client.Address.ZipCode ?? string.Empty,
+                    Ciudad = client.Address.City ?? string.Empty,
+                    Estado = client.Address.State ?? string.Empty,
                     Pais = string.IsNullOrWhiteSpace(client.Address.Country) ? "México" : client.Address.Country,
-                    Email = client.Email,
-                    Telefono1 = client.Phone
+                    Email = email,
+                    Telefono1 = client.Phone ?? string.Empty
                 };
 
                 var addressResponse = await httpClient.PostAsJsonAsync("api/Domicilios", addressPayload, cancellationToken);
@@ -241,13 +247,16 @@ public class ComercialApiSyncService : IComercialApiSyncService
         try
         {
             using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var rfc = string.IsNullOrWhiteSpace(client.TaxId) ? "XAXX010101000" : client.TaxId.Trim();
             var payload = new UpdateClienteCommandDto
             {
-                RazonSocial = client.Name,
-                RFC = client.TaxId
+                RazonSocial = client.Name.Trim(),
+                RFC = rfc,
+                RegimenFiscal = client.FiscalRegime,
+                UsoCFDI = client.CfdiUse
             };
 
-            var response = await httpClient.PutAsJsonAsync($"api/Clientes/{Uri.EscapeDataString(client.Code)}", payload, cancellationToken);
+            var response = await httpClient.PutAsJsonAsync($"api/Clientes/{Uri.EscapeDataString(client.Code.Trim())}", payload, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -256,12 +265,12 @@ public class ComercialApiSyncService : IComercialApiSyncService
             }
 
             // Buscar ID comercial del cliente
-            var searchUrl = $"api/Clientes?search={Uri.EscapeDataString(client.Code)}&onlyActive=false";
+            var searchUrl = $"api/Clientes?search={Uri.EscapeDataString(client.Code.Trim())}&onlyActive=false";
             var searchResponse = await httpClient.GetAsync(searchUrl, cancellationToken);
             if (!searchResponse.IsSuccessStatusCode) return true; // Si falla, al menos el cliente se actualizó
 
             var searchResult = await searchResponse.Content.ReadFromJsonAsync<PaginatedResultDto<ClienteDto>>(cancellationToken: cancellationToken);
-            var commercialClient = searchResult?.Items?.FirstOrDefault(i => i.Codigo.Equals(client.Code, StringComparison.OrdinalIgnoreCase));
+            var commercialClient = searchResult?.Items?.FirstOrDefault(i => (i.Codigo ?? "").Trim().Equals(client.Code.Trim(), StringComparison.OrdinalIgnoreCase));
             if (commercialClient == null) return true;
 
             int commercialId = commercialClient.Id;
@@ -276,21 +285,24 @@ public class ComercialApiSyncService : IComercialApiSyncService
 
             if (client.Address != null && (!string.IsNullOrWhiteSpace(client.Address.Street) || !string.IsNullOrWhiteSpace(client.Address.Colony)))
             {
+                var street = !string.IsNullOrWhiteSpace(client.Address.Street) ? client.Address.Street.Trim() : (!string.IsNullOrWhiteSpace(client.Address.Colony) ? client.Address.Colony.Trim() : "Conocido");
+                var email = !string.IsNullOrWhiteSpace(client.Email) && client.Email.Contains('@') ? client.Email.Trim() : string.Empty;
+
                 if (fiscalAddress != null)
                 {
                     // Actualizar domicilio existente
                     var updateAddrPayload = new UpdateDomicilioCommandDto
                     {
-                        Calle = client.Address.Street,
+                        Calle = street,
                         NumeroExterior = client.Address.ExteriorNumber ?? string.Empty,
                         NumeroInterior = client.Address.InteriorNumber ?? string.Empty,
                         Colonia = client.Address.Colony ?? string.Empty,
-                        CodigoPostal = client.Address.ZipCode,
-                        Ciudad = client.Address.City,
-                        Estado = client.Address.State,
+                        CodigoPostal = client.Address.ZipCode ?? string.Empty,
+                        Ciudad = client.Address.City ?? string.Empty,
+                        Estado = client.Address.State ?? string.Empty,
                         Pais = string.IsNullOrWhiteSpace(client.Address.Country) ? "México" : client.Address.Country,
-                        Email = client.Email,
-                        Telefono1 = client.Phone
+                        Email = email,
+                        Telefono1 = client.Phone ?? string.Empty
                     };
 
                     var putAddrResponse = await httpClient.PutAsJsonAsync($"api/Domicilios/{fiscalAddress.Id}", updateAddrPayload, cancellationToken);
@@ -305,19 +317,19 @@ public class ComercialApiSyncService : IComercialApiSyncService
                     // Crear nuevo domicilio
                     var createAddrPayload = new CreateDomicilioCommandDto
                     {
-                        CodigoCatalogo = client.Code,
+                        CodigoCatalogo = client.Code.Trim(),
                         TipoCatalogo = 1,
                         TipoDireccion = 0,
-                        Calle = client.Address.Street,
+                        Calle = street,
                         NumeroExterior = client.Address.ExteriorNumber ?? string.Empty,
                         NumeroInterior = client.Address.InteriorNumber ?? string.Empty,
                         Colonia = client.Address.Colony ?? string.Empty,
-                        CodigoPostal = client.Address.ZipCode,
-                        Ciudad = client.Address.City,
-                        Estado = client.Address.State,
+                        CodigoPostal = client.Address.ZipCode ?? string.Empty,
+                        Ciudad = client.Address.City ?? string.Empty,
+                        Estado = client.Address.State ?? string.Empty,
                         Pais = string.IsNullOrWhiteSpace(client.Address.Country) ? "México" : client.Address.Country,
-                        Email = client.Email,
-                        Telefono1 = client.Phone
+                        Email = email,
+                        Telefono1 = client.Phone ?? string.Empty
                     };
 
                     var postAddrResponse = await httpClient.PostAsJsonAsync("api/Domicilios", createAddrPayload, cancellationToken);
@@ -512,6 +524,8 @@ public class ComercialApiSyncService : IComercialApiSyncService
         public string Codigo { get; set; } = string.Empty;
         public string RazonSocial { get; set; } = string.Empty;
         public string RFC { get; set; } = string.Empty;
+        public string? RegimenFiscal { get; set; }
+        public string? UsoCFDI { get; set; }
         public int TipoCliente { get; set; } = 1;
     }
 
@@ -519,6 +533,8 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         public string RazonSocial { get; set; } = string.Empty;
         public string RFC { get; set; } = string.Empty;
+        public string? RegimenFiscal { get; set; }
+        public string? UsoCFDI { get; set; }
         public int TipoCliente { get; set; } = 1;
     }
 

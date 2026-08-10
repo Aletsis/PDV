@@ -19,6 +19,7 @@ public class Client : BaseEntity, IAggregateRoot
     public bool IsActive { get; private set; }
     public string? FiscalRegime { get; private set; }
     public string? FiscalZipCode { get; private set; }
+    public string? CfdiUse { get; private set; }
     
     // Logística y Reparto
     public Guid? DeliveryZoneId { get; private set; }
@@ -38,7 +39,8 @@ public class Client : BaseEntity, IAggregateRoot
         string email,
         ClientType clientType = ClientType.Retail,
         string? fiscalRegime = null,
-        string? fiscalZipCode = null)
+        string? fiscalZipCode = null,
+        string? cfdiUse = null)
     {
         if (string.IsNullOrWhiteSpace(code)) 
             throw new DomainException("El código del cliente es obligatorio.");
@@ -57,7 +59,7 @@ public class Client : BaseEntity, IAggregateRoot
         ClientType = clientType;
         IsActive = true;
 
-        UpdateFiscalProfile(fiscalRegime, fiscalZipCode);
+        UpdateFiscalProfile(fiscalRegime, fiscalZipCode, cfdiUse);
 
         AddDomainEvent(new ClientRegisteredEvent(Id, Name));
     }
@@ -129,7 +131,7 @@ public class Client : BaseEntity, IAggregateRoot
 
 
 
-    public void UpdateFiscalProfile(string? fiscalRegime, string? fiscalZipCode)
+    public void UpdateFiscalProfile(string? fiscalRegime, string? fiscalZipCode, string? cfdiUse = null)
     {
         if (!string.IsNullOrWhiteSpace(fiscalRegime))
         {
@@ -153,6 +155,18 @@ public class Client : BaseEntity, IAggregateRoot
         else
         {
             FiscalZipCode = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(cfdiUse))
+        {
+            var use = cfdiUse.Trim().ToUpperInvariant();
+            if (use.Length != 3)
+                throw new DomainException("El Uso del CFDI debe ser un código de 3 caracteres (ej. G03, G01, S01).");
+            CfdiUse = use;
+        }
+        else
+        {
+            CfdiUse = null;
         }
     }
 

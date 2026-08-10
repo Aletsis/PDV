@@ -46,6 +46,7 @@ public class GetClientQueryHandler : IRequestHandler<GetClientQuery, ClientDto?>
             ClientType = client.ClientType,
             FiscalRegime = client.FiscalRegime,
             FiscalZipCode = client.FiscalZipCode,
+            CfdiUse = client.CfdiUse,
             Latitude = client.Latitude,
             Longitude = client.Longitude,
             DeliveryZoneId = client.DeliveryZoneId,
