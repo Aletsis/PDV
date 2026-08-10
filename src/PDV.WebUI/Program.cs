@@ -250,7 +250,7 @@ if (!runMode.Equals("Local", StringComparison.OrdinalIgnoreCase))
     using (var seedScope = app.Services.CreateScope())
     {
         var roleManager = seedScope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        foreach (var roleName in new[] { "Admin", "Manager", "Cashier", "DeliveryMan", "Telephonist" })
+        foreach (var roleName in new[] { "Admin", "Manager", "Cashier", "DeliveryMan", "Telephonist", "Almacen", "Compras" })
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {

@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Identity
 @using PDV.Infrastructure.Identity
+@using PDV.Application.Features.Branches.Dtos
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole> RoleManager
 @inject ISnackbar Snackbar
@@ -14,9 +15,29 @@
     <DialogContent>
         <MudForm @ref="userForm" ValidationDelay="300">
             <MudStack Spacing="3" Class="pt-1">
-                <MudTextField @bind-Value="Model.FullName" Label="Nombre Completo"
-                              Variant="Variant.Outlined" Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Badge" />
+                <MudTextField @bind-Value="Model.FullName" Label="Nombre Completo *"
+                              Variant="Variant.Outlined" Required="true" RequiredError="El nombre completo es obligatorio"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Person" />
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="Model.EmployeeNumber" Label="Número de Empleado"
+                                      Variant="Variant.Outlined" Placeholder="Ej. EMP-001"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Badge" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid?" @bind-Value="Model.BranchId" Label="Sucursal"
+                                   Variant="Variant.Outlined" Clearable="true"
+                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Store">
+                            <MudSelectItem T="Guid?" Value="@((Guid?)null)">Ninguna (Global)</MudSelectItem>
+                            @foreach (var branch in AvailableBranches)
+                            {
+                                <MudSelectItem T="Guid?" Value="@((Guid?)branch.Id)">@branch.Name (@branch.Code)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
 
                 <MudTextField @bind-Value="Model.UserName" Label="Nombre de Usuario *"
                               Variant="Variant.Outlined" Required="true" RequiredError="El nombre de usuario es obligatorio"
@@ -88,6 +109,9 @@
     [Parameter]
     public List<string> AvailableRoles { get; set; } = new();
 
+    [Parameter]
+    public List<BranchDto> AvailableBranches { get; set; } = new();
+
     private MudForm userForm = null!;
     private bool isSaving = false;
     private bool IsEmailRequired => !string.IsNullOrWhiteSpace(Model.SelectedRole) &&
@@ -139,6 +163,8 @@
             UserName = Model.UserName.Trim(),
             Email = string.IsNullOrWhiteSpace(Model.Email) ? null : Model.Email.Trim(),
             FullName = Model.FullName.Trim(),
+            EmployeeNumber = string.IsNullOrWhiteSpace(Model.EmployeeNumber) ? null : Model.EmployeeNumber.Trim(),
+            BranchId = Model.BranchId,
             IsActive = true
         };
 
@@ -171,6 +197,8 @@
         user.UserName = Model.UserName.Trim();
         user.Email = string.IsNullOrWhiteSpace(Model.Email) ? null : Model.Email.Trim();
         user.FullName = Model.FullName.Trim();
+        user.EmployeeNumber = string.IsNullOrWhiteSpace(Model.EmployeeNumber) ? null : Model.EmployeeNumber.Trim();
+        user.BranchId = Model.BranchId;
         user.IsActive = Model.IsActive;
 
         var updateResult = await UserManager.UpdateAsync(user);
@@ -210,6 +238,8 @@
     public class UserFormModel
     {
         public string FullName { get; set; } = string.Empty;
+        public string? EmployeeNumber { get; set; }
+        public Guid? BranchId { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;

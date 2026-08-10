@@ -17,7 +17,7 @@ public static class AppDbContextSeed
         AppDbContext context)
     {
         // 1. Asegurar la existencia de los roles principales
-        var roles = new[] { "Admin", "Manager", "Cashier", "DeliveryMan", "Telephonist" };
+        var roles = new[] { "Admin", "Manager", "Cashier", "DeliveryMan", "Telephonist", "Almacen", "Compras" };
         foreach (var roleName in roles)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
@@ -117,6 +117,28 @@ public static class AppDbContextSeed
                 if (!roleHasPerm)
                 {
                     context.RolePermissions.Add(new RolePermission(telephonistRole.Id, p.Id));
+                }
+            }
+        }
+
+        var catalogViewerRoles = new[] { "Almacen", "Compras" };
+        foreach (var rName in catalogViewerRoles)
+        {
+            var role = await roleManager.FindByNameAsync(rName);
+            if (role != null)
+            {
+                var catalogPermCodes = new[] { "products.view_catalog" };
+                var dbPermissions = await context.Permissions
+                    .Where(p => catalogPermCodes.Contains(p.Code))
+                    .ToListAsync();
+
+                foreach (var p in dbPermissions)
+                {
+                    var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == role.Id && rp.PermissionId == p.Id);
+                    if (!roleHasPerm)
+                    {
+                        context.RolePermissions.Add(new RolePermission(role.Id, p.Id));
+                    }
                 }
             }
         }

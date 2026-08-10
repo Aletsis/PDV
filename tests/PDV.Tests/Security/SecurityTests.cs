@@ -246,6 +246,8 @@ public class SecurityTests
         // Assert - Roles Exist
         Assert.True(await roleManager.RoleExistsAsync("Telephonist"));
         Assert.True(await roleManager.RoleExistsAsync("Cashier"));
+        Assert.True(await roleManager.RoleExistsAsync("Almacen"));
+        Assert.True(await roleManager.RoleExistsAsync("Compras"));
 
         // Assert - Permissions for Telephonist
         var telephonistRole = await roleManager.FindByNameAsync("Telephonist");
@@ -259,18 +261,32 @@ public class SecurityTests
         Assert.Contains("clients.create_edit", rolePermissions);
         Assert.Contains("orders.capture", rolePermissions);
 
-        // Act - Create user with null email
+        // Assert - Permissions for Almacen & Compras
+        var almacenRole = await roleManager.FindByNameAsync("Almacen");
+        Assert.NotNull(almacenRole);
+        var almacenPerms = await context.RolePermissions
+            .Where(rp => rp.RoleId == almacenRole.Id)
+            .Join(context.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => p.Code)
+            .ToListAsync();
+        Assert.Contains("products.view_catalog", almacenPerms);
+
+        // Act - Create user with employee number and branch
+        var testBranchId = Guid.NewGuid();
         var cashierUser = new ApplicationUser
         {
             Id = Guid.NewGuid().ToString(),
             UserName = "cajero_sin_correo",
             Email = null,
             FullName = "Cajero Operativo",
+            EmployeeNumber = "EMP-999",
+            BranchId = testBranchId,
             IsActive = true
         };
 
         var result = await userManager.CreateAsync(cashierUser, "Password123!");
         Assert.True(result.Succeeded);
         Assert.Null(cashierUser.Email);
+        Assert.Equal("EMP-999", cashierUser.EmployeeNumber);
+        Assert.Equal(testBranchId, cashierUser.BranchId);
     }
 }

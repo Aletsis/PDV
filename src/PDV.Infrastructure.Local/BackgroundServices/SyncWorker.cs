@@ -1259,6 +1259,8 @@ public class SyncWorker : BackgroundService
                         Email = dto.Email,
                         FullName = dto.FullName,
                         IsActive = dto.IsActive,
+                        EmployeeNumber = dto.EmployeeNumber,
+                        BranchId = dto.BranchId,
                         PasswordHash = dto.PasswordHash
                     };
 
@@ -1288,6 +1290,8 @@ public class SyncWorker : BackgroundService
                     user.Email = dto.Email;
                     user.FullName = dto.FullName;
                     user.IsActive = dto.IsActive;
+                    user.EmployeeNumber = dto.EmployeeNumber;
+                    user.BranchId = dto.BranchId;
                     user.PasswordHash = dto.PasswordHash;
 
                     var result = await userManager.UpdateAsync(user);
@@ -1517,6 +1521,8 @@ public class SyncWorker : BackgroundService
         public string? Email { get; set; }
         public string FullName { get; set; } = string.Empty;
         public bool IsActive { get; set; }
+        public string? EmployeeNumber { get; set; }
+        public Guid? BranchId { get; set; }
         public string? PasswordHash { get; set; }
         public List<string> Roles { get; set; } = new();
     }

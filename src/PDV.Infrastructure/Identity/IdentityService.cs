@@ -35,6 +35,8 @@ public class IdentityService : IIdentityService
                 Email = u.Email,
                 FullName = u.FullName,
                 IsActive = u.IsActive,
+                EmployeeNumber = u.EmployeeNumber,
+                BranchId = u.BranchId,
                 PasswordHash = u.PasswordHash,
                 Roles = roles.ToList()
             });
@@ -58,6 +60,8 @@ public class IdentityService : IIdentityService
                 Email = u.Email,
                 FullName = u.FullName,
                 IsActive = u.IsActive,
+                EmployeeNumber = u.EmployeeNumber,
+                BranchId = u.BranchId,
                 PasswordHash = u.PasswordHash,
                 Roles = roles.ToList()
             });
@@ -79,6 +83,8 @@ public class IdentityService : IIdentityService
             Email = u.Email,
             FullName = u.FullName,
             IsActive = u.IsActive,
+            EmployeeNumber = u.EmployeeNumber,
+            BranchId = u.BranchId,
             PasswordHash = u.PasswordHash,
             Roles = roles.ToList()
         };

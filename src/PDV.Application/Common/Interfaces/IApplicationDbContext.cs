@@ -56,6 +56,8 @@ public class UserSyncDataDto
     public string? Email { get; set; }
     public string FullName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public string? EmployeeNumber { get; set; }
+    public Guid? BranchId { get; set; }
     public string? PasswordHash { get; set; }
     public List<string> Roles { get; set; } = new();
 }

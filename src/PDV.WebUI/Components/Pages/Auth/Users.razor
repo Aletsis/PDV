@@ -2,8 +2,12 @@
 @using Microsoft.AspNetCore.Identity
 @using PDV.Infrastructure.Identity
 @using Microsoft.EntityFrameworkCore
+@using MediatR
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole> RoleManager
+@inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -12,7 +16,7 @@
 
     <!-- Page Header & Metrics unified in brand layout -->
     <PdvHeader Title="Gestión de Usuarios"
-               Subtitle="Administra los usuarios del sistema, sus roles y permisos de acceso."
+               Subtitle="Administra los usuarios del sistema, sus roles, número de empleado, sucursal y permisos de acceso."
                Icon="@Icons.Material.Filled.ManageAccounts"
                IconColor="Color.Primary">
         <StatusAlert>
@@ -73,9 +77,9 @@
 
         <!-- Toolbar -->
         <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
-            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 580px;">
+            <div class="d-flex align-center gap-3 flex-grow-1" Style="max-width: 650px;">
                 <MudTextField @bind-Value="searchString"
-                               Placeholder="Buscar por nombre, usuario o email..."
+                               Placeholder="Buscar por nombre, usuario, n° empleado, sucursal o email..."
                                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                                IconSize="Size.Medium" Immediate="true" Variant="Variant.Outlined"
                                Margin="Margin.Dense" Clearable="true" Class="flex-grow-1" />
@@ -97,7 +101,7 @@
                             EmptyMessage="No se encontraron usuarios que coincidan con la búsqueda o filtros."
                             EmptyIcon="@Icons.Material.Filled.PeopleAlt"
                             SkeletonRows="5"
-                            SkeletonColumns="5">
+                            SkeletonColumns="6">
             <MudDataGrid T="UserViewModel" Items="@FilteredUsers" Filterable="false"
                          Hover="true" Striped="true" Dense="false" Elevation="0"
                          Class="border border-solid rounded-lg">
@@ -118,6 +122,44 @@
                                     }
                                 </div>
                             </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="N° Empleado" SortBy="@(x => x.EmployeeNumber)">
+                        <CellTemplate>
+                            @if (!string.IsNullOrWhiteSpace(context.Item.EmployeeNumber))
+                            {
+                                <div class="d-flex align-center gap-1">
+                                    <MudIcon Icon="@Icons.Material.Filled.Badge" Size="Size.Small" Color="Color.Primary" />
+                                    <MudText Typo="Typo.body2" Class="font-weight-medium">@context.Item.EmployeeNumber</MudText>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="mud-text-secondary" style="font-size: 0.85rem;">—</span>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Sucursal" SortBy="@(x => x.BranchName)">
+                        <CellTemplate>
+                            @if (!string.IsNullOrWhiteSpace(context.Item.BranchName))
+                            {
+                                <div class="d-flex align-center gap-1">
+                                    <MudIcon Icon="@Icons.Material.Filled.Store" Size="Size.Small" Color="Color.Secondary" />
+                                    <div>
+                                        <MudText Typo="Typo.body2" Class="font-weight-medium">@context.Item.BranchName</MudText>
+                                        @if (!string.IsNullOrWhiteSpace(context.Item.BranchCode))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Item.BranchCode</MudText>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Default">Global</MudChip>
+                            }
                         </CellTemplate>
                     </TemplateColumn>
 
@@ -197,6 +239,7 @@
     // ── State ─────────────────────────────────────────────
     private List<UserViewModel> users = new();
     private List<string> availableRoles = new();
+    private List<BranchDto> availableBranches = new();
     private bool isLoading = false;
     private string searchString = string.Empty;
     private bool? filterActive = null;
@@ -207,6 +250,10 @@
         public string Id { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string? EmployeeNumber { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? BranchName { get; set; }
+        public string? BranchCode { get; set; }
         public string? Email { get; set; }
         public bool IsActive { get; set; }
         public List<string> Roles { get; set; } = new();
@@ -217,6 +264,9 @@
         (string.IsNullOrWhiteSpace(searchString) ||
          u.UserName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
          u.FullName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+         (u.EmployeeNumber != null && u.EmployeeNumber.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
+         (u.BranchName != null && u.BranchName.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
+         (u.BranchCode != null && u.BranchCode.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
          (u.Email != null && u.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase)))
         &&
         (filterActive == null || u.IsActive == filterActive));
@@ -235,17 +285,34 @@
             // Load roles
             availableRoles = await RoleManager.Roles.Select(r => r.Name!).ToListAsync();
 
-            // Load users with their roles
-            var appUsers = await UserManager.Users.ToListAsync();
+            // Load branches
+            availableBranches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: true));
+            var branchDict = availableBranches.ToDictionary(b => b.Id);
+
+            // Load users with their roles and branch relations
+            var appUsers = await UserManager.Users.Include(u => u.Branch).ToListAsync();
             var vms = new List<UserViewModel>();
             foreach (var u in appUsers)
             {
                 var roles = (await UserManager.GetRolesAsync(u)).ToList();
+                var branchName = u.Branch?.Name;
+                var branchCode = u.Branch?.Code;
+
+                if (string.IsNullOrWhiteSpace(branchName) && u.BranchId.HasValue && branchDict.TryGetValue(u.BranchId.Value, out var bDto))
+                {
+                    branchName = bDto.Name;
+                    branchCode = bDto.Code;
+                }
+
                 vms.Add(new UserViewModel
                 {
                     Id = u.Id,
                     UserName = u.UserName ?? string.Empty,
                     FullName = u.FullName,
+                    EmployeeNumber = u.EmployeeNumber,
+                    BranchId = u.BranchId,
+                    BranchName = branchName,
+                    BranchCode = branchCode,
                     Email = u.Email,
                     IsActive = u.IsActive,
                     Roles = roles
@@ -270,6 +337,7 @@
         {
             { x => x.IsEdit, false },
             { x => x.AvailableRoles, availableRoles },
+            { x => x.AvailableBranches, availableBranches },
             { x => x.Model, new UserDialog.UserFormModel { IsActive = true } }
         };
 
@@ -290,9 +358,12 @@
             { x => x.IsEdit, true },
             { x => x.EditUserId, vm.Id },
             { x => x.AvailableRoles, availableRoles },
+            { x => x.AvailableBranches, availableBranches },
             { x => x.Model, new UserDialog.UserFormModel
                 {
                     FullName = vm.FullName,
+                    EmployeeNumber = vm.EmployeeNumber,
+                    BranchId = vm.BranchId,
                     UserName = vm.UserName,
                     Email = vm.Email ?? string.Empty,
                     IsActive = vm.IsActive,
@@ -388,6 +459,8 @@
         "cashier" or "cajera" or "cajero" => Color.Primary,
         "telephonist" or "telefonista"    => Color.Secondary,
         "deliveryman" or "repartidor"     => Color.Info,
+        "almacen" or "almacén" or "warehouse" => Color.Tertiary,
+        "compras" or "purchasing"         => Color.Secondary,
         _                                 => Color.Info
     };
 
@@ -398,7 +471,8 @@
         "cashier" or "cajera" or "cajero" => Icons.Material.Filled.PointOfSale,
         "telephonist" or "telefonista"    => Icons.Material.Filled.HeadsetMic,
         "deliveryman" or "repartidor"     => Icons.Material.Filled.TwoWheeler,
+        "almacen" or "almacén" or "warehouse" => Icons.Material.Filled.Warehouse,
+        "compras" or "purchasing"         => Icons.Material.Filled.ShoppingCart,
         _                                 => Icons.Material.Filled.Person
     };
 }
-
