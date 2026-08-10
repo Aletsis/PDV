@@ -133,12 +133,14 @@
 
     private List<ComercialConceptoDto> GetAvailableConceptsFor(InvoiceType type)
     {
-        return type switch
+        var concepts = type switch
         {
             InvoiceType.Customer or InvoiceType.Global => conceptsType4,
             InvoiceType.CreditNote => conceptsType5,
             _ => new List<ComercialConceptoDto>()
         };
+
+        return concepts.Where(c => c.Estatus == 1).ToList();
     }
 
     private void OnConceptChanged(FolioSequenceDto sequence, string? code)

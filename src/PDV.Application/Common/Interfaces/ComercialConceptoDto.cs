@@ -18,4 +18,7 @@ public class ComercialConceptoDto
 
     [JsonPropertyName("cnofolio")]
     public double Folio { get; set; }
+
+    [JsonPropertyName("cestatus")]
+    public int Estatus { get; set; } = 1;
 }
