@@ -34,7 +34,6 @@ public class CreateFacturaGlobalCommandDto
     public string FormaPago { get; set; } = "01";
     public string CodigoProductoGravado { get; set; } = string.Empty;
     public string CodigoProductoExento { get; set; } = string.Empty;
-    public string CsdPassword { get; set; } = string.Empty;
     public bool AutoTimbrar { get; set; } = true;
     public string CodigoAlmacen { get; set; } = "1";
     public List<ConceptoGlobalDto> Conceptos { get; set; } = new();
@@ -69,8 +68,6 @@ public class GenerarFacturaComercialDto
     public string UsoCfdi { get; set; } = "G03";
     public string MetodoPago { get; set; } = "PUE";
     public string FormaPago { get; set; } = "01";
-    public string CsdPassword { get; set; } = string.Empty;
-    public string CsdEmail { get; set; } = string.Empty;
     public bool AutoTimbrar { get; set; } = true;
     public List<FacturaPartidaDto> Partidas { get; set; } = new();
 }
