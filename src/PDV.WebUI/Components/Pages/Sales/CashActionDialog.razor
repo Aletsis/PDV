@@ -1,15 +1,26 @@
 @using MediatR
 @using PDV.Application.Features.Sales.Commands.CashCollection
+@using PDV.Application.Features.CashRegisters.Commands.OpenCashDrawer
 @using MudBlazor
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h5" Class="@($"d-flex align-center gap-2 font-weight-bold {(IsInflow ? "mud-text-success" : "mud-text-warning")}")">
-            <MudIcon Icon="@(IsInflow ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)" />
-            @(IsInflow ? "Entrega de Morralla (Fondo de Cambio)" : "Recolección de Efectivo (Retiro de Seguridad)")
-        </MudText>
+        <div class="d-flex align-center justify-space-between w-100">
+            <MudText Typo="Typo.h5" Class="@($"d-flex align-center gap-2 font-weight-bold {(IsInflow ? "mud-text-success" : "mud-text-warning")}")">
+                <MudIcon Icon="@(IsInflow ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)" />
+                @(IsInflow ? "Entrega de Morralla (Fondo de Cambio)" : "Recolección de Efectivo (Retiro de Seguridad)")
+            </MudText>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary" 
+                       Size="Size.Small" 
+                       StartIcon="@Icons.Material.Filled.LockOpen" 
+                       OnClick="TriggerOpenDrawer" 
+                       Class="mr-2">
+                Abrir Gaveta
+            </MudButton>
+        </div>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="form" @bind-IsValid="isValid">
@@ -17,8 +28,8 @@
                 <MudItem xs="12">
                     <MudAlert Severity="@(IsInflow ? Severity.Success : Severity.Warning)" Class="mb-2" Variant="Variant.Filled">
                         @(IsInflow 
-                            ? "Registra el ingreso de monedas o billetes a la caja para mantener fondo para cambio." 
-                            : "Registra el retiro de efectivo de la caja por seguridad al acumular excedentes de efectivo.")
+                            ? "Registra el ingreso de monedas o billetes a la caja para mantener fondo para cambio. (Gaveta abierta para depósito)." 
+                            : "Registra el retiro de efectivo de la caja por seguridad al acumular excedentes de efectivo. (Gaveta abierta para conteo).")
                     </MudAlert>
                 </MudItem>
 
@@ -141,6 +152,26 @@
         (coins1 * 1m) +
         (coins50c * 0.5m);
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Apertura automática de gaveta antes de registrar cantidades
+        if (CashRegisterId != Guid.Empty)
+        {
+            await TriggerOpenDrawer();
+        }
+    }
+
+    private async Task TriggerOpenDrawer()
+    {
+        try
+        {
+            await Mediator.Send(new OpenCashDrawerCommand(CashRegisterId));
+        }
+        catch (Exception)
+        {
+            // Silencioso para no bloquear la interfaz
+        }
+    }
 
     private async Task Submit()
     {

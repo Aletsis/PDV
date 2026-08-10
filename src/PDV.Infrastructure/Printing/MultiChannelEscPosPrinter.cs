@@ -24,6 +24,107 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         return Encoding.ASCII;
     }
 
+    public async Task<bool> CheckStatusAsync(string ipAddress, int port, CancellationToken cancellationToken = default)
+    {
+        var targetUri = ipAddress;
+        if (!ipAddress.Contains("://"))
+        {
+            var targetPort = port <= 0 ? 9100 : port;
+            targetUri = $"tcp://{ipAddress}:{targetPort}";
+        }
+
+        try
+        {
+            var uri = new Uri(targetUri);
+            var scheme = uri.Scheme.ToLowerInvariant();
+
+            switch (scheme)
+            {
+                case "tcp":
+                {
+                    using var client = new TcpClient();
+                    using var timeoutCts = new CancellationTokenSource(3000);
+                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+                    await client.ConnectAsync(uri.Host, uri.Port <= 0 ? 9100 : uri.Port, linked.Token);
+                    return client.Connected;
+                }
+                case "usb":
+                {
+                    var printerName = uri.Host;
+                    if (string.IsNullOrEmpty(printerName))
+                    {
+                        printerName = HttpUtility.UrlDecode(uri.AbsolutePath).TrimStart('/');
+                    }
+                    return RawPrinterHelper.PrinterExists(printerName);
+                }
+                case "serial":
+                {
+                    var portName = uri.Host;
+                    if (string.IsNullOrEmpty(portName))
+                    {
+                        portName = HttpUtility.UrlDecode(uri.AbsolutePath).TrimStart('/');
+                    }
+                    return SerialPort.GetPortNames().Any(p => p.Equals(portName, StringComparison.OrdinalIgnoreCase));
+                }
+                default:
+                    return false;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task PrintJobAsync(
+        string ipAddress,
+        int port,
+        string text,
+        bool autoCut = true,
+        bool partialCut = true,
+        bool openDrawerBefore = false,
+        bool openDrawerAfter = false,
+        int copies = 1,
+        int? encodingCodePage = null,
+        CancellationToken cancellationToken = default)
+    {
+        var buffer = new List<byte>();
+
+        // 1. Apertura de cajón previo
+        if (openDrawerBefore)
+        {
+            buffer.AddRange(new byte[] { 0x1B, 0x70, 0x00, 0x19, 0xFA });
+        }
+
+        // 2. Inicializar
+        buffer.AddRange(new byte[] { 0x1B, 0x40 });
+
+        // 3. Contenido
+        var encoding = ChooseEncoding(text, encodingCodePage);
+        var textBytes = encoding.GetBytes(text);
+
+        int numCopies = Math.Clamp(copies, 1, 5);
+        for (int i = 0; i < numCopies; i++)
+        {
+            buffer.AddRange(textBytes);
+            buffer.Add(0x0A); // LF
+
+            if (autoCut)
+            {
+                buffer.AddRange(new byte[] { 0x1B, 0x64, 0x03 }); // Feed 3 lines
+                buffer.AddRange(new byte[] { 0x1D, 0x56, (byte)(partialCut ? 0x01 : 0x00) }); // Cut
+            }
+        }
+
+        // 4. Apertura de cajón posterior
+        if (openDrawerAfter)
+        {
+            buffer.AddRange(new byte[] { 0x1B, 0x70, 0x00, 0x19, 0xFA });
+        }
+
+        await PrintRawAsync(ipAddress, port, buffer.ToArray(), cancellationToken);
+    }
+
     public async Task PrintTextAsync(string ipAddress, int port, string text, int? encodingCodePage = null, CancellationToken cancellationToken = default)
     {
         var sb = new List<byte>();
@@ -244,6 +345,21 @@ internal static class RawPrinterHelper
         [MarshalAs(UnmanagedType.LPStr)] public string? pDocName;
         [MarshalAs(UnmanagedType.LPStr)] public string? pOutputFile;
         [MarshalAs(UnmanagedType.LPStr)] public string? pDataType;
+    }
+
+    public static bool PrinterExists(string szPrinter)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return File.Exists(szPrinter) || Directory.Exists(szPrinter);
+        }
+
+        if (OpenPrinter(szPrinter, out var hPrinter, IntPtr.Zero))
+        {
+            ClosePrinter(hPrinter);
+            return true;
+        }
+        return false;
     }
 
     [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]

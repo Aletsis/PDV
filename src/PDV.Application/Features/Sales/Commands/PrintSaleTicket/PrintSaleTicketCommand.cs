@@ -1,7 +1,8 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
-using PDV.Domain.Repositories;
 using PDV.Domain.Enums;
+using PDV.Domain.Repositories;
 
 namespace PDV.Application.Features.Sales.Commands.PrintSaleTicket;
 
@@ -28,30 +29,21 @@ public class PrintSaleTicketCommandHandler : IRequestHandler<PrintSaleTicketComm
 
     public async Task Handle(PrintSaleTicketCommand request, CancellationToken cancellationToken)
     {
-        // Obtener venta
         var sale = await _saleRepository.GetByIdAsync(request.SaleId, cancellationToken)
             ?? throw new KeyNotFoundException($"Venta {request.SaleId} no encontrada");
 
-        // Obtener caja registradora
-        var cashRegister = await _context.CashRegisters.FindAsync(new object[] { request.CashRegisterId }, cancellationToken)
-            ?? throw new KeyNotFoundException($"Caja registradora {request.CashRegisterId} no encontrada");
-
-        // Verificar que tenga impresora asignada
-        if (!cashRegister.AssignedPrinterId.HasValue)
+        var cashRegister = await _context.CashRegisters.FindAsync(new object[] { request.CashRegisterId }, cancellationToken);
+        if (cashRegister == null || !cashRegister.AssignedPrinterId.HasValue)
         {
-            // No tiene impresora asignada, salir silenciosamente
             return;
         }
 
-        // Obtener impresora
         var printer = await _context.Printers.FindAsync(new object[] { cashRegister.AssignedPrinterId.Value }, cancellationToken);
         if (printer == null)
         {
-            // Impresora no encontrada, salir silenciosamente
             return;
         }
 
-        // Formatear conexión de impresora local o red
         string connectionUri = printer.ConnectionType switch
         {
             PrinterConnectionType.Network => printer.IpAddress ?? string.Empty,
@@ -60,24 +52,28 @@ public class PrintSaleTicketCommandHandler : IRequestHandler<PrintSaleTicketComm
             _ => printer.IpAddress ?? string.Empty
         };
 
-        // Generar contenido del ticket
         var ticketContent = await _ticketGenerator.GenerateSaleTicketAsync(request.SaleId, cancellationToken);
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;
+        bool isCashPayment = sale.PaymentMethod == PaymentMethodType.Cash;
 
-        // Imprimir
         try
         {
-            await _escPosPrinter.PrintTextAsync(
-                connectionUri,
-                printer.Port ?? 9100,
-                ticketContent,
-                encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 28591, // Codepágina configurada o Latin-1
+            await _escPosPrinter.PrintJobAsync(
+                ipAddress: connectionUri,
+                port: printer.Port ?? 9100,
+                text: ticketContent,
+                autoCut: true,
+                partialCut: true,
+                openDrawerBefore: false,
+                openDrawerAfter: isCashPayment, // Apertura automática de cajón en venta en efectivo
+                copies: copies,
+                encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 1252,
                 cancellationToken: cancellationToken
             );
         }
         catch (Exception)
         {
-            // Si falla la impresión, no fallar la venta
-            // Solo registrar el error (podría agregarse logging aquí)
             return;
         }
     }

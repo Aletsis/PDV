@@ -62,7 +62,7 @@ public class Printer : BaseEntity, IAggregateRoot
         ConnectionType = connectionType;
         CodePage = codePage;
         MaxWidth = maxWidth;
-        IpAddress = ipAddress?.Trim();
+        IpAddress = ipAddress?.Trim() ?? string.Empty;
         Port = port;
         DevicePath = devicePath?.Trim();
         BranchId = branchId;
@@ -91,7 +91,7 @@ public class Printer : BaseEntity, IAggregateRoot
         Name = name.Trim();
         CodePage = codePage;
         MaxWidth = maxWidth;
-        IpAddress = ipAddress?.Trim();
+        IpAddress = ipAddress?.Trim() ?? string.Empty;
         Port = port;
         DevicePath = devicePath?.Trim();
 

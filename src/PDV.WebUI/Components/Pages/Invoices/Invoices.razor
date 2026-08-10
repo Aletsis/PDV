@@ -2,6 +2,8 @@
 @using MediatR
 @using PDV.Application.Features.Sales.Queries.ListInvoices
 @using PDV.Application.Features.Sales.Queries.GetInvoice
+@using PDV.Application.Features.Invoices.Commands.PrintInvoiceTicket
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
 @using PDV.Application.Features.Sales.Queries.GetClosedCuts
 @using PDV.Application.Features.Sales.Commands.CreateGlobalInvoice
 @using PDV.Application.Features.Sales.Commands.CreateCreditNote
@@ -413,10 +415,25 @@
         }
     }
 
-    private Task PrintInvoice(InvoiceDto invoice)
+    private async Task PrintInvoice(InvoiceDto invoice)
     {
-        Snackbar.Add($"Imprimiendo factura {invoice.InvoiceNumber}...", Severity.Info);
-        // TODO: Implementar impresión de factura
-        return Task.CompletedTask;
+        try
+        {
+            var registers = await Mediator.Send(new ListCashRegistersQuery());
+            var currentRegister = registers.FirstOrDefault(r => r.IsActive);
+            if (currentRegister == null)
+            {
+                Snackbar.Add("No hay ninguna caja registradora activa configurada para imprimir.", Severity.Warning);
+                return;
+            }
+
+            Snackbar.Add($"Enviando ticket de factura {invoice.InvoiceNumber} a impresión...", Severity.Info);
+            await Mediator.Send(new PrintInvoiceTicketCommand(invoice.Id, currentRegister.Id));
+            Snackbar.Add($"Ticket de factura {invoice.InvoiceNumber} procesado exitosamente.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al imprimir factura: {ex.Message}", Severity.Error);
+        }
     }
 }

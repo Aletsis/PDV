@@ -1,6 +1,6 @@
 using MediatR;
-using PDV.Application.Common.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using PDV.Application.Common.Interfaces;
 using PDV.Domain.Enums;
 
 namespace PDV.Application.Features.Sales.Commands.CashCut;
@@ -25,24 +25,21 @@ public class PrintCashCutTicketCommandHandler : IRequestHandler<PrintCashCutTick
 
     public async Task Handle(PrintCashCutTicketCommand request, CancellationToken cancellationToken)
     {
-        // Obtener caja registradora
-        var cashRegister = await _context.CashRegisters.FindAsync(new object[] { request.CashRegisterId }, cancellationToken)
-            ?? throw new KeyNotFoundException($"Caja registradora {request.CashRegisterId} no encontrada");
+        var cut = await _context.CashCuts.FindAsync(new object[] { request.CutId }, cancellationToken)
+            ?? throw new KeyNotFoundException($"Corte de caja {request.CutId} no encontrado");
 
-        // Verificar que tenga impresora asignada
-        if (!cashRegister.AssignedPrinterId.HasValue)
+        var cashRegister = await _context.CashRegisters.FindAsync(new object[] { request.CashRegisterId }, cancellationToken);
+        if (cashRegister == null || !cashRegister.AssignedPrinterId.HasValue)
         {
             return;
         }
 
-        // Obtener impresora
         var printer = await _context.Printers.FindAsync(new object[] { cashRegister.AssignedPrinterId.Value }, cancellationToken);
         if (printer == null)
         {
             return;
         }
 
-        // Formatear conexión de impresora local o red
         string connectionUri = printer.ConnectionType switch
         {
             PrinterConnectionType.Network => printer.IpAddress ?? string.Empty,
@@ -51,23 +48,27 @@ public class PrintCashCutTicketCommandHandler : IRequestHandler<PrintCashCutTick
             _ => printer.IpAddress ?? string.Empty
         };
 
-        // Generar contenido del ticket
         var ticketContent = await _ticketGenerator.GenerateCashCutTicketAsync(request.CutId, cancellationToken);
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;
 
-        // Imprimir
         try
         {
-            await _escPosPrinter.PrintTextAsync(
-                connectionUri,
-                printer.Port ?? 9100,
-                ticketContent,
-                encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 28591, // Codepágina configurada o Latin-1
+            await _escPosPrinter.PrintJobAsync(
+                ipAddress: connectionUri,
+                port: printer.Port ?? 9100,
+                text: ticketContent,
+                autoCut: true,
+                partialCut: true,
+                openDrawerBefore: false,
+                openDrawerAfter: false,
+                copies: copies,
+                encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 1252,
                 cancellationToken: cancellationToken
             );
         }
         catch (Exception)
         {
-            // Silencioso
             return;
         }
     }

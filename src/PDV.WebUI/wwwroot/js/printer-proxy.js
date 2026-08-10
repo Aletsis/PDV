@@ -1,3 +1,70 @@
+window.posPrintJob = async function (job) {
+    try {
+        const response = await fetch("http://127.0.0.1:9000/api/print/job", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(job)
+        });
+        if (!response.ok) {
+            console.error("Local print job failed", response.statusText);
+            return false;
+        }
+        const data = await response.json();
+        return data.success === true;
+    } catch (err) {
+        console.error("Cannot connect to local hardware agent for print job", err);
+        return false;
+    }
+};
+
+window.posCheckPrinterStatus = async function (target) {
+    try {
+        const response = await fetch("http://127.0.0.1:9000/api/printer/status", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ target: target })
+        });
+        if (response.ok) {
+            const data = await response.json();
+            return data.isOnline === true;
+        }
+        return false;
+    } catch (err) {
+        console.error("Cannot connect to local hardware agent for status check", err);
+        return false;
+    }
+};
+
+window.posGetInstalledPrinters = async function () {
+    try {
+        const response = await fetch("http://127.0.0.1:9000/api/devices/printers");
+        if (response.ok) {
+            return await response.json();
+        }
+        return [];
+    } catch (err) {
+        console.error("Cannot fetch installed printers from local hardware agent", err);
+        return [];
+    }
+};
+
+window.posGetSerialPorts = async function () {
+    try {
+        const response = await fetch("http://127.0.0.1:9000/api/devices/ports");
+        if (response.ok) {
+            return await response.json();
+        }
+        return [];
+    } catch (err) {
+        console.error("Cannot fetch serial ports from local hardware agent", err);
+        return [];
+    }
+};
+
 window.posPrintText = async function (ip, port, text, encodingCodePage) {
     try {
         const response = await fetch("http://127.0.0.1:9000/api/print/text", {

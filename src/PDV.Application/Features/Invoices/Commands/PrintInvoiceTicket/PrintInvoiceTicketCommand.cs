@@ -3,30 +3,30 @@ using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Enums;
 
-namespace PDV.Application.Features.Sales.Commands.CashCollection;
+namespace PDV.Application.Features.Invoices.Commands.PrintInvoiceTicket;
 
-public record PrintCashCollectionTicketCommand(Guid CollectionId, Guid CashRegisterId) : IRequest;
+public record PrintInvoiceTicketCommand(Guid InvoiceId, Guid CashRegisterId) : IRequest;
 
-public class PrintCashCollectionTicketCommandHandler : IRequestHandler<PrintCashCollectionTicketCommand>
+public class PrintInvoiceTicketCommandHandler : IRequestHandler<PrintInvoiceTicketCommand>
 {
+    private readonly IApplicationDbContext _context;
     private readonly ITicketGenerator _ticketGenerator;
     private readonly IEscPosPrinter _escPosPrinter;
-    private readonly IApplicationDbContext _context;
 
-    public PrintCashCollectionTicketCommandHandler(
+    public PrintInvoiceTicketCommandHandler(
+        IApplicationDbContext context,
         ITicketGenerator ticketGenerator,
-        IEscPosPrinter escPosPrinter,
-        IApplicationDbContext context)
+        IEscPosPrinter escPosPrinter)
     {
+        _context = context;
         _ticketGenerator = ticketGenerator;
         _escPosPrinter = escPosPrinter;
-        _context = context;
     }
 
-    public async Task Handle(PrintCashCollectionTicketCommand request, CancellationToken cancellationToken)
+    public async Task Handle(PrintInvoiceTicketCommand request, CancellationToken cancellationToken)
     {
-        var collection = await _context.CashCollections.FindAsync(new object[] { request.CollectionId }, cancellationToken)
-            ?? throw new KeyNotFoundException($"Movimiento de caja {request.CollectionId} no encontrado");
+        var invoice = await _context.Invoices.FindAsync(new object[] { request.InvoiceId }, cancellationToken)
+            ?? throw new KeyNotFoundException($"Factura {request.InvoiceId} no encontrada");
 
         var cashRegister = await _context.CashRegisters.FindAsync(new object[] { request.CashRegisterId }, cancellationToken);
         if (cashRegister == null || !cashRegister.AssignedPrinterId.HasValue)
@@ -48,7 +48,7 @@ public class PrintCashCollectionTicketCommandHandler : IRequestHandler<PrintCash
             _ => printer.IpAddress ?? string.Empty
         };
 
-        var ticketContent = await _ticketGenerator.GenerateCashCollectionTicketAsync(request.CollectionId, cancellationToken);
+        var ticketContent = await _ticketGenerator.GenerateInvoiceTicketAsync(request.InvoiceId, cancellationToken);
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;
 
@@ -60,7 +60,7 @@ public class PrintCashCollectionTicketCommandHandler : IRequestHandler<PrintCash
                 text: ticketContent,
                 autoCut: true,
                 partialCut: true,
-                openDrawerBefore: false, // La gaveta ya se abrió previamente antes de capturar las cantidades
+                openDrawerBefore: false,
                 openDrawerAfter: false,
                 copies: copies,
                 encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 1252,

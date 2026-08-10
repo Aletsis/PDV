@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.JSInterop;
 using PDV.Application.Common.Interfaces;
 
@@ -13,6 +10,97 @@ public class WebUIProxyPrinter : IEscPosPrinter
     public WebUIProxyPrinter(IJSRuntime jsRuntime)
     {
         _jsRuntime = jsRuntime;
+    }
+
+    public async Task<bool> CheckStatusAsync(string ipAddress, int port, CancellationToken cancellationToken = default)
+    {
+        var targetUri = ipAddress;
+        if (!ipAddress.Contains("://"))
+        {
+            var targetPort = port <= 0 ? 9100 : port;
+            targetUri = $"tcp://{ipAddress}:{targetPort}";
+        }
+
+        try
+        {
+            return await _jsRuntime.InvokeAsync<bool>("posCheckPrinterStatus", cancellationToken, targetUri);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task PrintJobAsync(
+        string ipAddress,
+        int port,
+        string text,
+        bool autoCut = true,
+        bool partialCut = true,
+        bool openDrawerBefore = false,
+        bool openDrawerAfter = false,
+        int copies = 1,
+        int? encodingCodePage = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetUri = ipAddress;
+        if (!ipAddress.Contains("://"))
+        {
+            var targetPort = port <= 0 ? 9100 : port;
+            targetUri = $"tcp://{ipAddress}:{targetPort}";
+        }
+
+        var job = new
+        {
+            target = targetUri,
+            profile = 1, // EscPos
+            contentType = 1, // Text
+            data = text,
+            codePage = encodingCodePage ?? 1252,
+            autoCut = autoCut,
+            partialCut = partialCut,
+            openDrawerBefore = openDrawerBefore,
+            openDrawerAfter = openDrawerAfter,
+            copies = Math.Clamp(copies, 1, 5),
+            maxRetries = 3,
+            timeoutMs = 5000
+        };
+
+        try
+        {
+            await _jsRuntime.InvokeAsync<bool>("posPrintJob", cancellationToken, job);
+        }
+        catch
+        {
+            // Fallback a print text
+            await PrintTextAsync(ipAddress, port, text, encodingCodePage, cancellationToken);
+        }
+    }
+
+    public async Task<List<string>> GetInstalledPrintersAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var list = await _jsRuntime.InvokeAsync<string[]>("posGetInstalledPrinters", cancellationToken);
+            return list?.ToList() ?? new List<string>();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    public async Task<List<string>> GetSerialPortsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var list = await _jsRuntime.InvokeAsync<string[]>("posGetSerialPorts", cancellationToken);
+            return list?.ToList() ?? new List<string>();
+        }
+        catch
+        {
+            return new List<string>();
+        }
     }
 
     public async Task PrintTextAsync(string ipAddress, int port, string text, int? encodingCodePage = null, CancellationToken cancellationToken = default)

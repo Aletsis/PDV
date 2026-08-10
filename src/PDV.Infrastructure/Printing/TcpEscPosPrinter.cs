@@ -167,6 +167,67 @@ public class TcpEscPosPrinter : IEscPosPrinter
         await Task.Delay(100, cts.Token).ConfigureAwait(false);
     }
 
+    public async Task<bool> CheckStatusAsync(string ipAddress, int port, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            using var timeoutCts = new CancellationTokenSource(3000);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            await client.ConnectAsync(ipAddress, port <= 0 ? 9100 : port, linked.Token);
+            return client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task PrintJobAsync(
+        string ipAddress,
+        int port,
+        string text,
+        bool autoCut = true,
+        bool partialCut = true,
+        bool openDrawerBefore = false,
+        bool openDrawerAfter = false,
+        int copies = 1,
+        int? encodingCodePage = null,
+        CancellationToken cancellationToken = default)
+    {
+        var buffer = new List<byte>();
+
+        if (openDrawerBefore)
+        {
+            buffer.AddRange(new byte[] { 0x1B, 0x70, 0x00, 0x19, 0xFA });
+        }
+
+        buffer.AddRange(new byte[] { 0x1B, 0x40 });
+
+        var encoding = ChooseEncoding(text, encodingCodePage);
+        var textBytes = encoding.GetBytes(text);
+
+        int numCopies = Math.Clamp(copies, 1, 5);
+        for (int i = 0; i < numCopies; i++)
+        {
+            buffer.AddRange(textBytes);
+            buffer.Add(0x0A);
+
+            if (autoCut)
+            {
+                buffer.AddRange(new byte[] { 0x1B, 0x64, 0x03 });
+                buffer.AddRange(new byte[] { 0x1D, 0x56, (byte)(partialCut ? 0x01 : 0x00) });
+            }
+        }
+
+        if (openDrawerAfter)
+        {
+            buffer.AddRange(new byte[] { 0x1B, 0x70, 0x00, 0x19, 0xFA });
+        }
+
+        await PrintRawAsync(ipAddress, port, buffer.ToArray(), cancellationToken);
+    }
+
     public async Task OpenDrawerAsync(string ipAddress, int port, CancellationToken cancellationToken = default)
     {
         // ESC p m t1 t2 (27 112 0 25 250)

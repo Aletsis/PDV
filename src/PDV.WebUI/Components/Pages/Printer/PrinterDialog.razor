@@ -1,10 +1,13 @@
 @using MediatR
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.Printers.Commands.CreatePrinter
 @using PDV.Application.Features.Printers.Commands.UpdatePrinter
 @using PDV.Application.Features.Printers.Dtos
 @using PDV.Domain.Enums
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
+@inject IEscPosPrinter EscPosPrinter
+@inject IJSRuntime JSRuntime
 
 <MudDialog>
     <TitleContent>
@@ -35,6 +38,7 @@
             <MudItem xs="12" sm="6">
                 <MudSelect T="PrinterConnectionType"
                            @bind-Value="Model.ConnectionType"
+                           @bind-Value:after="OnConnectionTypeChanged"
                            Label="Tipo de Conexión"
                            Variant="Variant.Outlined"
                            Adornment="Adornment.Start"
@@ -77,7 +81,7 @@
             @if (Model.ConnectionType == PrinterConnectionType.Network ||
                  Model.ConnectionType == PrinterConnectionType.Bluetooth)
             {
-                <MudItem xs="12" sm="8">
+                <MudItem xs="12" sm="4">
                     <MudTextField @bind-Value="Model.IpAddress"
                                   Label="Dirección IP"
                                   Variant="Variant.Outlined"
@@ -106,7 +110,7 @@
                         }
                     }
                 </MudItem>
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12" sm="2">
                     <MudNumericField T="int"
                                      @bind-Value="Model.Port"
                                      Label="Puerto"
@@ -118,20 +122,75 @@
                                      AdornmentIcon="@Icons.Material.Filled.Lan" />
                 </MudItem>
             }
-            else
+            else if (Model.ConnectionType == PrinterConnectionType.Usb)
             {
                 <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="Model.DevicePath"
-                                  Label="Ruta del Dispositivo"
-                                  Variant="Variant.Outlined"
-                                  Required="true"
-                                  RequiredError="La ruta del dispositivo es obligatoria"
-                                  Adornment="Adornment.Start"
-                                  AdornmentIcon="@Icons.Material.Filled.SettingsInputHdmi"
-                                  Immediate="true"
-                                  Placeholder="@(Model.ConnectionType == PrinterConnectionType.Usb ? "Ej: USB001" : "Ej: COM3")" />
+                    <MudAutocomplete T="string"
+                                     Label="Impresora USB (Dispositivo)"
+                                     @bind-Value="Model.DevicePath"
+                                     SearchFunc="SearchUsbPrinters"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="Seleccione o escriba la cola/nombre de la impresora USB"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Usb"
+                                     CoerceValue="true"
+                                     Placeholder="Seleccione o escriba nombre de cola (Ej: EPSON TM-T20)" />
                 </MudItem>
             }
+            else if (Model.ConnectionType == PrinterConnectionType.Serial)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete T="string"
+                                     Label="Puerto COM Serial"
+                                     @bind-Value="Model.DevicePath"
+                                     SearchFunc="SearchSerialPorts"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="Seleccione o escriba el puerto COM (Ej: COM3)"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Cable"
+                                     CoerceValue="true"
+                                     Placeholder="Seleccione puerto (Ej: COM1, COM3)" />
+                </MudItem>
+            }
+
+            @* ── Botón de Prueba de Conexión / Estado ────── *@
+            <MudItem xs="12">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Info"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Sensors"
+                               OnClick="TestConnection"
+                               Disabled="@_isTestingConnection">
+                        @if (_isTestingConnection)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                            <span>Verificando...</span>
+                        }
+                        else
+                        {
+                            <span>Probar Estado de Conexión</span>
+                        }
+                    </MudButton>
+                    @if (_connectionTestResult.HasValue)
+                    {
+                        @if (_connectionTestResult.Value)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                Impresora en Línea
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel">
+                                Fuera de línea / No responde
+                            </MudChip>
+                        }
+                    }
+                </MudStack>
+            </MudItem>
 
             @* ── Configuración ESC/POS ────────────────────── *@
             <MudItem xs="12">
@@ -200,10 +259,101 @@
 
     private bool _isIpValid = true;
     private bool _isSaving  = false;
+    private bool _isTestingConnection = false;
+    private bool? _connectionTestResult = null;
 
-    protected override void OnInitialized()
+    private List<string> _installedPrinters = new();
+    private List<string> _serialPorts = new();
+
+    protected override async Task OnInitializedAsync()
     {
         ValidateIp(Model.IpAddress);
+        await LoadDevicesAsync();
+    }
+
+    private async Task OnConnectionTypeChanged()
+    {
+        _connectionTestResult = null;
+        await LoadDevicesAsync();
+    }
+
+    private async Task LoadDevicesAsync()
+    {
+        try
+        {
+            if (Model.ConnectionType == PrinterConnectionType.Usb)
+            {
+                var printers = await JSRuntime.InvokeAsync<string[]>("posGetInstalledPrinters");
+                _installedPrinters = printers?.ToList() ?? new List<string>();
+            }
+            else if (Model.ConnectionType == PrinterConnectionType.Serial)
+            {
+                var ports = await JSRuntime.InvokeAsync<string[]>("posGetSerialPorts");
+                _serialPorts = ports?.ToList() ?? new List<string>();
+            }
+        }
+        catch
+        {
+            // Hardware agent might not be reachable
+        }
+    }
+
+    private Task<IEnumerable<string>> SearchUsbPrinters(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<string>>(_installedPrinters);
+
+        return Task.FromResult<IEnumerable<string>>(
+            _installedPrinters.Where(x => x.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private Task<IEnumerable<string>> SearchSerialPorts(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<string>>(_serialPorts);
+
+        return Task.FromResult<IEnumerable<string>>(
+            _serialPorts.Where(x => x.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task TestConnection()
+    {
+        _isTestingConnection = true;
+        _connectionTestResult = null;
+        StateHasChanged();
+
+        try
+        {
+            string targetUri = Model.ConnectionType switch
+            {
+                PrinterConnectionType.Network => Model.IpAddress ?? string.Empty,
+                PrinterConnectionType.Usb => $"usb://{Model.DevicePath}",
+                PrinterConnectionType.Serial => $"serial://{Model.DevicePath}?baud={Model.CodePage}",
+                _ => Model.IpAddress ?? string.Empty
+            };
+
+            var isOnline = await EscPosPrinter.CheckStatusAsync(targetUri, Model.Port);
+            _connectionTestResult = isOnline;
+
+            if (isOnline)
+            {
+                Snackbar.Add("La impresora está en línea y respondió correctamente.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("La impresora está fuera de línea o no responde. Verifique conexión y papel.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _connectionTestResult = false;
+            Snackbar.Add($"Error al verificar impresora: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTestingConnection = false;
+            StateHasChanged();
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();

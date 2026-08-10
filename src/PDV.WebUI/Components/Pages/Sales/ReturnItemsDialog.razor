@@ -1,5 +1,6 @@
 @using PDV.Application.Features.Sales.Dtos
 @using PDV.Application.Features.Sales.Commands.ReturnItem
+@using PDV.Application.Features.Sales.Commands.ReturnSale
 @using MediatR
 @using Microsoft.EntityFrameworkCore
 @using MudBlazor
@@ -218,6 +219,24 @@
 
             if (processedCount > 0)
             {
+                try
+                {
+                    var latestReturn = await Context.Returns
+                        .Where(r => r.SaleId == SaleDetail.Id)
+                        .OrderByDescending(r => r.ReturnDate)
+                        .FirstOrDefaultAsync();
+
+                    var shift = await Context.Shifts.FindAsync(new object[] { SaleDetail.ShiftId });
+                    if (latestReturn != null && shift != null)
+                    {
+                        await Mediator.Send(new PrintReturnTicketCommand(latestReturn.Id, shift.CashRegisterId));
+                    }
+                }
+                catch
+                {
+                    // No interrumpir si la impresora no responde
+                }
+
                 Snackbar.Add($"Se procesó la devolución de {processedCount} artículos exitosamente.", Severity.Success);
                 MudDialog.Close(DialogResult.Ok(true));
             }
