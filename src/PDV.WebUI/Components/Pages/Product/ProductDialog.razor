@@ -20,14 +20,14 @@
                 <MudTabPanel Text="Información Básica" Icon="@Icons.Material.Filled.Info">
                     <MudGrid Class="pt-4">
                         <MudItem xs="12">
-                            <MudTextField Label="Nombre del Producto" @bind-Value="Model.Name" For="@(() => Model.Name)" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                            <MudTextField Label="Nombre del Producto" @bind-Value="Model.Name" For="@(() => Model.Name)" Required="true" MaxLength="60" Counter="60" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
                         </MudItem>
 
                         <MudItem xs="12" sm="6">
-                            <MudTextField Label="Código Interno" @bind-Value="Model.Code" For="@(() => Model.Code)" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
+                            <MudTextField Label="Código Interno" @bind-Value="Model.Code" For="@(() => Model.Code)" Required="true" MaxLength="30" Counter="30" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudTextField Label="Código de Barras / Código Alterno" @bind-Value="Model.Barcode" For="@(() => Model.Barcode)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" HelperText="Mapeado como código alterno en CONTPAQi" />
+                            <MudTextField Label="Código de Barras / Código Alterno" @bind-Value="Model.Barcode" For="@(() => Model.Barcode)" MaxLength="30" Variant="Variant.Outlined" Margin="Margin.Dense" Class="premium-input" HelperText="Mapeado como código alterno en CONTPAQi" />
                         </MudItem>
 
                         <MudItem xs="12" sm="4">
@@ -233,6 +233,13 @@
             {
                 Model.BranchId = branches.First().Id;
             }
+
+            if ((Model.SaleUnitId == null || Model.SaleUnitId <= 0) && unidadesMedida.Any())
+            {
+                var piezaUnit = unidadesMedida.FirstOrDefault(u => u.NombreUnidad.Contains("PIEZA", StringComparison.OrdinalIgnoreCase)) ?? unidadesMedida.First();
+                Model.SaleUnitId = piezaUnit.ExternalId;
+                Model.SaleUnitName = piezaUnit.NombreUnidad;
+            }
         }
         catch (Exception)
         {
@@ -280,7 +287,7 @@
         public string SatCode { get; set; } = string.Empty;
         public int Type { get; set; } = 1; // 1 = Producto
         public int ControlExistencia { get; set; } = 2; // 2 = ConControl
-        public int? SaleUnitId { get; set; } = 0;
+        public int? SaleUnitId { get; set; } = 1;
         public string SaleUnitName { get; set; } = "Pieza";
         public int? XmlUnitId { get; set; } = 0;
         public string Department { get; set; } = string.Empty;
@@ -292,8 +299,8 @@
     {
         public ProductViewModelValidator()
         {
-            RuleFor(x => x.Name).NotEmpty().Length(1, 100);
-            RuleFor(x => x.Code).NotEmpty().Length(1, 50);
+            RuleFor(x => x.Name).NotEmpty().Length(1, 60).WithMessage("El nombre debe tener entre 1 y 60 caracteres.");
+            RuleFor(x => x.Code).NotEmpty().Length(1, 30).WithMessage("El código debe tener entre 1 y 30 caracteres.");
             RuleFor(x => x.Price).GreaterThanOrEqualTo(0);
             RuleFor(x => x.Cost).GreaterThanOrEqualTo(0);
             RuleFor(x => x.MinStock).GreaterThanOrEqualTo(0);

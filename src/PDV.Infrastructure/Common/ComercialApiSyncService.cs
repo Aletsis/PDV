@@ -78,22 +78,31 @@ public class ComercialApiSyncService : IComercialApiSyncService
         try
         {
             using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var code = product.Code.Trim();
+            if (code.Length > 30) code = code.Substring(0, 30);
+
+            var name = product.Name.Trim();
+            if (name.Length > 60) name = name.Substring(0, 60);
+
+            var unitId = (product.SaleUnitId.HasValue && product.SaleUnitId.Value > 0) ? product.SaleUnitId.Value : 1;
+            var xmlUnitId = (product.XmlUnitId.HasValue && product.XmlUnitId.Value > 0) ? product.XmlUnitId.Value : (int?)null;
+
             var payload = new CreateProductoCommandDto
             {
-                Codigo = product.Code,
-                Nombre = product.Name,
+                Codigo = code,
+                Nombre = name,
                 Descripcion = product.Description ?? "",
                 TipoProducto = (int)product.Type,
                 ControlExistencia = MapControlExistencia(product.ControlExistencia),
-                IdUnidadBase = product.SaleUnitId ?? 1,
+                IdUnidadBase = unitId,
                 Precio1 = (double)product.Price,
                 Precio2 = (double)(product.WholesalePrice ?? 0),
                 Impuesto1 = MapTaxRate(product.TaxRate),
-                Clasificacion1 = string.IsNullOrWhiteSpace(product.Department) ? null : product.Department,
-                Clasificacion5 = string.IsNullOrWhiteSpace(product.Category) ? null : product.Category,
-                CodigoSat = string.IsNullOrWhiteSpace(product.SatCode) ? null : product.SatCode,
-                IdUnidadXml = product.XmlUnitId,
-                CodigoAlterno = string.IsNullOrWhiteSpace(product.Barcode) ? null : product.Barcode
+                Clasificacion1 = string.IsNullOrWhiteSpace(product.Department) ? null : product.Department.Trim(),
+                Clasificacion5 = string.IsNullOrWhiteSpace(product.Category) ? null : product.Category.Trim(),
+                CodigoSat = string.IsNullOrWhiteSpace(product.SatCode) ? null : product.SatCode.Trim(),
+                IdUnidadXml = xmlUnitId,
+                CodigoAlterno = string.IsNullOrWhiteSpace(product.Barcode) ? null : product.Barcode.Trim()
             };
 
             var response = await httpClient.PostAsJsonAsync("api/Productos", payload, cancellationToken);
@@ -118,24 +127,30 @@ public class ComercialApiSyncService : IComercialApiSyncService
         try
         {
             using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var name = product.Name.Trim();
+            if (name.Length > 60) name = name.Substring(0, 60);
+
+            var unitId = (product.SaleUnitId.HasValue && product.SaleUnitId.Value > 0) ? product.SaleUnitId.Value : 1;
+            var xmlUnitId = (product.XmlUnitId.HasValue && product.XmlUnitId.Value > 0) ? product.XmlUnitId.Value : (int?)null;
+
             var payload = new UpdateProductoCommandDto
             {
-                Nombre = product.Name,
+                Nombre = name,
                 Descripcion = product.Description ?? "",
                 TipoProducto = (int)product.Type,
                 ControlExistencia = MapControlExistencia(product.ControlExistencia),
                 Precio1 = (double)product.Price,
                 Precio2 = (double)(product.WholesalePrice ?? 0),
                 Impuesto1 = MapTaxRate(product.TaxRate),
-                Clasificacion1 = string.IsNullOrWhiteSpace(product.Department) ? null : product.Department,
-                Clasificacion5 = string.IsNullOrWhiteSpace(product.Category) ? null : product.Category,
-                CodigoSat = string.IsNullOrWhiteSpace(product.SatCode) ? null : product.SatCode,
-                IdUnidadXml = product.XmlUnitId,
-                IdUnidadBase = product.SaleUnitId ?? 1,
-                CodigoAlterno = string.IsNullOrWhiteSpace(product.Barcode) ? null : product.Barcode
+                Clasificacion1 = string.IsNullOrWhiteSpace(product.Department) ? null : product.Department.Trim(),
+                Clasificacion5 = string.IsNullOrWhiteSpace(product.Category) ? null : product.Category.Trim(),
+                CodigoSat = string.IsNullOrWhiteSpace(product.SatCode) ? null : product.SatCode.Trim(),
+                IdUnidadXml = xmlUnitId,
+                IdUnidadBase = unitId,
+                CodigoAlterno = string.IsNullOrWhiteSpace(product.Barcode) ? null : product.Barcode.Trim()
             };
 
-            var response = await httpClient.PutAsJsonAsync($"api/Productos/{Uri.EscapeDataString(product.Code)}", payload, cancellationToken);
+            var response = await httpClient.PutAsJsonAsync($"api/Productos/{Uri.EscapeDataString(product.Code.Trim())}", payload, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);

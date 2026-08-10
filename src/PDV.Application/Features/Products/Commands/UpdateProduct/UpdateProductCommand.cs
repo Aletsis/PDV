@@ -44,11 +44,11 @@ public class UpdateProductCommandValidator : AbstractValidator<UpdateProductComm
     {
         RuleFor(v => v.Name)
             .NotEmpty().WithMessage("Name is required.")
-            .MaximumLength(100);
+            .MaximumLength(60);
 
         RuleFor(v => v.Code)
             .NotEmpty().WithMessage("Code is required.")
-            .MaximumLength(50);
+            .MaximumLength(30);
 
         RuleFor(v => v.Price)
             .GreaterThanOrEqualTo(0);
