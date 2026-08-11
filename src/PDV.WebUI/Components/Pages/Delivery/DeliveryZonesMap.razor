@@ -10,8 +10,22 @@
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 @attribute [Authorize(Roles = "Admin,Manager")]
 
+@if (isLocalMode)
+{
+    <PageTitle>Acceso Denegado - Zonas de Reparto</PageTitle>
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-8" style="min-height: 400px;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Align="Align.Center">Módulo no Disponible en Modo Local</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center" Style="max-width: 500px;">
+            La configuración de zonas de reparto está deshabilitada en esta terminal local. Por favor, acceda desde el Servidor Central para gestionar las zonas de reparto.
+        </MudText>
+    </div>
+}
+else
+{
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
     <div class="d-flex justify-space-between align-center mb-4">
         <div>
@@ -113,8 +127,10 @@
         </MudItem>
     </MudGrid>
 </MudContainer>
+}
 
 @code {
+    private bool isLocalMode = false;
     private string _zoneName = string.Empty;
     private decimal _deliveryCost = 0m;
     private Guid? _selectedBranchId;
@@ -128,6 +144,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        isLocalMode = ConnectionMonitor.IsLocalMode;
+        if (isLocalMode) return;
+
         _dotNetRef = DotNetObjectReference.Create(this);
         _branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
         
@@ -145,6 +164,8 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (isLocalMode) return;
+
         if (firstRender)
         {
             // Guadalajara, Jalisco por defecto

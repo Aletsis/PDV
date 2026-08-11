@@ -16,9 +16,23 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IIdentityService IdentityService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 
 <PageTitle>Configuración del Sistema — Administración</PageTitle>
 
+@if (isLocalMode)
+{
+    <PageTitle>Acceso Denegado - Configuración</PageTitle>
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-8" style="min-height: 400px;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Align="Align.Center">Módulo no Disponible en Modo Local</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center" Style="max-width: 500px;">
+            La configuración del sistema está deshabilitada en esta terminal local. Por favor, acceda desde el Servidor Central para modificar los parámetros globales del sistema.
+        </MudText>
+    </div>
+}
+else
+{
 <!-- Page Header & Actions -->
 <PdvHeader Title="Configuración del Sistema"
            Subtitle="Gestiona la información de la empresa, tickets, logos, correo SMTP, alertas y respaldos."
@@ -521,9 +535,11 @@ else
         </MudTabPanel>
     </MudTabs>
 }
+}
 
 @code {
     // ── Estado ─────────────────────────────────────────────────
+    private bool isLocalMode = false;
     private SystemConfigurationDto config = new();
     private List<UserSyncDataDto> _users = new();
     private List<BackupDto> _backups = new();
@@ -555,6 +571,13 @@ else
     // ── Ciclo de vida ──────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        isLocalMode = ConnectionMonitor.IsLocalMode;
+        if (isLocalMode)
+        {
+            _isLoading = false;
+            return;
+        }
+
         await LoadData();
     }
 

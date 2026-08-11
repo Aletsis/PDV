@@ -16,6 +16,19 @@
 
 <PageTitle>Gestión de Sucursales</PageTitle>
 
+@if (isLocalMode)
+{
+    <PageTitle>Acceso Denegado - Sucursales</PageTitle>
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-8" style="min-height: 400px;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Align="Align.Center">Módulo no Disponible en Modo Local</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center" Style="max-width: 500px;">
+            La administración de sucursales está deshabilitada en esta terminal local. Por favor, acceda desde el Servidor Central para gestionar las sucursales.
+        </MudText>
+    </div>
+}
+else
+{
 <div class="d-flex flex-column gap-6">
     <!-- Page Header & Mode Monitor -->
     <PdvHeader Title="Sucursales"
@@ -179,6 +192,7 @@
         </PdvStateContainer>
     </MudPaper>
 </div>
+}
 
 @code {
     private List<BranchDto> branches = new();
@@ -200,6 +214,7 @@
     {
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
         await LoadSyncStatus();
+        if (isLocalMode) return;
         await LoadBranches();
         await CheckUserRole();
     }

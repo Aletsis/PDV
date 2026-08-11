@@ -1,6 +1,7 @@
 @using MediatR
 @using PDV.Application.Features.Sync.Queries
 @inject IMediator Mediator
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 
 <MudNavMenu>
     <AuthorizeView Roles="Admin,Manager">
@@ -19,7 +20,10 @@
         </MudNavGroup>
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager">
-        <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>
+        @if (!isLocalMode)
+        {
+            <MudNavLink Href="sales" Icon="@Icons.Material.Filled.ReceiptLong">Ventas</MudNavLink>
+        }
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager,Telephonist,Almacen,Compras">
         <MudNavLink Href="products" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
@@ -39,12 +43,18 @@
     <AuthorizeView Roles="Admin">
         <MudDivider />
         <MudNavGroup Title="Administración" Icon="@Icons.Material.Filled.Settings" Expanded="false">
-            <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store">Sucursales</MudNavLink>
-            <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Usuarios</MudNavLink>
+            @if (!isLocalMode)
+            {
+                <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store">Sucursales</MudNavLink>
+                <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Usuarios</MudNavLink>
+            }
             <MudNavLink Href="admin/cash-registers" Icon="@Icons.Material.Filled.PointOfSale">Cajas</MudNavLink>
             <MudNavLink Href="admin/printers" Icon="@Icons.Material.Filled.Print">Impresoras</MudNavLink>
-            <MudNavLink Href="orders/zones" Icon="@Icons.Material.Filled.Explore">Zonas de Reparto</MudNavLink>
-            <MudNavLink Href="admin/settings" Icon="@Icons.Material.Filled.SettingsApplications">Configuración</MudNavLink>
+            @if (!isLocalMode)
+            {
+                <MudNavLink Href="orders/zones" Icon="@Icons.Material.Filled.Explore">Zonas de Reparto</MudNavLink>
+                <MudNavLink Href="admin/settings" Icon="@Icons.Material.Filled.SettingsApplications">Configuración</MudNavLink>
+            }
         </MudNavGroup>
     </AuthorizeView>
 </MudNavMenu>
@@ -54,14 +64,18 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try
+        isLocalMode = ConnectionMonitor.IsLocalMode;
+        if (!isLocalMode)
         {
-            var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
-            isLocalMode = syncStatus.IsLocalMode;
-        }
-        catch
-        {
-            isLocalMode = false;
+            try
+            {
+                var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+                isLocalMode = syncStatus.IsLocalMode;
+            }
+            catch
+            {
+                isLocalMode = false;
+            }
         }
     }
 }

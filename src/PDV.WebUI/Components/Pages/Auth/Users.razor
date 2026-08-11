@@ -10,7 +10,21 @@
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 
+@if (isLocalMode)
+{
+    <PageTitle>Acceso Denegado - Usuarios</PageTitle>
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-8" style="min-height: 400px;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Align="Align.Center">Módulo no Disponible en Modo Local</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center" Style="max-width: 500px;">
+            La administración de usuarios está deshabilitada en esta terminal local. Por favor, acceda desde el Servidor Central para gestionar los usuarios y permisos de acceso.
+        </MudText>
+    </div>
+}
+else
+{
 <PageTitle>Gestión de Usuarios</PageTitle>
 <div class="d-flex flex-column gap-6">
 
@@ -231,12 +245,14 @@
         </PdvStateContainer>
     </MudPaper>
 </div>
+}
 
 <!-- ── Create / Edit Dialog ──────────────────────────── -->
 @* Diálogo extraído a UserDialog.razor *@
 
 @code {
     // ── State ─────────────────────────────────────────────
+    private bool isLocalMode = false;
     private List<UserViewModel> users = new();
     private List<string> availableRoles = new();
     private List<BranchDto> availableBranches = new();
@@ -274,6 +290,9 @@
     // ── Lifecycle ─────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        isLocalMode = ConnectionMonitor.IsLocalMode;
+        if (isLocalMode) return;
+
         await LoadData();
     }
 
