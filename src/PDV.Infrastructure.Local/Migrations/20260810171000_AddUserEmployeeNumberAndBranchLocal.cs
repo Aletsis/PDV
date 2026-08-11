@@ -28,23 +28,11 @@ namespace PDV.Infrastructure.Local.Migrations
                 name: "IX_AspNetUsers_BranchId",
                 table: "AspNetUsers",
                 column: "BranchId");
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_AspNetUsers_Branches_BranchId",
-                table: "AspNetUsers",
-                column: "BranchId",
-                principalTable: "Branches",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_AspNetUsers_Branches_BranchId",
-                table: "AspNetUsers");
-
             migrationBuilder.DropIndex(
                 name: "IX_AspNetUsers_BranchId",
                 table: "AspNetUsers");
