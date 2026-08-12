@@ -1,0 +1,338 @@
+@using MediatR
+@using PDV.Application.Common.Interfaces
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Application.Features.Printers.Queries.GetPrinter
+@using PDV.Application.Features.Printers.Queries.ListPrinters
+@using PDV.Domain.Enums
+@using PDV.WebUI.Components.Pages.Printer
+@inject IMediator Mediator
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IEscPosPrinter EscPosPrinter
+
+<div class="printer-card-container">
+    @if (PrinterId.HasValue && PrinterId.Value != Guid.Empty && _currentPrinter != null)
+    {
+        <div class="printer-card-active">
+            <div class="d-flex justify-space-between align-center mb-2 flex-wrap gap-2">
+                <div class="d-flex align-center gap-2">
+                    <div class="printer-icon-avatar">
+                        <MudIcon Icon="@Icons.Material.Filled.Print" Style="font-size: 24px; color: #7c4dff;" />
+                    </div>
+                    <div>
+                        <div class="d-flex align-center gap-2">
+                            <span class="printer-name">@_currentPrinter.Name</span>
+                            @if (_currentPrinter.IsActive)
+                            {
+                                <span class="printer-status-active">Activa</span>
+                            }
+                            else
+                            {
+                                <span class="printer-status-inactive">Inactiva</span>
+                            }
+                        </div>
+                        <div class="printer-connection-detail">
+                            <span class="badge-conn badge-@_currentPrinter.ConnectionType.ToString().ToLower()">
+                                @_currentPrinter.ConnectionType
+                            </span>
+                            @if (!string.IsNullOrEmpty(_currentPrinter.IpAddress))
+                            {
+                                <span class="printer-endpoint">@_currentPrinter.IpAddress:@_currentPrinter.Port</span>
+                            }
+                            else if (!string.IsNullOrEmpty(_currentPrinter.DevicePath))
+                            {
+                                <span class="printer-endpoint">@_currentPrinter.DevicePath</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex align-center gap-2 flex-wrap">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Info"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                               Disabled="@_isTesting"
+                               OnClick="TestPrint">
+                        @if (_isTesting)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                            <span>Probando...</span>
+                        }
+                        else
+                        {
+                            <span>Probar Impresión</span>
+                        }
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Edit"
+                               OnClick="EditPrinter">
+                        Editar
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.SwapHoriz"
+                               OnClick="OpenSelectPrinterDialog">
+                        Cambiar
+                    </MudButton>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="printer-card-empty">
+            <div class="d-flex justify-space-between align-center flex-wrap gap-3">
+                <div class="d-flex align-center gap-3">
+                    <div class="printer-icon-avatar empty">
+                        <MudIcon Icon="@Icons.Material.Filled.PrintDisabled" Style="font-size: 24px; color: rgba(255,255,255,0.4);" />
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.95rem; color: var(--mud-palette-text-primary);">
+                            Sin Impresora de Tickets Asignada
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--mud-palette-text-secondary);">
+                            Esta caja no imprimirá tickets físicos de venta, pedidos o cortes de caja.
+                        </div>
+                    </div>
+                </div>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.AddCircleOutline"
+                           OnClick="OpenSelectPrinterDialog">
+                    Configurar Impresora
+                </MudButton>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .printer-card-container {
+        width: 100%;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+    .printer-card-active {
+        background: rgba(124, 77, 255, 0.05);
+        border: 1px solid rgba(124, 77, 255, 0.25);
+        border-radius: 12px;
+        padding: 14px 18px;
+        transition: all 0.2s ease;
+    }
+    .printer-card-active:hover {
+        border-color: rgba(124, 77, 255, 0.45);
+        box-shadow: 0 4px 15px rgba(124, 77, 255, 0.08);
+    }
+    .printer-card-empty {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px dashed rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        padding: 16px 20px;
+        transition: all 0.2s ease;
+    }
+    .printer-card-empty:hover {
+        border-color: rgba(124, 77, 255, 0.3);
+        background: rgba(124, 77, 255, 0.02);
+    }
+    .printer-icon-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: rgba(124, 77, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .printer-icon-avatar.empty {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .printer-name {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--mud-palette-text-primary);
+    }
+    .printer-status-active {
+        font-size: 0.7rem;
+        background: rgba(76, 175, 80, 0.15);
+        color: #81c784;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .printer-status-inactive {
+        font-size: 0.7rem;
+        background: rgba(244, 67, 54, 0.15);
+        color: #e57373;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .printer-connection-detail {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 2px;
+    }
+    .printer-endpoint {
+        font-size: 0.8rem;
+        font-family: monospace;
+        color: rgba(255, 255, 255, 0.7);
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid? PrinterId { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid?> PrinterIdChanged { get; set; }
+
+    [Parameter]
+    public List<PrinterDto> AvailablePrinters { get; set; } = new();
+
+    private PrinterDto? _currentPrinter;
+    private bool _isTesting = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (PrinterId.HasValue && PrinterId.Value != Guid.Empty)
+        {
+            if (_currentPrinter?.Id != PrinterId.Value)
+            {
+                _currentPrinter = AvailablePrinters.FirstOrDefault(p => p.Id == PrinterId.Value);
+                if (_currentPrinter == null)
+                {
+                    try
+                    {
+                        _currentPrinter = await Mediator.Send(new GetPrinterQuery(PrinterId.Value));
+                    }
+                    catch
+                    {
+                        _currentPrinter = null;
+                    }
+                }
+            }
+        }
+        else
+        {
+            _currentPrinter = null;
+        }
+    }
+
+    private async Task OpenSelectPrinterDialog()
+    {
+        var parameters = new DialogParameters<AssignOrSelectPrinterDialog>
+        {
+            { x => x.CurrentPrinterId, PrinterId },
+            { x => x.Printers, AvailablePrinters }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<AssignOrSelectPrinterDialog>("Impresora de Tickets", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var selected = result.Data as PrinterDto;
+            _currentPrinter = selected;
+            PrinterId = selected?.Id;
+            await PrinterIdChanged.InvokeAsync(PrinterId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task EditPrinter()
+    {
+        if (_currentPrinter == null) return;
+
+        var model = new PrinterDialog.PrinterFormModel
+        {
+            Id             = _currentPrinter.Id,
+            Name           = _currentPrinter.Name,
+            ConnectionType = _currentPrinter.ConnectionType,
+            IpAddress      = _currentPrinter.IpAddress,
+            Port           = _currentPrinter.Port ?? 9100,
+            DevicePath     = _currentPrinter.DevicePath,
+            CodePage       = _currentPrinter.CodePage,
+            MaxWidth       = _currentPrinter.MaxWidth,
+            IsActive       = _currentPrinter.IsActive
+        };
+
+        var parameters = new DialogParameters<PrinterDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.Model, model }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<PrinterDialog>("Editar Impresora", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            _currentPrinter = await Mediator.Send(new GetPrinterQuery(_currentPrinter.Id));
+            Snackbar.Add("Impresora actualizada exitosamente.", Severity.Success);
+            StateHasChanged();
+        }
+    }
+
+    private async Task TestPrint()
+    {
+        if (_currentPrinter == null) return;
+
+        _isTesting = true;
+        StateHasChanged();
+
+        try
+        {
+            string connectionUri = _currentPrinter.ConnectionType switch
+            {
+                PrinterConnectionType.Network => _currentPrinter.IpAddress ?? string.Empty,
+                PrinterConnectionType.Usb => $"usb://{_currentPrinter.DevicePath}",
+                PrinterConnectionType.Serial => $"serial://{_currentPrinter.DevicePath}?baud={_currentPrinter.CodePage}",
+                _ => _currentPrinter.IpAddress ?? string.Empty
+            };
+
+            var testText = 
+                "================================\n" +
+                "       PRUEBA DE IMPRESION      \n" +
+                "================================\n" +
+                $"Impresora: {_currentPrinter.Name}\n" +
+                $"Tipo: {_currentPrinter.ConnectionType}\n" +
+                $"Fecha: {DateTime.Now:dd/MM/yyyy HH:mm:ss}\n" +
+                "--------------------------------\n" +
+                "Configuracion completada con exito\n" +
+                "================================\n\n\n";
+
+            await EscPosPrinter.PrintJobAsync(
+                ipAddress: connectionUri,
+                port: _currentPrinter.Port ?? 9100,
+                text: testText,
+                autoCut: true,
+                partialCut: false,
+                openDrawerBefore: false,
+                openDrawerAfter: false,
+                copies: 1,
+                encodingCodePage: _currentPrinter.CodePage > 0 ? _currentPrinter.CodePage : 1252
+            );
+
+            Snackbar.Add("Ticket de prueba enviado a la impresora.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al imprimir prueba: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTesting = false;
+            StateHasChanged();
+        }
+    }
+}

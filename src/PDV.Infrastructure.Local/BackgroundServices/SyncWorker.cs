@@ -373,6 +373,34 @@ public class SyncWorker : BackgroundService
                     }
                 }
             }
+            else if (eventType.StartsWith("CashRegister"))
+            {
+                using var doc = JsonDocument.Parse(originalPayload);
+                if (doc.RootElement.TryGetProperty("CashRegisterId", out var prop) && prop.TryGetGuid(out var registerId))
+                {
+                    var register = await db.CashRegisters
+                        .FirstOrDefaultAsync(c => c.Id == registerId, cancellationToken);
+
+                    if (register != null)
+                    {
+                        return JsonSerializer.Serialize(register, jsonOptions);
+                    }
+                }
+            }
+            else if (eventType.StartsWith("Printer"))
+            {
+                using var doc = JsonDocument.Parse(originalPayload);
+                if (doc.RootElement.TryGetProperty("PrinterId", out var prop) && prop.TryGetGuid(out var printerId))
+                {
+                    var printer = await db.Printers
+                        .FirstOrDefaultAsync(p => p.Id == printerId, cancellationToken);
+
+                    if (printer != null)
+                    {
+                        return JsonSerializer.Serialize(printer, jsonOptions);
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {

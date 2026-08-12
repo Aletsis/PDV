@@ -1,5 +1,7 @@
 @page "/admin/printers"
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using MediatR
 @using PDV.Application.Features.Printers.Queries.ListPrinters
 @using PDV.Application.Features.Printers.Commands.CreatePrinter

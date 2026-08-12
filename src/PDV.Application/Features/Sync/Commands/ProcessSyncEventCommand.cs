@@ -402,6 +402,52 @@ public class ProcessSyncEventCommandHandler : IRequestHandler<ProcessSyncEventCo
                     await _context.SaveChangesAsync(cancellationToken);
                 }
             }
+            else if (dto.EventType.StartsWith("CashRegister"))
+            {
+                var register = JsonSerializer.Deserialize<CashRegister>(dto.Payload, _jsonOptions);
+                if (register != null)
+                {
+                    var existing = await _context.CashRegisters.FirstOrDefaultAsync(c => c.Id == register.Id, cancellationToken);
+                    if (existing == null)
+                    {
+                        register.ClearDomainEvents();
+                        _context.CashRegisters.Add(register);
+                    }
+                    else
+                    {
+                        existing.Update(register.Name, register.Location);
+                        existing.ChangeMode(register.Mode);
+                        existing.AssignUser(register.AssignedUserId);
+                        existing.AssignPrinter(register.AssignedPrinterId);
+                        existing.BindToIp(register.IpAddress);
+                        if (register.IsActive && !existing.IsActive) existing.Activate();
+                        else if (!register.IsActive && existing.IsActive) existing.Deactivate();
+                        existing.ClearDomainEvents();
+                    }
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+            }
+            else if (dto.EventType.StartsWith("Printer"))
+            {
+                var printer = JsonSerializer.Deserialize<Printer>(dto.Payload, _jsonOptions);
+                if (printer != null)
+                {
+                    var existing = await _context.Printers.FirstOrDefaultAsync(p => p.Id == printer.Id, cancellationToken);
+                    if (existing == null)
+                    {
+                        printer.ClearDomainEvents();
+                        _context.Printers.Add(printer);
+                    }
+                    else
+                    {
+                        existing.Update(printer.Name, printer.CodePage, printer.MaxWidth, printer.IpAddress, printer.Port, printer.DevicePath);
+                        if (printer.IsActive && !existing.IsActive) existing.Activate();
+                        else if (!printer.IsActive && existing.IsActive) existing.Deactivate();
+                        existing.ClearDomainEvents();
+                    }
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+            }
 
             return SyncProcessResult.Ok();
         }

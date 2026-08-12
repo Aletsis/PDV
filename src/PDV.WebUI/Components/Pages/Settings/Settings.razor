@@ -1,5 +1,7 @@
 @page "/admin/settings"
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using MediatR
 @using PDV.Application.Features.SystemConfiguration.Queries.GetSystemConfiguration
 @using PDV.Application.Features.SystemConfiguration.Commands.UpdateSystemConfiguration

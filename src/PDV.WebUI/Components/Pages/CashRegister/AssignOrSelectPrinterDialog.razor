@@ -1,0 +1,211 @@
+@using MediatR
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Application.Features.Printers.Queries.ListPrinters
+@using PDV.Domain.Enums
+@using PDV.WebUI.Components.Pages.Printer
+@inject IMediator Mediator
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Print" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Seleccionar o Crear Impresora</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="d-flex flex-column gap-3">
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Selecciona una impresora existente en la red/sucursal o registra una nueva para vincularla a esta caja registradora.
+            </MudText>
+
+            <div class="d-flex justify-space-between align-center mb-2">
+                <MudTextField T="string"
+                              @bind-Value="_search"
+                              Placeholder="Buscar impresora..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Style="max-width: 280px;" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenCreatePrinterDialog"
+                           Size="Size.Small">
+                    Nueva Impresora
+                </MudButton>
+            </div>
+
+            @if (_isLoading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-3" />
+            }
+            else
+            {
+                <MudList T="Guid?" SelectedValue="@_selectedPrinterId" SelectedValueChanged="OnSelectionChanged" Dense="false">
+                    <!-- Opción: Sin Impresora -->
+                    <MudListItem T="Guid?" Value="@((Guid?)null)" Icon="@Icons.Material.Filled.DoNotDisturb" IconColor="Color.Default">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Style="width: 100%;">
+                            <div>
+                                <MudText Typo="Typo.body1" Style="font-weight: 500;">— Sin Impresora Asignada —</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">No emitirá tickets físicos ESC/POS</MudText>
+                            </div>
+                            @if (!_selectedPrinterId.HasValue)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                            }
+                        </MudStack>
+                    </MudListItem>
+
+                    <MudDivider Class="my-2" />
+
+                    @foreach (var printer in FilteredPrinters)
+                    {
+                        var isSelected = _selectedPrinterId == printer.Id;
+                        <MudListItem T="Guid?" Value="@((Guid?)printer.Id)" Icon="@Icons.Material.Filled.Print" IconColor="@(isSelected ? Color.Primary : Color.Default)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Style="width: 100%;">
+                                <div>
+                                    <MudText Typo="Typo.body1" Style="font-weight: 600;">@printer.Name</MudText>
+                                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                        <span class="badge-conn badge-@printer.ConnectionType.ToString().ToLower()">
+                                            @printer.ConnectionType
+                                        </span>
+                                        @if (!string.IsNullOrEmpty(printer.IpAddress))
+                                        {
+                                            <span style="font-size: 0.8rem; font-family: monospace; color: rgba(255,255,255,0.7);">@printer.IpAddress:@printer.Port</span>
+                                        }
+                                        else if (!string.IsNullOrEmpty(printer.DevicePath))
+                                        {
+                                            <span style="font-size: 0.8rem; font-family: monospace; color: rgba(255,255,255,0.7);">@printer.DevicePath</span>
+                                        }
+                                    </MudStack>
+                                </div>
+                                @if (isSelected)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                }
+                            </MudStack>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ConfirmSelection">
+            Confirmar Selección
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .badge-conn {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .badge-network { background: rgba(33, 150, 243, 0.15); color: #64b5f6; }
+    .badge-usb { background: rgba(76, 175, 80, 0.15); color: #81c784; }
+    .badge-serial { background: rgba(255, 152, 0, 0.15); color: #ffb74d; }
+    .badge-bluetooth { background: rgba(156, 39, 176, 0.15); color: #ba68c8; }
+</style>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public Guid? CurrentPrinterId { get; set; }
+
+    [Parameter]
+    public List<PrinterDto> Printers { get; set; } = new();
+
+    private List<PrinterDto> _printers = new();
+    private Guid? _selectedPrinterId;
+    private string _search = string.Empty;
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedPrinterId = CurrentPrinterId;
+        if (Printers.Any())
+        {
+            _printers = Printers;
+        }
+        else
+        {
+            await ReloadPrintersAsync();
+        }
+    }
+
+    private IEnumerable<PrinterDto> FilteredPrinters =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _printers
+            : _printers.Where(p => p.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                                  (p.IpAddress != null && p.IpAddress.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+
+    private void OnSelectionChanged(Guid? value)
+    {
+        _selectedPrinterId = value;
+    }
+
+    private async Task ReloadPrintersAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _printers = await Mediator.Send(new ListPrintersQuery());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar impresoras: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenCreatePrinterDialog()
+    {
+        var model = new PrinterDialog.PrinterFormModel
+        {
+            IsActive = true,
+            ConnectionType = PrinterConnectionType.Usb
+        };
+
+        var parameters = new DialogParameters<PrinterDialog>
+        {
+            { x => x.IsEdit, false },
+            { x => x.Model, model }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<PrinterDialog>("Nueva Impresora", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is Guid newId)
+        {
+            await ReloadPrintersAsync();
+            _selectedPrinterId = newId;
+            Snackbar.Add("Impresora creada y seleccionada para esta caja.", Severity.Success);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void ConfirmSelection()
+    {
+        var selectedPrinter = _printers.FirstOrDefault(p => p.Id == _selectedPrinterId);
+        MudDialog.Close(DialogResult.Ok(selectedPrinter));
+    }
+}

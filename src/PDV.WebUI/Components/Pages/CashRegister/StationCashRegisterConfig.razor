@@ -1,0 +1,468 @@
+@page "/pos/station-config"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@using MediatR
+@using PDV.Application.Common.Interfaces
+@using PDV.Application.Features.CashRegisters.Commands.BindLocalStationCashRegister
+@using PDV.Application.Features.CashRegisters.Commands.CreateCashRegister
+@using PDV.Application.Features.CashRegisters.Commands.UpdateCashRegister
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegister
+@using PDV.Application.Features.CashRegisters.Queries.GetLocalStationCashRegister
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Printers.Queries.ListPrinters
+@using PDV.Application.Features.Printers.Dtos
+@using PDV.Domain.Enums
+@using PDV.Application.Common.Helpers
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IIdentityService IdentityService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Navigation
+
+<PageTitle>Configuración de Estación — Mi Caja</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Header -->
+    <PdvHeader Title="Configuración de esta Caja"
+               Subtitle="Ajusta los parámetros operativos, folios e impresora de este equipo de cobro"
+               Icon="@Icons.Material.Filled.PointOfSale"
+               IconColor="Color.Primary">
+        <Actions>
+            @if (_currentRegister != null)
+            {
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.FormatListNumbered"
+                           OnClick="OpenSequencesDialog">
+                    Series y Folios
+                </MudButton>
+                <PdvInteractiveButton Color="Color.Secondary"
+                                      StartIcon="@Icons.Material.Filled.Save"
+                                      OnClick="SaveChanges"
+                                      IsLoading="@_isSaving">
+                    Guardar Cambios
+                </PdvInteractiveButton>
+            }
+        </Actions>
+    </PdvHeader>
+
+    @if (_isLoading)
+    {
+        <PdvStateContainer IsLoading="true" SkeletonRows="4" SkeletonColumns="2">
+            <div></div>
+        </PdvStateContainer>
+    }
+    else if (_currentRegister == null)
+    {
+        <!-- Asistente de Vinculación Inicial -->
+        <MudPaper Class="p-6 text-center" Style="border-radius: 16px; background: radial-gradient(circle at 50% 0%, rgba(124, 77, 255, 0.12) 0%, rgba(18, 22, 40, 0.95) 75%); border: 1px solid rgba(124, 77, 255, 0.2);">
+            <div class="d-flex flex-column align-center justify-center gap-3 my-4">
+                <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(124, 77, 255, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <MudIcon Icon="@Icons.Material.Filled.LinkOff" Style="font-size: 38px; color: #b388ff;" />
+                </div>
+                <MudText Typo="Typo.h5" Style="font-weight: 700;">Esta estación no está vinculada a ninguna caja</MudText>
+                <MudText Typo="Typo.body1" Color="Color.Secondary" Style="max-width: 580px;">
+                    Para comenzar a operar en este equipo, selecciona cuál de las cajas registradoras de la sucursal corresponde a esta terminal física.
+                </MudText>
+
+                @if (_availableRegisters.Any())
+                {
+                    <div class="my-4" style="min-width: 320px; max-width: 440px;">
+                        <MudSelect T="Guid?"
+                                   @bind-Value="_selectedRegisterToBind"
+                                   Label="Seleccionar Caja Registradora"
+                                   Variant="Variant.Outlined"
+                                   AdornmentIcon="@Icons.Material.Filled.PointOfSale"
+                                   Adornment="Adornment.Start">
+                            @foreach (var reg in _availableRegisters)
+                            {
+                                <MudSelectItem Value="@((Guid?)reg.Id)">
+                                    @reg.Name (@reg.Mode) - @(string.IsNullOrEmpty(reg.Location) ? "Sin ubicación" : reg.Location)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Large"
+                                   Class="mt-4"
+                                   FullWidth="true"
+                                   Disabled="@(!_selectedRegisterToBind.HasValue)"
+                                   OnClick="BindStation">
+                            Vincular esta Estación
+                        </MudButton>
+                    </div>
+                }
+                else
+                {
+                    <div class="my-4">
+                        <MudAlert Severity="Severity.Info" Class="mb-3">
+                            No hay cajas creadas en el sistema local. Puedes crear e inicializar la primera caja de este equipo.
+                        </MudAlert>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Secondary"
+                                   Size="Size.Large"
+                                   StartIcon="@Icons.Material.Filled.AddCircle"
+                                   OnClick="CreateAndBindDefaultRegister">
+                            Crear e Inicializar Caja 01
+                        </MudButton>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+    }
+    else
+    {
+        <!-- Formulario de Configuración de la Estación -->
+        <MudGrid Spacing="4">
+            <!-- Sección Principal: Datos de la Caja -->
+            <MudItem xs="12" md="7">
+                <MudPaper Class="p-5" Style="border-radius: 14px; height: 100%;">
+                    <div class="d-flex align-center justify-space-between mb-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">Parámetros de Operación</MudText>
+                        </MudStack>
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">
+                            Estación Vinculada
+                        </MudChip>
+                    </div>
+
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_formModel.Name"
+                                          Label="Nombre de la Caja"
+                                          Variant="Variant.Outlined"
+                                          Required="true"
+                                          RequiredError="El nombre es obligatorio"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.PointOfSale"
+                                          Immediate="true" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_formModel.Location"
+                                          Label="Ubicación / Descripción"
+                                          Variant="Variant.Outlined"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.LocationOn"
+                                          Immediate="true" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="CashRegisterMode"
+                                       @bind-Value="_formModel.Mode"
+                                       Label="Modo de Operación"
+                                       Variant="Variant.Outlined"
+                                       AdornmentIcon="@Icons.Material.Filled.Category"
+                                       Adornment="Adornment.Start">
+                                <MudSelectItem Value="CashRegisterMode.SalesFloor">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudIcon Icon="@Icons.Material.Filled.Storefront" Style="font-size:16px; color:#64b5f6;" />
+                                        <span>Piso de Ventas</span>
+                                    </MudStack>
+                                </MudSelectItem>
+                                <MudSelectItem Value="CashRegisterMode.Orders">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="font-size:16px; color:#ffb74d;" />
+                                        <span>Pedidos / Comandas</span>
+                                    </MudStack>
+                                </MudSelectItem>
+                            </MudSelect>
+                            <div style="font-size: 0.76rem; color: rgba(255,255,255,0.5); margin-top: 4px; padding: 0 8px;">
+                                @_modeDescription
+                            </div>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="string"
+                                       @bind-Value="_formModel.AssignedUserId"
+                                       Label="Usuario Asignado (Opcional)"
+                                       Variant="Variant.Outlined"
+                                       Clearable="true"
+                                       AdornmentIcon="@Icons.Material.Filled.Person"
+                                       Adornment="Adornment.Start">
+                                <MudSelectItem T="string" Value="@((string?)null)">— Ninguno (Cualquier cajero) —</MudSelectItem>
+                                @foreach (var user in _users)
+                                {
+                                    <MudSelectItem T="string" Value="@user.Id">@user.FullName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_formModel.IpAddress"
+                                          Label="Dirección IP de Terminal (Opcional)"
+                                          Variant="Variant.Outlined"
+                                          Placeholder="Ej: 192.168.1.10"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Router"
+                                          Immediate="true" />
+                            @if (!string.IsNullOrEmpty(_detectedIp))
+                            {
+                                <div class="mt-1 d-flex align-center gap-2" style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">
+                                    <span>IP detectada en esta red: <strong style="color: #b388ff; font-family: monospace;">@_detectedIp</strong></span>
+                                    @if (_formModel.IpAddress != _detectedIp)
+                                    {
+                                        <MudLink Underline="Underline.Always" Color="Color.Secondary" Style="cursor: pointer;" OnClick="@(() => _formModel.IpAddress = _detectedIp)">
+                                            Usar esta IP
+                                        </MudLink>
+                                    }
+                                </div>
+                            }
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudItem>
+
+            <!-- Sección Secundaria: Periférico Impresora & Accesos Rápidos -->
+            <MudItem xs="12" md="5">
+                <div class="d-flex flex-column gap-4">
+                    <!-- Tarjeta de Impresora -->
+                    <MudPaper Class="p-5" Style="border-radius: 14px;">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.Print" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">Impresora de Tickets</MudText>
+                        </MudStack>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            Configura la impresora térmica ESC/POS asociada a esta caja para ventas, pedidos y cortes.
+                        </MudText>
+                        <PrinterSelectorCard @bind-PrinterId="_formModel.AssignedPrinterId" AvailablePrinters="_printers" />
+                    </MudPaper>
+
+                    <!-- Tarjeta de Series y Folios -->
+                    <MudPaper Class="p-5" Style="border-radius: 14px;">
+                        <div class="d-flex align-center justify-space-between mb-2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.FormatListNumbered" Color="Color.Warning" />
+                                <MudText Typo="Typo.h6">Series y Folios</MudText>
+                            </MudStack>
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Warning"
+                                       Size="Size.Small"
+                                       OnClick="OpenSequencesDialog">
+                                Gestionar
+                            </MudButton>
+                        </div>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Controla los números consecutivos de tickets emitidos por esta caja para Ventas, Devoluciones, Cancelaciones y Cortes.
+                        </MudText>
+                    </MudPaper>
+
+                    <!-- Zona de Desvinculación -->
+                    <MudPaper Class="p-4" Style="border-radius: 14px; background: rgba(244, 67, 54, 0.04); border: 1px dashed rgba(244, 67, 54, 0.2);">
+                        <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.9rem; color: var(--mud-palette-text-primary);">
+                                    Cambiar Vinculación de Estación
+                                </div>
+                                <div style="font-size: 0.78rem; color: var(--mud-palette-text-secondary);">
+                                    Desvincula este equipo si deseas reasignarlo a otra caja física.
+                                </div>
+                            </div>
+                            <MudButton Variant="Variant.Text"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="UnbindStation">
+                                Desvincular
+                            </MudButton>
+                        </div>
+                    </MudPaper>
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+</div>
+
+@code {
+    private CashRegisterDto? _currentRegister;
+    private List<CashRegisterDto> _availableRegisters = new();
+    private List<UserSyncDataDto> _users = new();
+    private List<PrinterDto> _printers = new();
+    private Guid? _selectedRegisterToBind;
+
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private string? _detectedIp;
+
+    private CashRegisterDialog.CashRegisterFormModel _formModel = new();
+
+    private string _modeDescription => _formModel.Mode == CashRegisterMode.SalesFloor
+        ? "Piso de Ventas: Opera venta directa de mostrador, cobro con efectivo/tarjeta y arqueo."
+        : "Pedidos: Destinada a la captura, seguimiento y liquidación de órdenes de reparto a domicilio.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        _detectedIp = IpAddressHelper.ResolveClientIp(rawIp);
+
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var stationReg = await Mediator.Send(new GetLocalStationCashRegisterQuery());
+            _availableRegisters = await Mediator.Send(new ListCashRegistersQuery());
+            _users = await IdentityService.GetUsersAsync(default);
+            _printers = await Mediator.Send(new ListPrintersQuery());
+
+            if (stationReg != null)
+            {
+                _currentRegister = stationReg;
+                _formModel = new CashRegisterDialog.CashRegisterFormModel
+                {
+                    Id                = stationReg.Id,
+                    Name              = stationReg.Name,
+                    Location          = stationReg.Location,
+                    BranchId          = stationReg.BranchId,
+                    Mode              = stationReg.Mode,
+                    IpAddress         = stationReg.IpAddress,
+                    AssignedUserId    = stationReg.AssignedUserId,
+                    AssignedPrinterId = stationReg.AssignedPrinterId,
+                    IsActive          = stationReg.IsActive
+                };
+            }
+            else
+            {
+                _currentRegister = null;
+                // Si solo hay 1 caja disponible, seleccionarla por defecto
+                if (_availableRegisters.Count == 1)
+                {
+                    _selectedRegisterToBind = _availableRegisters.First().Id;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar configuración de la estación: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task BindStation()
+    {
+        if (!_selectedRegisterToBind.HasValue) return;
+
+        try
+        {
+            await Mediator.Send(new BindLocalStationCashRegisterCommand(_selectedRegisterToBind.Value));
+            Snackbar.Add("Estación vinculada exitosamente a la caja.", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al vincular estación: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CreateAndBindDefaultRegister()
+    {
+        try
+        {
+            var branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
+            var defaultBranchId = branches.FirstOrDefault()?.Id ?? Guid.NewGuid();
+
+            var cmd = new CreateCashRegisterCommand(
+                Name: "Caja 01",
+                Location: "Mostrador Principal",
+                BranchId: defaultBranchId,
+                Mode: CashRegisterMode.SalesFloor,
+                AssignedUserId: null,
+                AssignedPrinterId: null,
+                IpAddress: _detectedIp
+            );
+
+            var createdId = await Mediator.Send(cmd);
+            await Mediator.Send(new BindLocalStationCashRegisterCommand(createdId));
+
+            Snackbar.Add("Caja 01 creada y vinculada a esta terminal.", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al crear caja inicial: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (string.IsNullOrWhiteSpace(_formModel.Name))
+        {
+            Snackbar.Add("El nombre de la caja es obligatorio.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            var command = new UpdateCashRegisterCommand(
+                Id:                _formModel.Id,
+                Name:              _formModel.Name,
+                Location:          _formModel.Location ?? string.Empty,
+                BranchId:          _formModel.BranchId,
+                AssignedUserId:    _formModel.AssignedUserId,
+                AssignedPrinterId: _formModel.AssignedPrinterId,
+                IsActive:          _formModel.IsActive,
+                IpAddress:         string.IsNullOrWhiteSpace(_formModel.IpAddress) ? null : _formModel.IpAddress.Trim(),
+                Mode:              _formModel.Mode
+            );
+
+            await Mediator.Send(command);
+            Snackbar.Add("Configuración de la caja actualizada correctamente.", Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar cambios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task OpenSequencesDialog()
+    {
+        if (_currentRegister == null) return;
+
+        var parameters = new DialogParameters<TicketSequencesDialog>
+        {
+            { x => x.CashRegisterId, _currentRegister.Id },
+            { x => x.CashRegisterName, _currentRegister.Name }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<TicketSequencesDialog>("Series y Folios de Caja", parameters, options);
+        await dialog.Result;
+    }
+
+    private async Task UnbindStation()
+    {
+        bool? confirm = await DialogService.ShowMessageBox(
+            "Desvincular Estación",
+            "¿Estás seguro que deseas desvincular este equipo físico de su caja? Esta terminal requerirá reasignación.",
+            yesText: "Desvincular", cancelText: "Cancelar");
+
+        if (confirm == true)
+        {
+            var stationService = (ILocalStationService)HttpContextAccessor.HttpContext?.RequestServices.GetService(typeof(ILocalStationService))!;
+            if (stationService != null)
+            {
+                await stationService.ClearAssignedCashRegisterIdAsync();
+            }
+            Snackbar.Add("Estación desvinculada.", Severity.Info);
+            await LoadDataAsync();
+        }
+    }
+}

@@ -20,6 +20,17 @@ public class GetPrinterQueryHandler : IRequestHandler<GetPrinterQuery, PrinterDt
     {
         var e = await _context.Printers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
         if (e == null) return null;
-        return new PrinterDto { Id = e.Id, Name = e.Name, IpAddress = e.IpAddress, Port = e.Port, CodePage = e.CodePage, MaxWidth = e.MaxWidth, IsActive = e.IsActive };
+        return new PrinterDto
+        {
+            Id             = e.Id,
+            Name           = e.Name,
+            ConnectionType = e.ConnectionType,
+            IpAddress      = e.IpAddress,
+            Port           = e.Port,
+            DevicePath     = e.DevicePath,
+            CodePage       = e.CodePage,
+            MaxWidth       = e.MaxWidth,
+            IsActive       = e.IsActive
+        };
     }
 }

@@ -47,13 +47,14 @@
             {
                 <MudNavLink Href="admin/branches" Icon="@Icons.Material.Filled.Store">Sucursales</MudNavLink>
                 <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Usuarios</MudNavLink>
-            }
-            <MudNavLink Href="admin/cash-registers" Icon="@Icons.Material.Filled.PointOfSale">Cajas</MudNavLink>
-            <MudNavLink Href="admin/printers" Icon="@Icons.Material.Filled.Print">Impresoras</MudNavLink>
-            @if (!isLocalMode)
-            {
+                <MudNavLink Href="admin/cash-registers" Icon="@Icons.Material.Filled.PointOfSale">Cajas</MudNavLink>
+                <MudNavLink Href="admin/printers" Icon="@Icons.Material.Filled.Print">Impresoras</MudNavLink>
                 <MudNavLink Href="orders/zones" Icon="@Icons.Material.Filled.Explore">Zonas de Reparto</MudNavLink>
                 <MudNavLink Href="admin/settings" Icon="@Icons.Material.Filled.SettingsApplications">Configuración</MudNavLink>
+            }
+            else
+            {
+                <MudNavLink Href="pos/station-config" Icon="@Icons.Material.Filled.PointOfSale">Mi Caja</MudNavLink>
             }
         </MudNavGroup>
     </AuthorizeView>

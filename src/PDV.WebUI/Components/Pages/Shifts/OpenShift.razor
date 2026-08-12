@@ -340,11 +340,18 @@
                 return;
             }
 
-            // 2. Obtener la IP remota del cliente
+            // 2. Obtener la IP remota del cliente y la vinculación persistente de la estación
             var rawIp = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
             clientIp = IpAddressHelper.ResolveClientIp(rawIp);
 
-            // 3. Buscar cajas asignadas por IP, usuario o cookie
+            // 3. Buscar cajas asignadas por vinculación de estación, IP, usuario o cookie
+            CashRegisterDto? stationRegister = null;
+            try
+            {
+                stationRegister = await Mediator.Send(new PDV.Application.Features.CashRegisters.Queries.GetLocalStationCashRegister.GetLocalStationCashRegisterQuery());
+            }
+            catch { }
+
             CashRegisterDto? registerByIp = null;
             if (!string.IsNullOrEmpty(clientIp))
             {
@@ -364,12 +371,17 @@
 
             // Jerarquía de selección de caja:
             // 1) Parámetro explícito de URL (?cashRegisterId=...)
-            // 2) Vinculación física por IP de la terminal (Máxima prioridad de red)
-            // 3) Asignación directa por usuario
-            // 4) Fallback: Cookie de terminal (solo si la caja guardada no tiene una IP en conflicto con la actual)
+            // 2) Vinculación persistente de la estación física (Máxima prioridad en modo Local / Estación fija)
+            // 3) Vinculación física por IP de la terminal
+            // 4) Asignación directa por usuario
+            // 5) Fallback: Cookie de terminal (solo si la caja guardada no tiene una IP en conflicto con la actual)
             if (CashRegisterId.HasValue && CashRegisterId.Value != Guid.Empty)
             {
                 cashRegister = await Mediator.Send(new GetCashRegisterQuery(CashRegisterId.Value));
+            }
+            else if (stationRegister != null)
+            {
+                cashRegister = stationRegister;
             }
             else if (registerByIp != null)
             {

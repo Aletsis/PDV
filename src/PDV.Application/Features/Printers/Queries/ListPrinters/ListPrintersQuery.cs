@@ -19,7 +19,18 @@ public class ListPrintersQueryHandler : IRequestHandler<ListPrintersQuery, List<
     public async Task<List<PrinterDto>> Handle(ListPrintersQuery request, CancellationToken cancellationToken)
     {
         return await _context.Printers.AsNoTracking()
-            .Select(e => new PrinterDto { Id = e.Id, Name = e.Name, IpAddress = e.IpAddress, Port = e.Port, CodePage = e.CodePage, MaxWidth = e.MaxWidth, IsActive = e.IsActive })
+            .Select(e => new PrinterDto
+            {
+                Id             = e.Id,
+                Name           = e.Name,
+                ConnectionType = e.ConnectionType,
+                IpAddress      = e.IpAddress,
+                Port           = e.Port,
+                DevicePath     = e.DevicePath,
+                CodePage       = e.CodePage,
+                MaxWidth       = e.MaxWidth,
+                IsActive       = e.IsActive
+            })
             .ToListAsync(cancellationToken);
     }
 }

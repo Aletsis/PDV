@@ -1,4 +1,6 @@
 @page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using Microsoft.AspNetCore.Identity
 @using PDV.Infrastructure.Identity
 @using Microsoft.EntityFrameworkCore

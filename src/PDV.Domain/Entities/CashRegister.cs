@@ -57,6 +57,15 @@ public class CashRegister : BaseEntity, IAggregateRoot
         AddDomainEvent(new CashRegisterUpdatedEvent(Id, Name));
     }
 
+    public void ChangeMode(CashRegisterMode mode)
+    {
+        if (Mode != mode)
+        {
+            Mode = mode;
+            AddDomainEvent(new CashRegisterModeChangedEvent(Id, mode));
+        }
+    }
+
     // ──────────────────────────────────────────────
     // Vinculación de IP
     // ──────────────────────────────────────────────

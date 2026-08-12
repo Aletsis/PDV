@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IPacService, MockPacService>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<ILocalStationService, Services.LocalStationService>();
         services.AddHttpClient<IGeocodingService, GeocodingService>();
 
         // Registrar Event Bus (in-memory de forma predeterminada)

@@ -139,4 +139,38 @@ public class InfrastructureEntitiesDomainTests
         register.Activate();
         Assert.True(register.IsActive);
     }
+
+    [Fact]
+    public void CashRegister_ChangeMode_EmitsCashRegisterModeChangedEvent()
+    {
+        // Arrange
+        var register = new CashRegister("Caja Principal", "Mostrador", Guid.NewGuid(), CashRegisterMode.SalesFloor);
+
+        // Act
+        register.ChangeMode(CashRegisterMode.Orders);
+
+        // Assert
+        Assert.Equal(CashRegisterMode.Orders, register.Mode);
+        var modeEvent = register.DomainEvents.OfType<CashRegisterModeChangedEvent>().FirstOrDefault();
+        Assert.NotNull(modeEvent);
+        Assert.Equal(CashRegisterMode.Orders, modeEvent!.Mode);
+    }
+
+    [Fact]
+    public void CashRegister_AssignPrinter_EmitsCashRegisterPrinterAssignedEvent()
+    {
+        // Arrange
+        var register = new CashRegister("Caja Principal", "Mostrador", Guid.NewGuid());
+        var printerId = Guid.NewGuid();
+
+        // Act
+        register.AssignPrinter(printerId);
+
+        // Assert
+        Assert.Equal(printerId, register.AssignedPrinterId);
+        var printerEvent = register.DomainEvents.OfType<CashRegisterPrinterAssignedEvent>().FirstOrDefault();
+        Assert.NotNull(printerEvent);
+        Assert.Equal(printerId, printerEvent!.PrinterId);
+    }
 }
+

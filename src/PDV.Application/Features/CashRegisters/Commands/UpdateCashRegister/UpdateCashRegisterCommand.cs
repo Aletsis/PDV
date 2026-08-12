@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Exceptions;
 
+using PDV.Domain.Enums;
+
 namespace PDV.Application.Features.CashRegisters.Commands.UpdateCashRegister;
 
 public record UpdateCashRegisterCommand(
@@ -13,7 +15,8 @@ public record UpdateCashRegisterCommand(
     string? AssignedUserId,
     Guid? AssignedPrinterId,
     bool IsActive,
-    string? IpAddress = null
+    string? IpAddress = null,
+    CashRegisterMode Mode = CashRegisterMode.SalesFloor
 ) : IRequest<bool>;
 
 public class UpdateCashRegisterCommandHandler : IRequestHandler<UpdateCashRegisterCommand, bool>
@@ -43,6 +46,7 @@ public class UpdateCashRegisterCommandHandler : IRequestHandler<UpdateCashRegist
 
         // ── Actualización del agregado ────────────────────────────────────────
         entity.Update(request.Name, request.Location);
+        entity.ChangeMode(request.Mode);
         entity.AssignUser(request.AssignedUserId);
         entity.AssignPrinter(request.AssignedPrinterId);
         entity.BindToIp(string.IsNullOrWhiteSpace(request.IpAddress) ? null : request.IpAddress);

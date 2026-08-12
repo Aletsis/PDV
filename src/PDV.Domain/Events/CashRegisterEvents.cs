@@ -14,3 +14,7 @@ public record CashRegisterUpdatedEvent(Guid CashRegisterId, string Name) : IDoma
 
 /// <summary>Se emite cuando una dirección IP es vinculada o desvinculada de la caja registradora.</summary>
 public record CashRegisterIpBoundEvent(Guid CashRegisterId, string? IpAddress) : IDomainEvent;
+
+/// <summary>Se emite cuando cambia el modo de operación de la caja registradora (Piso de Ventas / Pedidos).</summary>
+public record CashRegisterModeChangedEvent(Guid CashRegisterId, PDV.Domain.Enums.CashRegisterMode Mode) : IDomainEvent;
+

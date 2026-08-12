@@ -138,8 +138,8 @@
                 }
             </MudItem>
 
-            @* Empleado y Impresora *@
-            <MudItem xs="12" sm="6">
+            @* Empleado *@
+            <MudItem xs="12">
                 <MudSelect T="string"
                            @bind-Value="Model.AssignedUserId"
                            Label="Usuario Asignado (Opcional)"
@@ -147,33 +147,22 @@
                            Clearable="true"
                            AdornmentIcon="@Icons.Material.Filled.Person"
                            Adornment="Adornment.Start">
-                    <MudSelectItem T="string" Value="@((string?)null)">— Ninguno —</MudSelectItem>
+                    <MudSelectItem T="string" Value="@((string?)null)">— Ninguno (Cualquier cajero) —</MudSelectItem>
                     @foreach (var user in Users)
                     {
                         <MudSelectItem T="string" Value="@user.Id">@user.FullName</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudSelect T="Guid?"
-                           @bind-Value="Model.AssignedPrinterId"
-                           Label="Impresora Asignada (Opcional)"
-                           Variant="Variant.Outlined"
-                           Clearable="true"
-                           AdornmentIcon="@Icons.Material.Filled.Print"
-                           Adornment="Adornment.Start">
-                    <MudSelectItem Value="@((Guid?)null)">— Ninguna —</MudSelectItem>
-                    @foreach (var printer in Printers)
-                    {
-                        <MudSelectItem Value="@((Guid?)printer.Id)">
-                            @printer.Name
-                            @if (!string.IsNullOrEmpty(printer.IpAddress))
-                            {
-                                <span style="color: rgba(255,255,255,0.4); margin-left: 4px; font-size: 0.8rem;">( @printer.IpAddress)</span>
-                            }
-                        </MudSelectItem>
-                    }
-                </MudSelect>
+
+            @* Impresora de Tickets Integrada *@
+            <MudItem xs="12">
+                <MudDivider Class="my-2" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1 d-block" Style="font-weight:600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Print" Style="font-size:14px; vertical-align:middle; margin-right:4px;" />
+                    Impresora de Tickets Asignada
+                </MudText>
+                <PrinterSelectorCard @bind-PrinterId="Model.AssignedPrinterId" AvailablePrinters="Printers" />
             </MudItem>
 
             @* Estado (solo en edición) *@
@@ -287,7 +276,8 @@
                     AssignedUserId:     Model.AssignedUserId,
                     AssignedPrinterId:  Model.AssignedPrinterId,
                     IsActive:           Model.IsActive,
-                    IpAddress:          string.IsNullOrWhiteSpace(Model.IpAddress) ? null : Model.IpAddress.Trim());
+                    IpAddress:          string.IsNullOrWhiteSpace(Model.IpAddress) ? null : Model.IpAddress.Trim(),
+                    Mode:               Model.Mode);
 
                 await Mediator.Send(command);
             }

@@ -1,4 +1,6 @@
 @page "/admin/branches"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using MediatR
 @using PDV.Application.Features.Branches.Queries.GetBranches
 @using PDV.Application.Features.Branches.Commands.CreateBranch

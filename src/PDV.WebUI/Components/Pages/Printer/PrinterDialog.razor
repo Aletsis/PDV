@@ -431,6 +431,7 @@
                     IsActive:   Model.IsActive);
 
                 await Mediator.Send(cmd);
+                MudDialog.Close(DialogResult.Ok(Model.Id));
             }
             else
             {
@@ -443,10 +444,9 @@
                     IsActive:       true,
                     ConnectionType: Model.ConnectionType);
 
-                await Mediator.Send(cmd);
+                var newId = await Mediator.Send(cmd);
+                MudDialog.Close(DialogResult.Ok(newId));
             }
-
-            MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex)
         {
