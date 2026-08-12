@@ -1,0 +1,584 @@
+@using MediatR
+@using PDV.Application.Common.Interfaces
+@using PDV.Application.Features.FolioSequences.Dtos
+@using PDV.Application.Features.FolioSequences.Queries
+@using PDV.Application.Features.FolioSequences.Commands
+@using PDV.Application.Features.InventoryDocuments.Dtos
+@using PDV.Application.Features.InventoryDocuments.Queries.GetInventoryConceptMappings
+@using PDV.Application.Features.InventoryDocuments.Commands.UpdateInventoryConceptMappings
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IComercialApiSyncService ComercialApiSyncService
+
+<MudDialog Class="branch-concepts-dialog" Style="max-width: 900px; width: 100%;">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.SettingsSuggest" Color="Color.Primary" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Configuración de Conceptos CONTPAQi — @BranchName</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        @if (isLoading)
+        {
+            <div class="d-flex justify-center align-center pa-12">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Default" SliderColor="Color.Primary" PanelClass="pt-4">
+                
+                <!-- PESTAÑA 1: FACTURACIÓN / VENTAS -->
+                <MudTabPanel Text="Facturación / Ventas" Icon="@Icons.Material.Filled.ReceiptLong">
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                        Configura las secuencias de folios y conceptos de CONTPAQi Comercial para CFDI emitidos desde esta sucursal.
+                    </MudText>
+
+                    <MudTable Items="@sequences" Dense="false" Hover="true" Bordered="false" Striped="false"
+                              Elevation="0" Style="background: transparent; border-radius: 12px; overflow: hidden;">
+                        <HeaderContent>
+                            <MudTh Style="font-weight: 600; width: 30%;">Tipo de Comprobante</MudTh>
+                            <MudTh Style="font-weight: 600; width: 40%;">Concepto CONTPAQi</MudTh>
+                            <MudTh Style="font-weight: 600; width: 15%;">Serie</MudTh>
+                            <MudTh Style="font-weight: 600; width: 15%;">Folio</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Tipo">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                    <div style="@($"background: {GetBgColorForType(context.SeriesType)}; width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")">
+                                        <MudIcon Icon="@GetIconForType(context.SeriesType)" Style="@($"color: {GetColorForType(context.SeriesType)}; font-size: 20px;")" />
+                                    </div>
+                                    <div>
+                                        <MudText Typo="Typo.body2" Style="font-weight: 600; line-height: 1.2;">@GetLabelForType(context.SeriesType)</MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size: 0.72rem;">@GetDescriptionForType(context.SeriesType)</MudText>
+                                    </div>
+                                </MudStack>
+                            </MudTd>
+                            <MudTd DataLabel="Concepto">
+                                @if (GetAvailableConceptsFor(context.SeriesType).Any())
+                                {
+                                    <MudSelect T="string"
+                                               Value="@context.ConceptCode"
+                                               ValueChanged="@((code) => OnInvoiceConceptChanged(context, code))"
+                                               Placeholder="Seleccionar concepto"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Clearable="true"
+                                               Dense="true"
+                                               Style="font-weight: 600;">
+                                        @foreach (var c in GetAvailableConceptsFor(context.SeriesType))
+                                        {
+                                            <MudSelectItem Value="@c.Codigo">@c.Nombre (@c.Codigo)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                                else
+                                {
+                                    <MudTextField @bind-Value="context.ConceptCode"
+                                                  Placeholder="Código Concepto"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Style="font-weight: 600;" />
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Serie">
+                                <MudTextField @bind-Value="context.Series"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              MaxLength="10"
+                                              Placeholder="Serie"
+                                              Style="max-width: 100px; font-weight: 600; font-family: 'Roboto Mono', monospace; text-transform: uppercase;" />
+                            </MudTd>
+                            <MudTd DataLabel="Folio">
+                                <MudNumericField T="int"
+                                                 @bind-Value="context.LastFolio"
+                                                 Variant="Variant.Outlined"
+                                                 Margin="Margin.Dense"
+                                                 Min="0"
+                                                 Style="max-width: 120px; font-weight: 600; font-family: 'Roboto Mono', monospace;" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudTabPanel>
+
+                <!-- PESTAÑA 2: COMPRAS -->
+                <MudTabPanel Text="Compras" Icon="@Icons.Material.Filled.ShoppingCart">
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                        Asigna el concepto de CONTPAQi Comercial para cada subtipo de compra en esta sucursal.
+                    </MudText>
+
+                    <MudTable Items="@purchaseMappings" Dense="false" Hover="true" Bordered="false" Striped="true"
+                              Elevation="0" Style="border-radius: 12px; overflow: hidden;">
+                        <HeaderContent>
+                            <MudTh Style="font-weight: 600; width: 30%;">Subtipo de Compra</MudTh>
+                            <MudTh Style="font-weight: 600; width: 45%;">Concepto CONTPAQi</MudTh>
+                            <MudTh Style="font-weight: 600; width: 25%;">Serie por Omisión</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Subtipo">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@Icons.Material.Filled.LocalMall" Color="Color.Success" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold">@context.DisplayLabel</MudText>
+                                </MudStack>
+                            </MudTd>
+                            <MudTd DataLabel="Concepto">
+                                @if (conceptsPurchases.Any())
+                                {
+                                    <MudSelect T="string"
+                                               Value="@context.ConceptCode"
+                                               ValueChanged="@((code) => OnInventoryConceptSelected(context, code, conceptsPurchases))"
+                                               Placeholder="Seleccionar concepto"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Clearable="true"
+                                               Dense="true"
+                                               Style="font-weight: 600;">
+                                        @foreach (var c in conceptsPurchases.Where(c => c.Estatus == 1))
+                                        {
+                                            <MudSelectItem Value="@c.Codigo">@c.Nombre (@c.Codigo)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                                else
+                                {
+                                    <MudStack Row="true" Spacing="2">
+                                        <MudTextField @bind-Value="context.ConceptCode"
+                                                      Placeholder="Código (ej. COMP-ABA)"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Required="true"
+                                                      Style="font-weight: 600; max-width: 160px;" />
+                                        <MudTextField @bind-Value="context.ConceptName"
+                                                      Placeholder="Nombre del concepto"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense" />
+                                    </MudStack>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Serie">
+                                <MudTextField @bind-Value="context.DefaultSeries"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              MaxLength="10"
+                                              Placeholder="Serie (opcional)"
+                                              Style="max-width: 120px; font-weight: 600; font-family: 'Roboto Mono', monospace; text-transform: uppercase;" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudTabPanel>
+
+                <!-- PESTAÑA 3: TRASPASOS SALIENTES -->
+                <MudTabPanel Text="Traspasos" Icon="@Icons.Material.Filled.CompareArrows">
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                        Configura el concepto de CONTPAQi Comercial para traspasos salientes desde esta sucursal hacia cada sucursal de destino.
+                    </MudText>
+
+                    @if (!transferMappings.Any())
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-4">
+                            No hay otras sucursales registradas para configurar rutas de traspaso.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="@transferMappings" Dense="false" Hover="true" Bordered="false" Striped="true"
+                                  Elevation="0" Style="border-radius: 12px; overflow: hidden;">
+                            <HeaderContent>
+                                <MudTh Style="font-weight: 600; width: 35%;">Ruta de Traspaso (Destino)</MudTh>
+                                <MudTh Style="font-weight: 600; width: 40%;">Concepto CONTPAQi</MudTh>
+                                <MudTh Style="font-weight: 600; width: 25%;">Serie por Omisión</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Destino y Subtipo">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@GetTransferSubtypeColor(context.Subtype)" Class="font-weight-bold">
+                                            @GetTransferSubtypeName(context.Subtype)
+                                        </MudChip>
+                                        <div>
+                                            <MudText Typo="Typo.body2" Class="font-weight-bold">@context.DestinationBranchName</MudText>
+                                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Traspaso saliente: @BranchName &rarr; @context.DestinationBranchName</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudTd>
+                                <MudTd DataLabel="Concepto">
+                                    @if (conceptsTransfers.Any())
+                                    {
+                                        <MudSelect T="string"
+                                                   Value="@context.ConceptCode"
+                                                   ValueChanged="@((code) => OnInventoryConceptSelected(context, code, conceptsTransfers))"
+                                                   Placeholder="Seleccionar concepto"
+                                                   Variant="Variant.Outlined"
+                                                   Margin="Margin.Dense"
+                                                   Clearable="true"
+                                                   Dense="true"
+                                                   Style="font-weight: 600;">
+                                            @foreach (var c in conceptsTransfers.Where(c => c.Estatus == 1))
+                                            {
+                                                <MudSelectItem Value="@c.Codigo">@c.Nombre (@c.Codigo)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    }
+                                    else
+                                    {
+                                        <MudStack Row="true" Spacing="2">
+                                            <MudTextField @bind-Value="context.ConceptCode"
+                                                          Placeholder="Código (ej. TRAS-SUC2)"
+                                                          Variant="Variant.Outlined"
+                                                          Margin="Margin.Dense"
+                                                          Required="true"
+                                                          Style="font-weight: 600; max-width: 160px;" />
+                                            <MudTextField @bind-Value="context.ConceptName"
+                                                          Placeholder="Nombre del concepto"
+                                                          Variant="Variant.Outlined"
+                                                          Margin="Margin.Dense" />
+                                        </MudStack>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Serie">
+                                    <MudTextField @bind-Value="context.DefaultSeries"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  MaxLength="10"
+                                                  Placeholder="Serie (opcional)"
+                                                  Style="max-width: 120px; font-weight: 600; font-family: 'Roboto Mono', monospace; text-transform: uppercase;" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudTabPanel>
+
+                <!-- PESTAÑA 4: AJUSTES Y OTROS -->
+                <MudTabPanel Text="Ajustes y Otros" Icon="@Icons.Material.Filled.Tune">
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                        Configura los conceptos de CONTPAQi Comercial para ajustes de inventario (entradas, mermas / salidas e inventario inicial).
+                    </MudText>
+
+                    <MudTable Items="@adjustmentMappings" Dense="false" Hover="true" Bordered="false" Striped="true"
+                              Elevation="0" Style="border-radius: 12px; overflow: hidden;">
+                        <HeaderContent>
+                            <MudTh Style="font-weight: 600; width: 30%;">Tipo de Ajuste</MudTh>
+                            <MudTh Style="font-weight: 600; width: 45%;">Concepto CONTPAQi</MudTh>
+                            <MudTh Style="font-weight: 600; width: 25%;">Serie por Omisión</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Tipo">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@GetAdjustmentIcon(context.MovementType)" Color="Color.Warning" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold">@context.DisplayLabel</MudText>
+                                </MudStack>
+                            </MudTd>
+                            <MudTd DataLabel="Concepto">
+                                @{
+                                    var availableAdjustments = GetAdjustmentConceptsList(context.MovementType);
+                                }
+                                @if (availableAdjustments.Any())
+                                {
+                                    <MudSelect T="string"
+                                               Value="@context.ConceptCode"
+                                               ValueChanged="@((code) => OnInventoryConceptSelected(context, code, availableAdjustments))"
+                                               Placeholder="Seleccionar concepto"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Clearable="true"
+                                               Dense="true"
+                                               Style="font-weight: 600;">
+                                        @foreach (var c in availableAdjustments.Where(c => c.Estatus == 1))
+                                        {
+                                            <MudSelectItem Value="@c.Codigo">@c.Nombre (@c.Codigo)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                                else
+                                {
+                                    <MudStack Row="true" Spacing="2">
+                                        <MudTextField @bind-Value="context.ConceptCode"
+                                                      Placeholder="Código"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Required="true"
+                                                      Style="font-weight: 600; max-width: 160px;" />
+                                        <MudTextField @bind-Value="context.ConceptName"
+                                                      Placeholder="Nombre del concepto"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense" />
+                                    </MudStack>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Serie">
+                                <MudTextField @bind-Value="context.DefaultSeries"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              MaxLength="10"
+                                              Placeholder="Serie (opcional)"
+                                              Style="max-width: 120px; font-weight: 600; font-family: 'Roboto Mono', monospace; text-transform: uppercase;" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudTabPanel>
+
+            </MudTabs>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none;">Cancelar</MudButton>
+        <PdvInteractiveButton Color="Color.Primary"
+                              StartIcon="@Icons.Material.Filled.Save"
+                              OnClick="SaveAll"
+                              IsLoading="@isSaving">
+            Guardar Configuración
+        </PdvInteractiveButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public Guid BranchId { get; set; }
+    [Parameter] public string BranchName { get; set; } = string.Empty;
+
+    // Facturación
+    private List<FolioSequenceDto> sequences = new();
+    private List<ComercialConceptoDto> conceptsType4 = new();
+    private List<ComercialConceptoDto> conceptsType5 = new();
+
+    // Inventario
+    private List<InventoryConceptMappingDto> allInventoryMappings = new();
+    private List<InventoryConceptMappingDto> purchaseMappings = new();
+    private List<InventoryConceptMappingDto> transferMappings = new();
+    private List<InventoryConceptMappingDto> adjustmentMappings = new();
+
+    private List<ComercialConceptoDto> conceptsPurchases = new();
+    private List<ComercialConceptoDto> conceptsTransfers = new();
+    private List<ComercialConceptoDto> conceptsEntradas = new();
+    private List<ComercialConceptoDto> conceptsSalidas = new();
+
+    private bool isLoading = true;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // 1. Cargar Facturación
+            sequences = await Mediator.Send(new GetFolioSequencesByBranchQuery(BranchId));
+
+            // 2. Cargar Mapeos de Inventario para la sucursal
+            allInventoryMappings = await Mediator.Send(new GetInventoryConceptMappingsQuery(BranchId));
+            
+            purchaseMappings = allInventoryMappings
+                .Where(m => m.MovementType == InventoryMovementType.Purchase)
+                .ToList();
+
+            transferMappings = allInventoryMappings
+                .Where(m => m.MovementType == InventoryMovementType.Transfer)
+                .ToList();
+
+            adjustmentMappings = allInventoryMappings
+                .Where(m => m.MovementType != InventoryMovementType.Purchase && m.MovementType != InventoryMovementType.Transfer)
+                .ToList();
+
+            // 3. Consultar conceptos de CONTPAQi Comercial en segundo plano
+            try
+            {
+                conceptsType4 = await ComercialApiSyncService.GetConceptosAsync(4, CancellationToken.None);
+                conceptsType5 = await ComercialApiSyncService.GetConceptosAsync(5, CancellationToken.None);
+                conceptsPurchases = await ComercialApiSyncService.GetConceptosAsync(17, CancellationToken.None);
+                conceptsTransfers = await ComercialApiSyncService.GetConceptosAsync(31, CancellationToken.None);
+                conceptsEntradas = await ComercialApiSyncService.GetConceptosAsync(32, CancellationToken.None);
+                conceptsSalidas = await ComercialApiSyncService.GetConceptosAsync(33, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // Si CONTPAQi no está disponible o no responde, el usuario puede capturar libremente
+                Console.WriteLine($"Aviso: No se pudieron precargar conceptos de CONTPAQi: {ex.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar configuración: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<ComercialConceptoDto> GetAvailableConceptsFor(InvoiceType type)
+    {
+        var concepts = type switch
+        {
+            InvoiceType.Customer or InvoiceType.Global => conceptsType4,
+            InvoiceType.CreditNote => conceptsType5,
+            _ => new List<ComercialConceptoDto>()
+        };
+
+        return concepts.Where(c => c.Estatus == 1).ToList();
+    }
+
+    private List<ComercialConceptoDto> GetAdjustmentConceptsList(InventoryMovementType type)
+    {
+        return type switch
+        {
+            InventoryMovementType.AdjustmentOutput => conceptsSalidas,
+            _ => conceptsEntradas
+        };
+    }
+
+    private void OnInvoiceConceptChanged(FolioSequenceDto sequence, string? code)
+    {
+        sequence.ConceptCode = code;
+        if (string.IsNullOrEmpty(code)) return;
+
+        var conceptsList = GetAvailableConceptsFor(sequence.SeriesType);
+        var conceptInfo = conceptsList.FirstOrDefault(c => c.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase));
+        if (conceptInfo != null)
+        {
+            sequence.Series = conceptInfo.Serie ?? string.Empty;
+            sequence.LastFolio = (int)Math.Max(0, conceptInfo.Folio - 1);
+            Snackbar.Add($"Autocompletado con Serie: '{sequence.Series}' y Folio: {sequence.LastFolio}.", Severity.Info);
+        }
+    }
+
+    private void OnInventoryConceptSelected(InventoryConceptMappingDto item, string? code, List<ComercialConceptoDto> sourceList)
+    {
+        item.ConceptCode = code ?? string.Empty;
+        if (string.IsNullOrEmpty(code)) return;
+
+        var conceptInfo = sourceList.FirstOrDefault(c => c.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase));
+        if (conceptInfo != null)
+        {
+            item.ConceptName = conceptInfo.Nombre;
+            if (!string.IsNullOrWhiteSpace(conceptInfo.Serie))
+            {
+                item.DefaultSeries = conceptInfo.Serie;
+            }
+            Snackbar.Add($"Concepto '{conceptInfo.Nombre}' seleccionado.", Severity.Info);
+        }
+    }
+
+    private async Task SaveAll()
+    {
+        if (sequences.Any(s => s.LastFolio < 0))
+        {
+            Snackbar.Add("El último folio no puede ser negativo.", Severity.Warning);
+            return;
+        }
+
+        // Consolidar todos los mapeos de inventario
+        var combinedMappings = new List<InventoryConceptMappingDto>();
+        combinedMappings.AddRange(purchaseMappings);
+        combinedMappings.AddRange(transferMappings);
+        combinedMappings.AddRange(adjustmentMappings);
+
+        if (combinedMappings.Any(m => string.IsNullOrWhiteSpace(m.ConceptCode)))
+        {
+            Snackbar.Add("Todos los conceptos de inventario deben tener un código asignado.", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            // Guardar Facturación
+            var upsertDtos = sequences.Select(s => new FolioSequenceUpsertDto(
+                SeriesType: s.SeriesType,
+                ConceptCode: s.ConceptCode,
+                Series: s.Series,
+                LastFolio: s.LastFolio
+            )).ToList();
+
+            await Mediator.Send(new UpsertFolioSequencesCommand(BranchId, upsertDtos));
+
+            // Guardar Conceptos de Inventario
+            await Mediator.Send(new UpdateInventoryConceptMappingsCommand(BranchId, combinedMappings));
+
+            Snackbar.Add("Conceptos de CONTPAQi Comercial actualizados exitosamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar configuración: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    // ── Helpers Visuales ────────────────────────────────────────────────────
+
+    private string GetLabelForType(InvoiceType type) => type switch
+    {
+        InvoiceType.Global => "Factura Global",
+        InvoiceType.Customer => "Factura a Cliente",
+        InvoiceType.CreditNote => "Nota de Crédito",
+        _ => type.ToString()
+    };
+
+    private string GetDescriptionForType(InvoiceType type) => type switch
+    {
+        InvoiceType.Global => "Factura de público en general",
+        InvoiceType.Customer => "Factura nominativa individual",
+        InvoiceType.CreditNote => "Nota de egreso (devoluciones/descuentos)",
+        _ => "Secuencia de CFDI de la sucursal"
+    };
+
+    private string GetIconForType(InvoiceType type) => type switch
+    {
+        InvoiceType.Global => Icons.Material.Filled.Public,
+        InvoiceType.Customer => Icons.Material.Filled.PersonPin,
+        InvoiceType.CreditNote => Icons.Material.Filled.AssignmentReturn,
+        _ => Icons.Material.Filled.Receipt
+    };
+
+    private string GetAdjustmentIcon(InventoryMovementType type) => type switch
+    {
+        InventoryMovementType.AdjustmentInput => Icons.Material.Filled.AddBox,
+        InventoryMovementType.AdjustmentOutput => Icons.Material.Filled.IndeterminateCheckBox,
+        _ => Icons.Material.Filled.Inventory2
+    };
+
+    private string GetColorForType(InvoiceType type) => type switch
+    {
+        InvoiceType.Global => "#81c784",
+        InvoiceType.Customer => "#64b5f6",
+        InvoiceType.CreditNote => "#ffb74d",
+        _ => "#ffffff"
+    };
+
+    private string GetBgColorForType(InvoiceType type) => type switch
+    {
+        InvoiceType.Global => "rgba(129, 199, 132, 0.12)",
+        InvoiceType.Customer => "rgba(100, 181, 246, 0.12)",
+        InvoiceType.CreditNote => "rgba(255, 183, 77, 0.12)",
+        _ => "rgba(255, 255, 255, 0.05)"
+    };
+
+    private string GetTransferSubtypeName(InventoryMovementSubtype? subtype) => subtype switch
+    {
+        InventoryMovementSubtype.TransferGroceries => "Abarrotes",
+        InventoryMovementSubtype.TransferWarehouse => "Almacén",
+        InventoryMovementSubtype.TransferSupplies => "Insumos",
+        _ => "General"
+    };
+
+    private Color GetTransferSubtypeColor(InventoryMovementSubtype? subtype) => subtype switch
+    {
+        InventoryMovementSubtype.TransferGroceries => Color.Success,
+        InventoryMovementSubtype.TransferWarehouse => Color.Info,
+        InventoryMovementSubtype.TransferSupplies => Color.Warning,
+        _ => Color.Default
+    };
+}

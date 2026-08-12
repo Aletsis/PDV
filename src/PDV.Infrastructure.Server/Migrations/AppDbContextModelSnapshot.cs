@@ -1051,10 +1051,13 @@ namespace PDV.Infrastructure.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ConceptCode")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("ConceptName")
                         .IsRequired()
@@ -1077,6 +1080,9 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("DestinationBranchId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -1086,15 +1092,21 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("text");
 
-                    b.Property<int>("Subtype")
+                    b.Property<int>("MovementType")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Subtype")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Subtype")
-                        .IsUnique();
+                    b.HasIndex("DestinationBranchId");
 
-                    b.ToTable("InventoryConceptMappings");
+                    b.HasIndex("BranchId", "DestinationBranchId");
+
+                    b.HasIndex("BranchId", "MovementType", "Subtype");
+
+                    b.ToTable("InventoryConceptMappings", (string)null);
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryDocument", b =>
@@ -3489,6 +3501,24 @@ namespace PDV.Infrastructure.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.InventoryConceptMapping", b =>
+                {
+                    b.HasOne("PDV.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PDV.Domain.Entities.Branch", "DestinationBranch")
+                        .WithMany()
+                        .HasForeignKey("DestinationBranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("DestinationBranch");
                 });
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryDocument", b =>

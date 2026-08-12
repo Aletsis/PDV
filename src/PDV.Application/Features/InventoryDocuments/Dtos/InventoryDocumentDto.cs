@@ -50,9 +50,14 @@ public class InventoryDocumentItemDto
 public class InventoryConceptMappingDto
 {
     public Guid Id { get; set; }
-    public InventoryMovementSubtype Subtype { get; set; }
+    public Guid BranchId { get; set; }
+    public InventoryMovementType MovementType { get; set; }
+    public InventoryMovementSubtype? Subtype { get; set; }
     public string SubtypeName { get; set; } = string.Empty;
+    public Guid? DestinationBranchId { get; set; }
+    public string? DestinationBranchName { get; set; }
     public string ConceptCode { get; set; } = string.Empty;
     public string ConceptName { get; set; } = string.Empty;
     public string? DefaultSeries { get; set; }
+    public string DisplayLabel { get; set; } = string.Empty;
 }

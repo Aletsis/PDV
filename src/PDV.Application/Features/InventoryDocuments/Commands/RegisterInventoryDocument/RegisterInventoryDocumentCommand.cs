@@ -292,11 +292,50 @@ public class RegisterInventoryDocumentCommandHandler : IRequestHandler<RegisterI
         Branch? destBranch,
         CancellationToken cancellationToken)
     {
-        // Buscar mapeo de concepto por subclasificación
-        var mapping = await _context.InventoryConceptMappings
-            .FirstOrDefaultAsync(m => m.Subtype == document.Subtype, cancellationToken);
+        // Buscar mapeo de concepto por sucursal y tipo/destino
+        InventoryConceptMapping? mapping = null;
+        if (document.Type == InventoryMovementType.Transfer)
+        {
+            mapping = await _context.InventoryConceptMappings
+                .FirstOrDefaultAsync(m => m.BranchId == document.BranchId &&
+                                          m.MovementType == InventoryMovementType.Transfer &&
+                                          m.DestinationBranchId == document.DestinationBranchId &&
+                                          m.Subtype == document.Subtype, cancellationToken);
+        }
+        else
+        {
+            mapping = await _context.InventoryConceptMappings
+                .FirstOrDefaultAsync(m => m.BranchId == document.BranchId &&
+                                          m.MovementType == document.Type &&
+                                          m.Subtype == document.Subtype, cancellationToken);
+        }
 
-        var conceptCode = mapping?.ConceptCode ?? document.Subtype.ToString();
+        var conceptCode = mapping?.ConceptCode;
+        if (string.IsNullOrWhiteSpace(conceptCode))
+        {
+            conceptCode = document.Type switch
+            {
+                InventoryMovementType.Transfer => document.Subtype switch
+                {
+                    InventoryMovementSubtype.TransferGroceries => $"TRAS-ABA-{(destBranch?.Code ?? "DEST").ToUpper()}",
+                    InventoryMovementSubtype.TransferWarehouse => $"TRAS-ALM-{(destBranch?.Code ?? "DEST").ToUpper()}",
+                    InventoryMovementSubtype.TransferSupplies => $"TRAS-INS-{(destBranch?.Code ?? "DEST").ToUpper()}",
+                    _ => $"TRAS-{(destBranch?.Code ?? "DEST").ToUpper()}"
+                },
+                InventoryMovementType.Purchase => document.Subtype switch
+                {
+                    InventoryMovementSubtype.PurchaseGroceries => "COMP-ABA",
+                    InventoryMovementSubtype.PurchasePettyCash => "COMP-CCH",
+                    InventoryMovementSubtype.PurchaseStandard => "COMP",
+                    InventoryMovementSubtype.PurchaseFixedExpenses => "COMP-GFIJ",
+                    InventoryMovementSubtype.PurchaseSuppliers => "COMP-PROV",
+                    _ => "COMP"
+                },
+                InventoryMovementType.AdjustmentOutput => "AJU-SAL",
+                InventoryMovementType.InitialInventory => "INV-INI",
+                _ => "AJU-ENT"
+            };
+        }
 
         // Cargar productos para partidas
         var productIds = document.Items.Select(i => i.ProductId).ToList();

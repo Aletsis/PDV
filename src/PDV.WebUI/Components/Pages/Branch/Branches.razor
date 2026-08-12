@@ -166,9 +166,9 @@ else
                     {
                         <TemplateColumn Title="Acciones" HeaderStyle="width: 160px;" CellClass="d-flex justify-end gap-1">
                             <CellTemplate>
-                                <MudTooltip Text="Conceptos de Facturación CONTPAQi">
-                                    <MudIconButton Icon="@Icons.Material.Filled.FormatListNumbered" Color="Color.Warning" Size="Size.Small" 
-                                                   OnClick="@(() => OpenInvoiceSequencesDialog(context.Item))" Style="background-color: rgba(255, 183, 77, 0.05);" />
+                                <MudTooltip Text="Conceptos CONTPAQi (Ventas, Compras, Traspasos, Ajustes)">
+                                    <MudIconButton Icon="@Icons.Material.Filled.SettingsSuggest" Color="Color.Warning" Size="Size.Small" 
+                                                   OnClick="@(() => OpenConceptsConfigDialog(context.Item))" Style="background-color: rgba(255, 183, 77, 0.08);" />
                                 </MudTooltip>
                                 <MudTooltip Text="Editar">
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
@@ -371,18 +371,18 @@ else
         }
     }
 
-    private async Task OpenInvoiceSequencesDialog(BranchDto branch)
+    private async Task OpenConceptsConfigDialog(BranchDto branch)
     {
         if (isLocalMode || !isAdmin) return;
 
-        var parameters = new DialogParameters<InvoiceConceptSequencesDialog>
+        var parameters = new DialogParameters<BranchConceptsConfigDialog>
         {
             { x => x.BranchId, branch.Id },
             { x => x.BranchName, branch.Name }
         };
 
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
-        var dialog = await DialogService.ShowAsync<InvoiceConceptSequencesDialog>("Conceptos de Facturación CONTPAQi", parameters, options);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<BranchConceptsConfigDialog>("Conceptos CONTPAQi Comercial", parameters, options);
         await dialog.Result;
     }
 

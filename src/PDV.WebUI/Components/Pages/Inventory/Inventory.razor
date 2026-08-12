@@ -141,14 +141,6 @@ else
 
                     <!-- Action Buttons -->
                     <MudItem xs="12" sm="4" Class="d-flex justify-end gap-2">
-                        <MudButton Variant="Variant.Outlined"
-                                   Color="Color.Default"
-                                   StartIcon="@Icons.Material.Filled.SettingsSuggest"
-                                   OnClick="OpenConceptMappingDialog"
-                                   Class="rounded-lg"
-                                   title="Configurar Conceptos CONTPAQi">
-                            Conceptos CONTPAQi
-                        </MudButton>
                         <MudButton Variant="Variant.Filled"
                                    Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Add"
@@ -488,15 +480,7 @@ else
         }
     }
 
-    private async Task OpenConceptMappingDialog()
-    {
-        var dialog = await DialogService.ShowAsync<InventoryConceptMappingDialog>(
-            "Conceptos CONTPAQi", 
-            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true }
-        );
 
-        await dialog.Result;
-    }
 
     private async Task OpenDocumentDetails(InventoryDocumentDto doc)
     {
