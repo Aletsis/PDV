@@ -7,6 +7,9 @@
 @using PDV.Application.Features.InventoryMovements.Dtos
 @using PDV.Application.Features.InventoryMovements.Queries.GetInventoryMovements
 @using PDV.Application.Features.InventoryMovements.Queries.GetInventoryStats
+@using PDV.Application.Features.InventoryDocuments.Dtos
+@using PDV.Application.Features.InventoryDocuments.Queries.GetInventoryDocumentsWithPagination
+@using PDV.Application.Features.InventoryDocuments.Commands.RetryInventoryDocumentSync
 @using PDV.Application.Features.Sync.Queries
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
@@ -14,7 +17,7 @@
 @inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 @implements IDisposable
 
-<PageTitle>Kardex e Inventarios</PageTitle>
+<PageTitle>Documentos y Kardex de Inventario</PageTitle>
 
 @if (isLocalMode)
 {
@@ -31,219 +34,319 @@
 else
 {
     <div class="d-flex flex-column gap-6">
-    <!-- Page Header & Mode Monitor -->
-    <PdvHeader Title="Control de Inventarios"
-               Subtitle="Gestiona las compras, mermas, ajustes de stock y traspasos entre sucursales de tu negocio."
-               Icon="@Icons.Material.Filled.Inventory2"
-               IconColor="Color.Primary">
-        <StatusAlert>
-            @if (isLocalMode)
-            {
-                <MudAlert Severity="Severity.Info" Dense="true" Icon="@Icons.Material.Filled.CloudOff" Class="rounded-lg">
-                    Modo Local (Terminal de Caja) - Los movimientos se sincronizarán con el servidor central.
-                </MudAlert>
-            }
-        </StatusAlert>
-    </PdvHeader>
-    @if (_isInitializing)
-    {
-        <div class="d-flex align-center justify-center pa-8" style="min-height: 300px;">
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
-        </div>
-    }
-    else
-    {
-        <!-- KPI Cards -->
-        <div class="d-flex flex-wrap gap-4">
-            <div class="flex-grow-1" style="min-width: 200px;">
-                <PdvKpiCard Title="Total Movimientos"
-                            Value="@stats.TotalMovements.ToString()"
-                            Icon="@Icons.Material.Filled.History"
-                            GradientType="PdvKpiCard.KpiGradientType.Primary" />
-            </div>
-            <div class="flex-grow-1" style="min-width: 200px;">
-                <PdvKpiCard Title="Compras / Entradas"
-                            Value="@stats.TotalPurchases.ToString()"
-                            Icon="@Icons.Material.Filled.AddShoppingCart"
-                            GradientType="PdvKpiCard.KpiGradientType.Success" />
-            </div>
-            <div class="flex-grow-1" style="min-width: 200px;">
-                <PdvKpiCard Title="Ajustes / Mermas"
-                            Value="@stats.TotalAdjustments.ToString()"
-                            Icon="@Icons.Material.Filled.TrendingDown"
-                            GradientType="PdvKpiCard.KpiGradientType.Error" />
-            </div>
-            <div class="flex-grow-1" style="min-width: 200px;">
-                <PdvKpiCard Title="Traspasos"
-                            Value="@stats.TotalTransfers.ToString()"
-                            Icon="@Icons.Material.Filled.CompareArrows"
-                            GradientType="PdvKpiCard.KpiGradientType.Info" />
-            </div>
-        </div>
+        <!-- Page Header -->
+        <PdvHeader Title="Control y Documentos de Inventario"
+                   Subtitle="Administra compras con proveedores, traspasos entre sucursales, mermas y su sincronización documental con CONTPAQi Comercial."
+                   Icon="@Icons.Material.Filled.Inventory2"
+                   IconColor="Color.Primary">
+            <StatusAlert>
+                @if (isLocalMode)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Icon="@Icons.Material.Filled.CloudOff" Class="rounded-lg">
+                        Modo Local (Terminal de Caja) - Operaciones de inventario limitadas a solo lectura.
+                    </MudAlert>
+                }
+            </StatusAlert>
+        </PdvHeader>
 
-        <!-- Filters and Actions Panel -->
-        <MudPaper Class="pa-4 rounded-lg border border-solid border-gray-200" Elevation="0">
-            <MudGrid Class="align-center">
-                <!-- Search Product -->
-                <MudItem xs="12" sm="3">
-                    <MudTextField T="string"
-                                  Value="searchQuery"
-                                  ValueChanged="OnSearchChanged"
-                                  Placeholder="Buscar por producto o código..."
-                                  Adornment="Adornment.Start"
-                                  AdornmentIcon="@Icons.Material.Filled.Search"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  Clearable="true"
-                                  Immediate="true"
-                                  DebounceInterval="300"
-                                  Class="premium-input" />
-                </MudItem>
+        @if (_isInitializing)
+        {
+            <div class="d-flex align-center justify-center pa-8" style="min-height: 300px;">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            </div>
+        }
+        else
+        {
+            <!-- KPI Cards -->
+            <div class="d-flex flex-wrap gap-4">
+                <div class="flex-grow-1" style="min-width: 200px;">
+                    <PdvKpiCard Title="Total Movimientos"
+                                Value="@stats.TotalMovements.ToString()"
+                                Icon="@Icons.Material.Filled.History"
+                                GradientType="PdvKpiCard.KpiGradientType.Primary" />
+                </div>
+                <div class="flex-grow-1" style="min-width: 200px;">
+                    <PdvKpiCard Title="Compras / Entradas"
+                                Value="@stats.TotalPurchases.ToString()"
+                                Icon="@Icons.Material.Filled.AddShoppingCart"
+                                GradientType="PdvKpiCard.KpiGradientType.Success" />
+                </div>
+                <div class="flex-grow-1" style="min-width: 200px;">
+                    <PdvKpiCard Title="Ajustes / Mermas"
+                                Value="@stats.TotalAdjustments.ToString()"
+                                Icon="@Icons.Material.Filled.TrendingDown"
+                                GradientType="PdvKpiCard.KpiGradientType.Error" />
+                </div>
+                <div class="flex-grow-1" style="min-width: 200px;">
+                    <PdvKpiCard Title="Traspasos"
+                                Value="@stats.TotalTransfers.ToString()"
+                                Icon="@Icons.Material.Filled.CompareArrows"
+                                GradientType="PdvKpiCard.KpiGradientType.Info" />
+                </div>
+            </div>
 
-                <!-- Branch Filter -->
-                <MudItem xs="12" sm="2">
-                    <MudSelect T="Guid?"
-                               Label="Sucursal"
-                               Value="filterBranchId"
-                               ValueChanged="OnBranchChanged"
-                               Variant="Variant.Outlined"
-                               Margin="Margin.Dense"
-                               Class="premium-input">
-                        <MudSelectItem T="Guid?" Value="null">Todas las sucursales</MudSelectItem>
-                        @foreach (var branch in branches)
-                        {
-                            <MudSelectItem T="Guid?" Value="@branch.Id">@branch.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
+            <!-- Main Actions & Filters Bar -->
+            <MudPaper Class="pa-4 rounded-lg border border-solid border-gray-200" Elevation="0">
+                <MudGrid Class="align-center">
+                    <!-- Search Field -->
+                    <MudItem xs="12" sm="3">
+                        <MudTextField T="string"
+                                      Value="searchQuery"
+                                      ValueChanged="OnSearchChanged"
+                                      Placeholder="Buscar por folio, serie, producto..."
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Clearable="true"
+                                      Immediate="true"
+                                      DebounceInterval="300"
+                                      Class="premium-input" />
+                    </MudItem>
 
-                <!-- Movement Type Filter -->
-                <MudItem xs="12" sm="2">
-                    <MudSelect T="InventoryMovementType?"
-                               Label="Tipo de Movimiento"
-                               Value="filterType"
-                               ValueChanged="OnTypeChanged"
-                               Variant="Variant.Outlined"
-                               Margin="Margin.Dense"
-                               Class="premium-input">
-                        <MudSelectItem T="InventoryMovementType?" Value="null">Todos los tipos</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.InitialInventory">Inventario Inicial</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Purchase">Compras</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentInput">Ajustes Entrada</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.AdjustmentOutput">Mermas / Ajustes Salida</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Transfer">Traspasos</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Sale">Ventas</MudSelectItem>
-                        <MudSelectItem T="InventoryMovementType?" Value="InventoryMovementType.Return">Devoluciones</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-
-                <!-- Date Range Filter -->
-                <MudItem xs="12" sm="3" Class="d-flex gap-2">
-                    <MudDatePicker Label="Desde"
-                                   Date="startDate"
-                                   DateChanged="OnStartDateChanged"
+                    <!-- Branch Filter -->
+                    <MudItem xs="12" sm="2">
+                        <MudSelect T="Guid?"
+                                   Label="Sucursal"
+                                   Value="filterBranchId"
+                                   ValueChanged="OnBranchChanged"
                                    Variant="Variant.Outlined"
                                    Margin="Margin.Dense"
-                                   Clearable="true"
-                                   Class="premium-input" />
-                    <MudDatePicker Label="Hasta"
-                                   Date="endDate"
-                                   DateChanged="OnEndDateChanged"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense"
-                                   Clearable="true"
-                                   Class="premium-input" />
-                </MudItem>
+                                   Class="premium-input">
+                            <MudSelectItem T="Guid?" Value="null">Todas las sucursales</MudSelectItem>
+                            @foreach (var branch in branches)
+                            {
+                                <MudSelectItem T="Guid?" Value="@branch.Id">@branch.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
 
-                <!-- Register Button -->
-                <MudItem xs="12" sm="2" Class="d-flex justify-end">
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.Add"
-                               OnClick="OpenRegisterDialog"
-                               Class="rounded-lg font-weight-bold"
-                               FullWidth="true"
-                               Style="height: 40px;">
-                        Registrar
-                    </MudButton>
-                </MudItem>
-            </MudGrid>
-        </MudPaper>
+                    <!-- Date Range Filter -->
+                    <MudItem xs="12" sm="3" Class="d-flex gap-2">
+                        <MudDatePicker Label="Desde"
+                                       Date="startDate"
+                                       DateChanged="OnStartDateChanged"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Clearable="true"
+                                       Class="premium-input" />
+                        <MudDatePicker Label="Hasta"
+                                       Date="endDate"
+                                       DateChanged="OnEndDateChanged"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Clearable="true"
+                                       Class="premium-input" />
+                    </MudItem>
 
-        <!-- Kardex Data Table -->
-        <MudPaper Class="pa-4 rounded-lg" Elevation="0">
-            <MudTable ServerData="LoadKardexData" @ref="table" Hover="true" Dense="false" Elevation="0" Bordered="false" Striped="true">
-                <HeaderContent>
-                    <MudTh>Fecha</MudTh>
-                    <MudTh>Producto</MudTh>
-                    <MudTh>Sucursal</MudTh>
-                    <MudTh>Tipo</MudTh>
-                    <MudTh Style="text-align: right;">Cantidad</MudTh>
-                    <MudTh>Observaciones</MudTh>
-                    <MudTh>Ref / ID</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd>@context.Date.ToLocalTime().ToString("g")</MudTd>
-                    <MudTd>
-                        <div class="d-flex flex-column">
-                            <span class="font-weight-bold">@context.ProductName</span>
-                            <span class="mud-text-secondary text-sm">@context.ProductCode</span>
-                        </div>
-                    </MudTd>
-                    <MudTd>@context.BranchName</MudTd>
-                    <MudTd>
-                        @switch (context.Type)
-                        {
-                            case InventoryMovementType.InitialInventory:
-                                <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.Inventory">Inv. Inicial</MudChip>
-                                break;
-                            case InventoryMovementType.Sale:
-                                <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.PointOfSale">Venta</MudChip>
-                                break;
-                            case InventoryMovementType.Purchase:
-                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.AddShoppingCart">Compra</MudChip>
-                                break;
-                            case InventoryMovementType.Return:
-                                <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.SettingsBackupRestore">Devolución</MudChip>
-                                break;
-                            case InventoryMovementType.AdjustmentInput:
-                                <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingUp">Ajuste Entrada</MudChip>
-                                break;
-                            case InventoryMovementType.AdjustmentOutput:
-                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingDown">Merma</MudChip>
-                                break;
-                            case InventoryMovementType.Transfer:
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.CompareArrows">Traspaso</MudChip>
-                                break;
-                        }
-                    </MudTd>
-                    <MudTd Style="text-align: right;">
-                        <span class="font-weight-bold" style="color: @(context.Quantity > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
-                            @(context.Quantity > 0 ? "+" : "")@context.Quantity.ToString("N3")
-                        </span>
-                    </MudTd>
-                    <MudTd>@context.Remarks</MudTd>
-                    <MudTd>
-                        <span class="text-xs mud-text-secondary" style="font-family: monospace;">
-                            @(context.ReferenceId?.ToString().Substring(0, 8) ?? "-")
-                        </span>
-                    </MudTd>
-                </RowTemplate>
-                <NoRecordsContent>
-                    <MudText Align="Align.Center" Class="pa-4">No se encontraron movimientos registrados en el Kardex.</MudText>
-                </NoRecordsContent>
-                <PagerContent>
-                    <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
-                </PagerContent>
-            </MudTable>
-        </MudPaper>
-    }
+                    <!-- Action Buttons -->
+                    <MudItem xs="12" sm="4" Class="d-flex justify-end gap-2">
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.SettingsSuggest"
+                                   OnClick="OpenConceptMappingDialog"
+                                   Class="rounded-lg"
+                                   title="Configurar Conceptos CONTPAQi">
+                            Conceptos CONTPAQi
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenRegisterDialog"
+                                   Class="rounded-lg font-weight-bold">
+                            Nuevo Movimiento
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Tabs: Documentos vs Kardex -->
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4">
+                <!-- Pestaña 1: Documentos de Inventario -->
+                <MudTabPanel Text="Documentos de Inventario" Icon="@Icons.Material.Filled.ReceiptLong">
+                    <MudPaper Class="pa-4 rounded-lg" Elevation="0">
+                        <MudTable ServerData="LoadDocumentsData" @ref="documentsTable" Hover="true" Dense="false" Elevation="0" Striped="true">
+                            <HeaderContent>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Folio / Serie</MudTh>
+                                <MudTh>Tipo y Concepto</MudTh>
+                                <MudTh>Sucursal</MudTh>
+                                <MudTh>Proveedor / Ref.</MudTh>
+                                <MudTh Style="text-align: right;">Partidas</MudTh>
+                                <MudTh>Usuario</MudTh>
+                                <MudTh>Sincronización CONTPAQi</MudTh>
+                                <MudTh Style="text-align: center;">Acciones</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Date.ToLocalTime().ToString("g")</MudTd>
+                                <MudTd>
+                                    <span class="font-weight-bold" style="font-family: monospace;">
+                                        @(string.IsNullOrWhiteSpace(context.Series) ? "" : $"{context.Series} - ")@context.Folio
+                                    </span>
+                                </MudTd>
+                                <MudTd>
+                                    <div class="d-flex flex-column">
+                                        <span class="font-weight-bold">@GetFriendlySubtypeName(context.Subtype)</span>
+                                    </div>
+                                </MudTd>
+                                <MudTd>
+                                    @context.BranchName
+                                    @if (context.DestinationBranchId.HasValue)
+                                    {
+                                        <span class="text-xs text-primary font-weight-bold d-block">
+                                            ➔ @context.DestinationBranchName
+                                        </span>
+                                    }
+                                </MudTd>
+                                <MudTd>
+                                    @if (!string.IsNullOrWhiteSpace(context.SupplierName))
+                                    {
+                                        <div class="d-flex flex-column">
+                                            <span>@context.SupplierName</span>
+                                            <span class="mud-text-secondary text-xs">@context.SupplierCode</span>
+                                        </div>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(context.Reference))
+                                    {
+                                        <span class="mud-text-secondary">@context.Reference</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="mud-text-disabled">-</span>
+                                    }
+                                </MudTd>
+                                <MudTd Style="text-align: right;">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                        @context.Items.Count partidas (@context.TotalUnits.ToString("N0") u.)
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd>
+                                    <span class="text-sm">@context.CreatedBy</span>
+                                </MudTd>
+                                <MudTd>
+                                    @switch (context.SyncStatus)
+                                    {
+                                        case OutboxState.Processed:
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                                Sincronizado
+                                            </MudChip>
+                                            break;
+                                        case OutboxState.Pending:
+                                        case OutboxState.Processing:
+                                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.HourglassTop">
+                                                En cola (@context.Attempts reintentos)
+                                            </MudChip>
+                                            break;
+                                        case OutboxState.Failed:
+                                            <div class="d-flex align-center gap-1">
+                                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Error" title="@context.SyncErrorMessage">
+                                                    Falló (@context.Attempts / 5)
+                                                </MudChip>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Sync" 
+                                                               Color="Color.Warning" 
+                                                               Size="Size.Small" 
+                                                               OnClick="@(() => RetryDocumentSync(context))"
+                                                               title="Reintentar Sincronización CONTPAQi" />
+                                            </div>
+                                            break;
+                                    }
+                                </MudTd>
+                                <MudTd Style="text-align: center;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                                   Color="Color.Primary" 
+                                                   Size="Size.Small" 
+                                                   OnClick="@(() => OpenDocumentDetails(context))"
+                                                   title="Ver Detalle del Documento" />
+                                </MudTd>
+                            </RowTemplate>
+                            <NoRecordsContent>
+                                <MudText Align="Align.Center" Class="pa-4">No se encontraron documentos de inventario registrados.</MudText>
+                            </NoRecordsContent>
+                            <PagerContent>
+                                <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Documentos por página:" />
+                            </PagerContent>
+                        </MudTable>
+                    </MudPaper>
+                </MudTabPanel>
+
+                <!-- Pestaña 2: Kardex Detallado -->
+                <MudTabPanel Text="Kardex de Movimientos" Icon="@Icons.Material.Filled.History">
+                    <MudPaper Class="pa-4 rounded-lg" Elevation="0">
+                        <MudTable ServerData="LoadKardexData" @ref="kardexTable" Hover="true" Dense="false" Elevation="0" Striped="true">
+                            <HeaderContent>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Producto</MudTh>
+                                <MudTh>Sucursal</MudTh>
+                                <MudTh>Tipo</MudTh>
+                                <MudTh Style="text-align: right;">Cantidad</MudTh>
+                                <MudTh>Observaciones</MudTh>
+                                <MudTh>Documento / Ref.</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Date.ToLocalTime().ToString("g")</MudTd>
+                                <MudTd>
+                                    <div class="d-flex flex-column">
+                                        <span class="font-weight-bold">@context.ProductName</span>
+                                        <span class="mud-text-secondary text-sm">@context.ProductCode</span>
+                                    </div>
+                                </MudTd>
+                                <MudTd>@context.BranchName</MudTd>
+                                <MudTd>
+                                    @switch (context.Type)
+                                    {
+                                        case InventoryMovementType.InitialInventory:
+                                            <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.Inventory">Inv. Inicial</MudChip>
+                                            break;
+                                        case InventoryMovementType.Sale:
+                                            <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.PointOfSale">Venta</MudChip>
+                                            break;
+                                        case InventoryMovementType.Purchase:
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.AddShoppingCart">Compra</MudChip>
+                                            break;
+                                        case InventoryMovementType.Return:
+                                            <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.SettingsBackupRestore">Devolución</MudChip>
+                                            break;
+                                        case InventoryMovementType.AdjustmentInput:
+                                            <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingUp">Ajuste Entrada</MudChip>
+                                            break;
+                                        case InventoryMovementType.AdjustmentOutput:
+                                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingDown">Merma</MudChip>
+                                            break;
+                                        case InventoryMovementType.Transfer:
+                                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.CompareArrows">Traspaso</MudChip>
+                                            break;
+                                    }
+                                </MudTd>
+                                <MudTd Style="text-align: right;">
+                                    <span class="font-weight-bold" style="color: @(context.Quantity > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
+                                        @(context.Quantity > 0 ? "+" : "")@context.Quantity.ToString("N3")
+                                    </span>
+                                </MudTd>
+                                <MudTd>@context.Remarks</MudTd>
+                                <MudTd>
+                                    <span class="text-xs mud-text-secondary" style="font-family: monospace;">
+                                        @(context.ReferenceId?.ToString().Substring(0, 8) ?? "-")
+                                    </span>
+                                </MudTd>
+                            </RowTemplate>
+                            <NoRecordsContent>
+                                <MudText Align="Align.Center" Class="pa-4">No se encontraron movimientos registrados en el Kardex.</MudText>
+                            </NoRecordsContent>
+                            <PagerContent>
+                                <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+                            </PagerContent>
+                        </MudTable>
+                    </MudPaper>
+                </MudTabPanel>
+            </MudTabs>
+        }
     </div>
 }
 
 @code {
     private bool _isInitializing = true;
-    private MudTable<InventoryMovementDto> table = default!;
+    private MudTable<InventoryDocumentDto> documentsTable = default!;
+    private MudTable<InventoryMovementDto> kardexTable = default!;
     private List<BranchDto> branches = new();
     private InventoryStatsDto stats = new();
     private bool isLocalMode = false;
@@ -251,7 +354,6 @@ else
     // Filters
     private string searchQuery = "";
     private Guid? filterBranchId;
-    private InventoryMovementType? filterType;
     private DateTime? startDate = DateTime.Today.AddDays(-7);
     private DateTime? endDate = DateTime.Today;
 
@@ -291,6 +393,25 @@ else
         stats = await Mediator.Send(new GetInventoryStatsQuery(filterBranchId, startDate, endDate));
     }
 
+    private async Task<TableData<InventoryDocumentDto>> LoadDocumentsData(TableState state, CancellationToken cancellationToken)
+    {
+        var result = await Mediator.Send(new GetInventoryDocumentsWithPaginationQuery
+        {
+            PageNumber = state.Page + 1,
+            PageSize = state.PageSize,
+            SearchQuery = searchQuery,
+            BranchId = filterBranchId,
+            StartDate = startDate,
+            EndDate = endDate
+        }, cancellationToken);
+
+        return new TableData<InventoryDocumentDto>
+        {
+            TotalItems = result.TotalCount,
+            Items = result.Items
+        };
+    }
+
     private async Task<TableData<InventoryMovementDto>> LoadKardexData(TableState state, CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(new GetInventoryMovementsQuery
@@ -299,7 +420,6 @@ else
             PageSize = state.PageSize,
             SearchQuery = searchQuery,
             BranchId = filterBranchId,
-            Type = filterType,
             StartDate = startDate,
             EndDate = endDate
         }, cancellationToken);
@@ -323,12 +443,6 @@ else
         await RefreshAll();
     }
 
-    private async Task OnTypeChanged(InventoryMovementType? type)
-    {
-        filterType = type;
-        await RefreshAll();
-    }
-
     private async Task OnStartDateChanged(DateTime? date)
     {
         startDate = date;
@@ -344,9 +458,13 @@ else
     private async Task RefreshAll()
     {
         await LoadStats();
-        if (table != null)
+        if (documentsTable != null)
         {
-            await table.ReloadServerData();
+            await documentsTable.ReloadServerData();
+        }
+        if (kardexTable != null)
+        {
+            await kardexTable.ReloadServerData();
         }
     }
 
@@ -358,7 +476,37 @@ else
         };
 
         var dialog = await DialogService.ShowAsync<RegisterMovementDialog>(
-            "Registrar Movimiento", 
+            "Registrar Movimiento / Documento", 
+            parameters, 
+            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true }
+        );
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await RefreshAll();
+        }
+    }
+
+    private async Task OpenConceptMappingDialog()
+    {
+        var dialog = await DialogService.ShowAsync<InventoryConceptMappingDialog>(
+            "Conceptos CONTPAQi", 
+            new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true }
+        );
+
+        await dialog.Result;
+    }
+
+    private async Task OpenDocumentDetails(InventoryDocumentDto doc)
+    {
+        var parameters = new DialogParameters<InventoryDocumentDetailsDialog>
+        {
+            { x => x.Document, doc }
+        };
+
+        var dialog = await DialogService.ShowAsync<InventoryDocumentDetailsDialog>(
+            "Detalle de Documento", 
             parameters, 
             new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true }
         );
@@ -369,6 +517,46 @@ else
             await RefreshAll();
         }
     }
+
+    private async Task RetryDocumentSync(InventoryDocumentDto doc)
+    {
+        try
+        {
+            var success = await Mediator.Send(new RetryInventoryDocumentSyncCommand(doc.Id));
+            if (success)
+            {
+                Snackbar.Add("Sincronización con CONTPAQi exitosa.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Reintento programado en segundo plano.", Severity.Warning);
+            }
+            await RefreshAll();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al sincronizar: {ex.Message}", Severity.Error);
+            await RefreshAll();
+        }
+    }
+
+    private string GetFriendlySubtypeName(InventoryMovementSubtype subtype) => subtype switch
+    {
+        InventoryMovementSubtype.PurchaseGroceries => "Compras - Abarrotes",
+        InventoryMovementSubtype.PurchasePettyCash => "Compras - Caja Chica",
+        InventoryMovementSubtype.PurchaseStandard => "Compras - General",
+        InventoryMovementSubtype.PurchaseFixedExpenses => "Compras - Gastos Fijos",
+        InventoryMovementSubtype.PurchaseSuppliers => "Compras - Proveedores",
+
+        InventoryMovementSubtype.TransferGroceries => "Traspaso - Abarrotes",
+        InventoryMovementSubtype.TransferWarehouse => "Traspaso - Almacén",
+        InventoryMovementSubtype.TransferSupplies => "Traspaso - Insumos",
+
+        InventoryMovementSubtype.AdjustmentInputGeneral => "Ajuste Entrada",
+        InventoryMovementSubtype.AdjustmentOutputGeneral => "Ajuste Salida / Merma",
+        InventoryMovementSubtype.InitialInventory => "Inventario Inicial",
+        _ => subtype.ToString()
+    };
 
     public void Dispose()
     {

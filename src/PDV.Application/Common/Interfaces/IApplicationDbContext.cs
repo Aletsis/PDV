@@ -42,6 +42,10 @@ public interface IApplicationDbContext
     DbSet<Order> Orders { get; }
     DbSet<OrderItem> OrderItems { get; }
     DbSet<DeliveryRoute> DeliveryRoutes { get; }
+    DbSet<Supplier> Suppliers { get; }
+    DbSet<InventoryDocument> InventoryDocuments { get; }
+    DbSet<InventoryDocumentItem> InventoryDocumentItems { get; }
+    DbSet<InventoryConceptMapping> InventoryConceptMappings { get; }
     DbSet<TEntity> Set<TEntity>() where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     Task BeginTransactionAsync(CancellationToken cancellationToken);

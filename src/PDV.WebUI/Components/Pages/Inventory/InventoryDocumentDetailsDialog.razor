@@ -1,0 +1,235 @@
+@using MediatR
+@using PDV.Domain.Enums
+@using PDV.Application.Features.InventoryDocuments.Dtos
+@using PDV.Application.Features.InventoryDocuments.Commands.RetryInventoryDocumentSync
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog Class="premium-document-details-dialog" Style="max-width: 800px; width: 100%;">
+    <TitleContent>
+        <div class="d-flex align-center justify-between">
+            <MudText Typo="Typo.h6" Class="d-flex align-center gap-2 font-weight-bold">
+                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" />
+                Documento de Inventario: @Document.Series @Document.Folio
+            </MudText>
+            <MudChip T="string" Color="@GetSyncStatusColor(Document.SyncStatus)" Size="Size.Small" Variant="Variant.Filled">
+                @GetSyncStatusText(Document.SyncStatus)
+            </MudChip>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <!-- Metadatos del Documento -->
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Tipo / Subclasificación</MudText>
+                <MudText Typo="Typo.body2" Class="font-weight-bold">@GetFriendlySubtypeName(Document.Subtype)</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Fecha y Hora</MudText>
+                <MudText Typo="Typo.body2">@Document.Date.ToLocalTime().ToString("dd/MM/yyyy hh:mm tt")</MudText>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Sucursal Origen</MudText>
+                <MudText Typo="Typo.body2">@Document.BranchName</MudText>
+            </MudItem>
+            @if (Document.DestinationBranchId.HasValue)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Sucursal Destino</MudText>
+                    <MudText Typo="Typo.body2">@(Document.DestinationBranchName ?? "N/A")</MudText>
+                </MudItem>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Document.SupplierName))
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Proveedor</MudText>
+                    <MudText Typo="Typo.body2">@Document.SupplierCode - @Document.SupplierName</MudText>
+                </MudItem>
+            }
+
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Creado Por</MudText>
+                <MudText Typo="Typo.body2">@Document.CreatedBy</MudText>
+            </MudItem>
+
+            @if (!string.IsNullOrWhiteSpace(Document.Reference))
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Referencia</MudText>
+                    <MudText Typo="Typo.body2">@Document.Reference</MudText>
+                </MudItem>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Document.Remarks))
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Observaciones</MudText>
+                    <MudText Typo="Typo.body2">@Document.Remarks</MudText>
+                </MudItem>
+            }
+
+            <!-- Alerta de Sincronización CONTPAQi -->
+            @if (Document.SyncStatus == OutboxState.Failed)
+            {
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="my-2">
+                        <div class="d-flex flex-column">
+                            <span class="font-weight-bold">Error en sincronización con CONTPAQi Comercial (Intento @Document.Attempts / 5):</span>
+                            <span style="font-size: 0.85rem; word-break: break-all;">@Document.SyncErrorMessage</span>
+                        </div>
+                    </MudAlert>
+                </MudItem>
+            }
+
+            <!-- Tabla de Partidas -->
+            <MudItem xs="12" Class="mt-2">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mb-1">
+                    Partidas (@Document.Items.Count) - Total Unidades: @Document.TotalUnits.ToString("N2")
+                </MudText>
+                <MudSimpleTable Dense="true" Hover="true" Striped="true" Elevation="0" Style="border: 1px solid var(--mud-palette-lines-default); border-radius: 8px;">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th style="text-align: right;">Cantidad</th>
+                            @if (Document.Type == InventoryMovementType.Purchase)
+                            {
+                                <th style="text-align: right;">Costo U.</th>
+                                <th style="text-align: right;">Total</th>
+                            }
+                            <th>Notas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Document.Items)
+                        {
+                            <tr>
+                                <td>@item.ProductCode</td>
+                                <td>@item.ProductName</td>
+                                <td style="text-align: right;" class="font-weight-bold">@item.Quantity.ToString("N3")</td>
+                                @if (Document.Type == InventoryMovementType.Purchase)
+                                {
+                                    <td style="text-align: right;">@item.UnitCost.ToString("C2")</td>
+                                    <td style="text-align: right;" class="font-weight-bold text-success">@item.TotalCost.ToString("C2")</td>
+                                }
+                                <td>@item.Remarks</td>
+                            </tr>
+                        }
+                    </tbody>
+                    @if (Document.Type == InventoryMovementType.Purchase)
+                    {
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" style="text-align: right;" class="font-weight-bold">Total Documento:</td>
+                                <td colspan="2" style="text-align: right;" class="font-weight-bold text-success">
+                                    @Document.TotalAmount.ToString("C2")
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    }
+                </MudSimpleTable>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        @if (Document.SyncStatus != OutboxState.Processed)
+        {
+            <MudButton OnClick="RetrySync" 
+                       Variant="Variant.Outlined" 
+                       Color="Color.Warning" 
+                       StartIcon="@Icons.Material.Filled.Sync" 
+                       Disabled="isRetrying">
+                @if (isRetrying)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                    <span>Reintentando...</span>
+                }
+                else
+                {
+                    <span>Reintentar Sincronización</span>
+                }
+            </MudButton>
+        }
+        <MudButton OnClick="Close" Variant="Variant.Filled" Color="Color.Primary">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public InventoryDocumentDto Document { get; set; } = null!;
+
+    private bool isRetrying;
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+
+    private async Task RetrySync()
+    {
+        isRetrying = true;
+        try
+        {
+            var success = await Mediator.Send(new RetryInventoryDocumentSyncCommand(Document.Id));
+            if (success)
+            {
+                Snackbar.Add("Documento sincronizado exitosamente con CONTPAQi Comercial.", Severity.Success);
+                Document.SyncStatus = OutboxState.Processed;
+                Document.SyncErrorMessage = null;
+            }
+            else
+            {
+                Snackbar.Add("No se pudo sincronizar en este momento. Reintento encolado.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al sincronizar: {ex.Message}", Severity.Error);
+            Document.SyncStatus = OutboxState.Failed;
+            Document.SyncErrorMessage = ex.Message;
+            Document.Attempts++;
+        }
+        finally
+        {
+            isRetrying = false;
+            StateHasChanged();
+        }
+    }
+
+    private Color GetSyncStatusColor(OutboxState status) => status switch
+    {
+        OutboxState.Processed => Color.Success,
+        OutboxState.Pending => Color.Warning,
+        OutboxState.Processing => Color.Info,
+        OutboxState.Failed => Color.Error,
+        _ => Color.Default
+    };
+
+    private string GetSyncStatusText(OutboxState status) => status switch
+    {
+        OutboxState.Processed => "Sincronizado CONTPAQi",
+        OutboxState.Pending => "En Cola (Pendiente)",
+        OutboxState.Processing => "Sincronizando...",
+        OutboxState.Failed => "Fallo de Sincronización",
+        _ => status.ToString()
+    };
+
+    private string GetFriendlySubtypeName(InventoryMovementSubtype subtype) => subtype switch
+    {
+        InventoryMovementSubtype.PurchaseGroceries => "Compras - Abarrotes",
+        InventoryMovementSubtype.PurchasePettyCash => "Compras - Caja Chica",
+        InventoryMovementSubtype.PurchaseStandard => "Compras - General",
+        InventoryMovementSubtype.PurchaseFixedExpenses => "Compras - Gastos Fijos",
+        InventoryMovementSubtype.PurchaseSuppliers => "Compras - Proveedores",
+
+        InventoryMovementSubtype.TransferGroceries => "Traspaso - Abarrotes",
+        InventoryMovementSubtype.TransferWarehouse => "Traspaso - Almacén",
+        InventoryMovementSubtype.TransferSupplies => "Traspaso - Insumos",
+
+        InventoryMovementSubtype.AdjustmentInputGeneral => "Ajuste de Entrada",
+        InventoryMovementSubtype.AdjustmentOutputGeneral => "Ajuste de Salida / Merma",
+        InventoryMovementSubtype.InitialInventory => "Inventario Inicial",
+        _ => subtype.ToString()
+    };
+}

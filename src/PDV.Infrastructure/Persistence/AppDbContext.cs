@@ -80,6 +80,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public DbSet<Order> Orders { get; set; }
     public DbSet<OrderItem> OrderItems { get; set; }
     public DbSet<DeliveryRoute> DeliveryRoutes { get; set; }
+    public DbSet<Supplier> Suppliers { get; set; }
+    public DbSet<InventoryDocument> InventoryDocuments { get; set; }
+    public DbSet<InventoryDocumentItem> InventoryDocumentItems { get; set; }
+    public DbSet<InventoryConceptMapping> InventoryConceptMappings { get; set; }
 
     // ──────────────────────────────────────────────
     // Configuración del modelo

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using PDV.Domain.Entities;
+using PDV.Application.Features.Suppliers.Dtos;
 
 namespace PDV.Application.Common.Interfaces;
 
@@ -15,10 +16,96 @@ public interface IComercialApiSyncService
     Task<bool> SendClientToComercialAsync(Client client, CancellationToken cancellationToken);
     Task<bool> UpdateClientInComercialAsync(Client client, CancellationToken cancellationToken);
 
+    Task<bool> SendSupplierToComercialAsync(Supplier supplier, CancellationToken cancellationToken);
+    Task<List<SupplierDto>> GetSuppliersFromComercialAsync(string? search, CancellationToken cancellationToken);
+
     Task<List<ComercialConceptoDto>> GetConceptosAsync(int tipoDocumento, CancellationToken cancellationToken);
 
     Task<CreateFacturaResultDto?> GenerarFacturaComercialAsync(GenerarFacturaComercialDto command, CancellationToken cancellationToken);
     Task<CreateFacturaResultDto?> GenerarFacturaGlobalComercialAsync(CreateFacturaGlobalCommandDto command, CancellationToken cancellationToken);
+
+    Task<CreateDocumentoResultDto?> SendCompraToComercialAsync(SendCompraDto command, CancellationToken cancellationToken);
+    Task<CreateDocumentoResultDto?> SendEntradaToComercialAsync(SendEntradaDto command, CancellationToken cancellationToken);
+    Task<CreateDocumentoResultDto?> SendSalidaToComercialAsync(SendSalidaDto command, CancellationToken cancellationToken);
+    Task<CreateDocumentoResultDto?> SendTraspasoToComercialAsync(SendTraspasoDto command, CancellationToken cancellationToken);
+}
+
+public class CreateDocumentoResultDto
+{
+    public int IdDocumento { get; set; }
+    public string CodigoConcepto { get; set; } = string.Empty;
+    public string Serie { get; set; } = string.Empty;
+    public string Folio { get; set; } = string.Empty;
+}
+
+public class SendCompraDto
+{
+    public string CodigoConcepto { get; set; } = string.Empty;
+    public string Serie { get; set; } = string.Empty;
+    public double Folio { get; set; } = 0;
+    public string CodigoProveedor { get; set; } = string.Empty;
+    public string Referencia { get; set; } = string.Empty;
+    public string Observaciones { get; set; } = string.Empty;
+    public string CodigoAlmacen { get; set; } = string.Empty;
+    public List<CompraPartidaSyncDto> Partidas { get; set; } = new();
+}
+
+public class CompraPartidaSyncDto
+{
+    public string CodigoProducto { get; set; } = string.Empty;
+    public double Unidades { get; set; }
+    public double PrecioUnitario { get; set; }
+}
+
+public class SendEntradaDto
+{
+    public string CodigoConcepto { get; set; } = string.Empty;
+    public string Serie { get; set; } = string.Empty;
+    public string Referencia { get; set; } = string.Empty;
+    public string Observaciones { get; set; } = string.Empty;
+    public List<EntradaPartidaSyncDto> Partidas { get; set; } = new();
+}
+
+public class EntradaPartidaSyncDto
+{
+    public string CodigoProducto { get; set; } = string.Empty;
+    public string CodigoAlmacen { get; set; } = string.Empty;
+    public double Unidades { get; set; }
+    public double Costo { get; set; }
+}
+
+public class SendSalidaDto
+{
+    public string CodigoConcepto { get; set; } = string.Empty;
+    public string Serie { get; set; } = string.Empty;
+    public string Referencia { get; set; } = string.Empty;
+    public string Observaciones { get; set; } = string.Empty;
+    public List<SalidaPartidaSyncDto> Partidas { get; set; } = new();
+}
+
+public class SalidaPartidaSyncDto
+{
+    public string CodigoProducto { get; set; } = string.Empty;
+    public string CodigoAlmacen { get; set; } = string.Empty;
+    public double Unidades { get; set; }
+}
+
+public class SendTraspasoDto
+{
+    public string CodigoConcepto { get; set; } = string.Empty;
+    public string Serie { get; set; } = string.Empty;
+    public double Folio { get; set; } = 0;
+    public string CodigoAlmacenOrigen { get; set; } = string.Empty;
+    public string CodigoAlmacenDestino { get; set; } = string.Empty;
+    public string Referencia { get; set; } = string.Empty;
+    public string Observaciones { get; set; } = string.Empty;
+    public List<TraspasoPartidaSyncDto> Partidas { get; set; } = new();
+}
+
+public class TraspasoPartidaSyncDto
+{
+    public string CodigoProducto { get; set; } = string.Empty;
+    public double Unidades { get; set; }
 }
 
 public class CreateFacturaGlobalCommandDto

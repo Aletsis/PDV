@@ -11,5 +11,7 @@ public record InventoryMovementRegisteredEvent(
     decimal Quantity, 
     InventoryMovementType Type, 
     Guid? ReferenceId,
-    string? Remarks = null
+    string? Remarks = null,
+    Guid? DocumentId = null,
+    InventoryMovementSubtype? Subtype = null
 ) : IDomainEvent;

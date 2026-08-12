@@ -15,8 +15,11 @@ public class InventoryMovement : BaseEntity
     
     public decimal Quantity { get; private set; }
     public InventoryMovementType Type { get; private set; }
+    public InventoryMovementSubtype? Subtype { get; private set; }
     public DateTime Date { get; private set; }
     public Guid? ReferenceId { get; private set; }
+    public Guid? DocumentId { get; private set; }
+    public InventoryDocument? Document { get; private set; }
     public string? Remarks { get; private set; }
 
 #pragma warning disable CS8618
@@ -29,7 +32,9 @@ public class InventoryMovement : BaseEntity
         decimal quantity,
         InventoryMovementType type,
         Guid? referenceId = null,
-        string? remarks = null)
+        string? remarks = null,
+        Guid? documentId = null,
+        InventoryMovementSubtype? subtype = null)
     {
         if (productId == Guid.Empty)
             throw new DomainException("El ID de producto es requerido.");
@@ -44,6 +49,8 @@ public class InventoryMovement : BaseEntity
         Type = type;
         ReferenceId = referenceId;
         Remarks = remarks?.Trim();
+        DocumentId = documentId;
+        Subtype = subtype;
         Date = DateTime.UtcNow;
     }
 }

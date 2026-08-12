@@ -98,12 +98,14 @@ public sealed class DomainEventsInterceptor : SaveChangesInterceptor
         if (domainEvent is InventoryMovementRegisteredEvent inv)
         {
             var movement = new InventoryMovement(
-                productId: inv.ProductId,
-                branchId:  inv.BranchId,
-                quantity:  inv.Quantity,
-                type:      inv.Type,
+                productId:   inv.ProductId,
+                branchId:    inv.BranchId,
+                quantity:    inv.Quantity,
+                type:        inv.Type,
                 referenceId: inv.ReferenceId,
-                remarks:   inv.Remarks);
+                remarks:     inv.Remarks,
+                documentId:  inv.DocumentId,
+                subtype:     inv.Subtype);
 
             movement.SetId(inv.MovementId);
             context.Set<InventoryMovement>().Add(movement);

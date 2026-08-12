@@ -5,7 +5,9 @@
 @using PDV.Application.Features.Products.Dtos
 @using PDV.Application.Features.Products.Queries.GetProductsWithPagination
 @using PDV.Application.Features.Products.Queries.GetProductStock
-@using PDV.Application.Features.InventoryMovements.Commands.RegisterInventoryMovement
+@using PDV.Application.Features.Suppliers.Dtos
+@using PDV.Application.Features.Suppliers.Queries.GetSuppliers
+@using PDV.Application.Features.InventoryDocuments.Commands.RegisterInventoryDocument
 @using PDV.WebUI.Components.Pages.Sales
 @using PDV.Application.Features.Sync.Queries
 @using MediatR
@@ -13,18 +15,18 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudDialog Class="premium-inventory-dialog" Style="max-width: 800px; width: 100%;">
+<MudDialog Class="premium-inventory-dialog" Style="max-width: 900px; width: 100%;">
     <TitleContent>
         <MudText Typo="Typo.h5" Class="d-flex align-center gap-2 font-weight-bold">
-            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Primary" />
-            Registrar Movimiento de Inventario
+            <MudIcon Icon="@Icons.Material.Filled.Description" Color="Color.Primary" />
+            Registrar Movimiento / Documento de Inventario
         </MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="form">
-            <MudGrid>
-                <!-- Tipo de Movimiento -->
-                <MudItem xs="12" sm="6">
+            <MudGrid Spacing="2">
+                <!-- Tipo de Movimiento Principal -->
+                <MudItem xs="12" sm="4">
                     <MudSelect T="InventoryMovementType" 
                                Label="Tipo de Movimiento" 
                                Value="selectedType" 
@@ -32,15 +34,53 @@
                                Variant="Variant.Outlined" 
                                Margin="Margin.Dense" 
                                Class="premium-input">
-                        <MudSelectItem Value="InventoryMovementType.Purchase">Compra / Entrada</MudSelectItem>
+                        <MudSelectItem Value="InventoryMovementType.Purchase">Compras</MudSelectItem>
+                        <MudSelectItem Value="InventoryMovementType.Transfer">Traspaso entre Sucursales</MudSelectItem>
                         <MudSelectItem Value="InventoryMovementType.AdjustmentInput">Ajuste de Entrada</MudSelectItem>
                         <MudSelectItem Value="InventoryMovementType.AdjustmentOutput">Ajuste de Salida / Merma</MudSelectItem>
-                        <MudSelectItem Value="InventoryMovementType.Transfer">Traspaso entre Sucursales</MudSelectItem>
+                        <MudSelectItem Value="InventoryMovementType.InitialInventory">Inventario Inicial</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <!-- Subclasificación (Concepto CONTPAQi) -->
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="InventoryMovementSubtype" 
+                               Label="Subclasificación / Concepto" 
+                               @bind-Value="selectedSubtype"
+                               Variant="Variant.Outlined" 
+                               Margin="Margin.Dense" 
+                               Class="premium-input">
+                        @if (selectedType == InventoryMovementType.Purchase)
+                        {
+                            <MudSelectItem Value="InventoryMovementSubtype.PurchaseGroceries">Abarrotes</MudSelectItem>
+                            <MudSelectItem Value="InventoryMovementSubtype.PurchasePettyCash">Caja chica</MudSelectItem>
+                            <MudSelectItem Value="InventoryMovementSubtype.PurchaseStandard">Compras General</MudSelectItem>
+                            <MudSelectItem Value="InventoryMovementSubtype.PurchaseFixedExpenses">Gastos fijos</MudSelectItem>
+                            <MudSelectItem Value="InventoryMovementSubtype.PurchaseSuppliers">Proveedores</MudSelectItem>
+                        }
+                        else if (selectedType == InventoryMovementType.Transfer)
+                        {
+                            <MudSelectItem Value="InventoryMovementSubtype.TransferGroceries">Abarrotes</MudSelectItem>
+                            <MudSelectItem Value="InventoryMovementSubtype.TransferWarehouse">Almacén</MudSelectItem>
+                            <MudSelectItem Value="InventoryMovementSubtype.TransferSupplies">Insumos</MudSelectItem>
+                        }
+                        else if (selectedType == InventoryMovementType.AdjustmentInput)
+                        {
+                            <MudSelectItem Value="InventoryMovementSubtype.AdjustmentInputGeneral">Ajuste de Entrada General</MudSelectItem>
+                        }
+                        else if (selectedType == InventoryMovementType.AdjustmentOutput)
+                        {
+                            <MudSelectItem Value="InventoryMovementSubtype.AdjustmentOutputGeneral">Ajuste de Salida / Merma</MudSelectItem>
+                        }
+                        else
+                        {
+                            <MudSelectItem Value="InventoryMovementSubtype.InitialInventory">Inventario Inicial</MudSelectItem>
+                        }
                     </MudSelect>
                 </MudItem>
 
                 <!-- Sucursal Origen -->
-                <MudItem xs="12" sm="6">
+                <MudItem xs="12" sm="4">
                     <MudSelect T="Guid" 
                                Label="@(selectedType == InventoryMovementType.Transfer ? "Sucursal Origen" : "Sucursal")" 
                                Value="selectedBranchId" 
@@ -58,9 +98,9 @@
                 <!-- Sucursal Destino (solo para Traspasos) -->
                 @if (selectedType == InventoryMovementType.Transfer)
                 {
-                    <MudItem xs="12">
+                    <MudItem xs="12" sm="6">
                         <MudSelect T="Guid?" 
-                                   Label="Sucursal Destino" 
+                                   Label="Sucursal Destino *" 
                                    @bind-Value="destinationBranchId" 
                                    Variant="Variant.Outlined" 
                                    Margin="Margin.Dense" 
@@ -75,14 +115,72 @@
                     </MudItem>
                 }
 
-                <!-- Sección para Agregar Artículo -->
+                <!-- Proveedor (Solo para Compras) -->
+                @if (selectedType == InventoryMovementType.Purchase)
+                {
+                    <MudItem xs="12" sm="8" Class="d-flex align-center gap-2">
+                        <MudAutocomplete T="SupplierDto" 
+                                         Label="Proveedor *" 
+                                         SearchFunc="SearchSupplier" 
+                                         ToStringFunc="@(s => s == null ? "" : $"{s.Code} - {s.Name}")" 
+                                         Value="selectedSupplier"
+                                         ValueChanged="OnSupplierSelected"
+                                         Variant="Variant.Outlined" 
+                                         Margin="Margin.Dense" 
+                                         ResetValueOnEmptyText="true"
+                                         CoerceText="false"
+                                         CoerceValue="false"
+                                         Required="true"
+                                         Class="flex-grow-1 premium-input" />
+                        <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
+                                   Color="Color.Secondary" 
+                                   Variant="Variant.Outlined" 
+                                   Size="Size.Medium" 
+                                   OnClick="OpenQuickCreateSupplier"
+                                   Style="margin-top: 4px; white-space: nowrap;">
+                            + Proveedor
+                        </MudButton>
+                    </MudItem>
+
+                    <!-- Folio de Compra (Editable / Auto) -->
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="folio" 
+                                      Label="Folio (Opcional)" 
+                                      Placeholder="Vacío = Auto CONTPAQi"
+                                      Variant="Variant.Outlined" 
+                                      Margin="Margin.Dense" 
+                                      Class="premium-input" />
+                    </MudItem>
+                }
+
+                <!-- Referencia (Factura, Remisión, etc.) -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="reference" 
+                                  Label="Referencia / Factura / Remisión" 
+                                  Variant="Variant.Outlined" 
+                                  Margin="Margin.Dense" 
+                                  MaxLength="100"
+                                  Class="premium-input" />
+                </MudItem>
+
+                <!-- Observaciones -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="remarks" 
+                                  Label="Observaciones" 
+                                  Variant="Variant.Outlined" 
+                                  Margin="Margin.Dense" 
+                                  MaxLength="255"
+                                  Class="premium-input" />
+                </MudItem>
+
+                <!-- Sección: Captura de Artículos -->
                 <MudItem xs="12">
-                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mt-2">Agregar Artículo</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mt-2">Agregar Artículos al Documento</MudText>
                     <MudDivider Class="my-2" />
                 </MudItem>
 
                 <!-- Producto (Autocomplete + Lookup) -->
-                <MudItem xs="12" sm="8" Class="d-flex align-center gap-2">
+                <MudItem xs="12" sm="6" Class="d-flex align-center gap-2">
                     <MudAutocomplete T="ProductDto" 
                                      Label="Buscar Producto (Código o Nombre)" 
                                      SearchFunc="SearchProduct" 
@@ -105,7 +203,7 @@
                 </MudItem>
 
                 <!-- Cantidad -->
-                <MudItem xs="12" sm="4">
+                <MudItem xs="6" sm="3">
                     <MudNumericField T="decimal" 
                                      Label="Cantidad" 
                                      @bind-Value="quantity" 
@@ -116,8 +214,23 @@
                                      Class="premium-input" />
                 </MudItem>
 
+                <!-- Costo Unitario (Solo para Compras o Ajustes de Entrada) -->
+                @if (selectedType == InventoryMovementType.Purchase || selectedType == InventoryMovementType.AdjustmentInput || selectedType == InventoryMovementType.InitialInventory)
+                {
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField T="decimal" 
+                                         Label="Costo Unitario" 
+                                         @bind-Value="unitCost" 
+                                         Min="0m" 
+                                         Format="C2"
+                                         Variant="Variant.Outlined" 
+                                         Margin="Margin.Dense" 
+                                         Class="premium-input" />
+                    </MudItem>
+                }
+
                 <!-- Stock Actual y Botón de Agregar -->
-                <MudItem xs="12" Class="d-flex align-center justify-between gap-4 mt-n2 mb-2">
+                <MudItem xs="12" Class="d-flex align-center justify-between gap-4 mt-n1 mb-2">
                     <div>
                         @if (selectedProduct != null)
                         {
@@ -134,19 +247,19 @@
                                Variant="Variant.Outlined" 
                                Size="Size.Small" 
                                Class="premium-btn">
-                        Agregar al movimiento
+                        Agregar Partida
                     </MudButton>
                 </MudItem>
 
-                <!-- Sección: Artículos en el Movimiento -->
+                <!-- Tabla de Artículos Agregados -->
                 <MudItem xs="12">
-                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mt-2">Artículos en el Movimiento</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mud-text-secondary mt-1">Partidas del Documento (@addedItems.Count)</MudText>
                     <MudDivider Class="my-2" />
                     @if (addedItems.Count == 0)
                     {
                         <div class="d-flex flex-column align-center justify-center pa-6 rounded-lg mud-text-secondary" style="border: 2px dashed var(--mud-palette-lines-default); background-color: var(--mud-palette-background-gray);">
                             <MudIcon Icon="@Icons.Material.Filled.Inbox" Size="Size.Medium" Class="mb-1" />
-                            <MudText Typo="Typo.body2">No se han agregado artículos al movimiento.</MudText>
+                            <MudText Typo="Typo.body2">No se han agregado partidas al documento.</MudText>
                         </div>
                     }
                     else
@@ -157,7 +270,12 @@
                                     <th>Código</th>
                                     <th>Producto</th>
                                     <th style="text-align: right;">Stock Disp.</th>
-                                    <th style="text-align: right; width: 120px;">Cantidad</th>
+                                    <th style="text-align: right; width: 110px;">Cantidad</th>
+                                    @if (selectedType == InventoryMovementType.Purchase)
+                                    {
+                                        <th style="text-align: right; width: 110px;">Costo U.</th>
+                                        <th style="text-align: right; width: 120px;">Subtotal</th>
+                                    }
                                     <th style="width: 50px;"></th>
                                 </tr>
                             </thead>
@@ -171,6 +289,11 @@
                                         <td style="text-align: right;" class="font-weight-bold">
                                             @item.Quantity.ToString(item.Product.SaleType == "Bulk" ? "N3" : "N0") @(item.Product.SaleUnitName ?? "Pza")
                                         </td>
+                                        @if (selectedType == InventoryMovementType.Purchase)
+                                        {
+                                            <td style="text-align: right;">@item.UnitCost.ToString("C2")</td>
+                                            <td style="text-align: right;" class="font-weight-bold text-success">@((item.Quantity * item.UnitCost).ToString("C2"))</td>
+                                        }
                                         <td style="text-align: center;">
                                             <MudIconButton Icon="@Icons.Material.Filled.Delete" 
                                                            Color="Color.Error" 
@@ -180,18 +303,19 @@
                                     </tr>
                                 }
                             </tbody>
+                            @if (selectedType == InventoryMovementType.Purchase && addedItems.Count > 0)
+                            {
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="4" style="text-align: right;" class="font-weight-bold">Total Documento:</td>
+                                        <td colspan="2" style="text-align: right;" class="font-weight-bold text-success">
+                                            @addedItems.Sum(i => i.Quantity * i.UnitCost).ToString("C2")
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            }
                         </MudSimpleTable>
                     }
-                </MudItem>
-
-                <!-- Observaciones / Comentarios -->
-                <MudItem xs="12" Class="mt-2">
-                    <MudTextField Label="Observaciones / Justificación" 
-                                  @bind-Value="remarks" 
-                                  Lines="2" 
-                                  Variant="Variant.Outlined" 
-                                  Margin="Margin.Dense" 
-                                  Class="premium-input" />
                 </MudItem>
             </MudGrid>
         </MudForm>
@@ -202,11 +326,11 @@
             @if (isSubmitting)
             {
                 <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
-                <MudText Class="ms-2">Procesando...</MudText>
+                <MudText Class="ms-2">Procesando y Sincronizando...</MudText>
             }
             else
             {
-                <MudText>Registrar</MudText>
+                <MudText>Registrar Documento</MudText>
             }
         </MudButton>
     </DialogActions>
@@ -221,6 +345,7 @@
     {
         public ProductDto Product { get; set; } = null!;
         public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
         public decimal CurrentStock { get; set; }
     }
 
@@ -230,10 +355,16 @@
     private Guid selectedBranchId;
     private Guid? destinationBranchId;
     private InventoryMovementType selectedType = InventoryMovementType.Purchase;
+    private InventoryMovementSubtype selectedSubtype = InventoryMovementSubtype.PurchaseStandard;
+    private SupplierDto? selectedSupplier;
+    private string folio = string.Empty;
+    private string reference = string.Empty;
+    private string remarks = string.Empty;
+
     private ProductDto? selectedProduct;
     private decimal quantity = 1;
+    private decimal unitCost = 0;
     private decimal currentStock = 0;
-    private string remarks = string.Empty;
     private bool isSubmitting = false;
 
     protected override async Task OnInitializedAsync()
@@ -257,6 +388,8 @@
         selectedBranchId = InitialBranchId != Guid.Empty && branches.Any(b => b.Id == InitialBranchId)
             ? InitialBranchId
             : branches.FirstOrDefault()?.Id ?? Guid.Empty;
+
+        UpdateDefaultSubtype();
     }
 
     private async Task OnBranchChanged(Guid branchId)
@@ -270,7 +403,7 @@
         if (addedItems.Any())
         {
             addedItems.Clear();
-            Snackbar.Add("Se ha limpiado la lista de artículos debido al cambio de sucursal de origen.", Severity.Info);
+            Snackbar.Add("Se ha limpiado la lista de artículos debido al cambio de sucursal.", Severity.Info);
         }
 
         await LoadProductStock();
@@ -282,6 +415,47 @@
         if (selectedType != InventoryMovementType.Transfer)
         {
             destinationBranchId = null;
+        }
+        UpdateDefaultSubtype();
+    }
+
+    private void UpdateDefaultSubtype()
+    {
+        selectedSubtype = selectedType switch
+        {
+            InventoryMovementType.Purchase => InventoryMovementSubtype.PurchaseStandard,
+            InventoryMovementType.Transfer => InventoryMovementSubtype.TransferWarehouse,
+            InventoryMovementType.AdjustmentInput => InventoryMovementSubtype.AdjustmentInputGeneral,
+            InventoryMovementType.AdjustmentOutput => InventoryMovementSubtype.AdjustmentOutputGeneral,
+            _ => InventoryMovementSubtype.InitialInventory
+        };
+    }
+
+    private async Task<IEnumerable<SupplierDto>> SearchSupplier(string value, CancellationToken token)
+    {
+        var suppliers = await Mediator.Send(new GetSuppliersQuery(SearchTerm: value), token);
+        return suppliers;
+    }
+
+    private void OnSupplierSelected(SupplierDto? supplier)
+    {
+        selectedSupplier = supplier;
+    }
+
+    private async Task OpenQuickCreateSupplier()
+    {
+        var dialog = await DialogService.ShowAsync<QuickCreateSupplierDialog>("Alta de Proveedor", new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is SupplierDto createdSupplier)
+        {
+            selectedSupplier = createdSupplier;
+            Snackbar.Add($"Proveedor '{createdSupplier.Name}' seleccionado.", Severity.Info);
         }
     }
 
@@ -304,6 +478,10 @@
     private async Task OnProductSelected(ProductDto? product)
     {
         selectedProduct = product;
+        if (product != null)
+        {
+            unitCost = product.Cost;
+        }
         await LoadProductStock();
     }
 
@@ -342,11 +520,13 @@
                 Id = lookupResult.Product.Id,
                 Name = lookupResult.Product.Name,
                 Code = lookupResult.Product.Code,
+                Cost = lookupResult.Product.Cost,
                 SaleType = lookupResult.Product.SaleType.ToString(),
                 SaleUnitName = lookupResult.Product.SaleUnitName,
                 ControlExistencia = (int)lookupResult.Product.ControlExistencia
             };
             quantity = lookupResult.QuantityOrWeight;
+            unitCost = lookupResult.Product.Cost;
             await LoadProductStock();
         }
     }
@@ -383,6 +563,7 @@
         if (existing != null)
         {
             existing.Quantity = targetQty;
+            existing.UnitCost = unitCost;
         }
         else
         {
@@ -390,20 +571,22 @@
             {
                 Product = selectedProduct,
                 Quantity = quantity,
+                UnitCost = unitCost,
                 CurrentStock = currentStock
             });
         }
 
         selectedProduct = null;
         quantity = 1;
+        unitCost = 0;
         currentStock = 0;
-        Snackbar.Add("Artículo agregado al movimiento.", Severity.Success);
+        Snackbar.Add("Partida agregada al documento.", Severity.Success);
     }
 
     private void RemoveItemFromList(AddedMovementItem item)
     {
         addedItems.Remove(item);
-        Snackbar.Add("Artículo removido del movimiento.", Severity.Info);
+        Snackbar.Add("Partida removida.", Severity.Info);
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -412,7 +595,13 @@
     {
         if (addedItems.Count == 0)
         {
-            Snackbar.Add("Debe agregar al menos un artículo al movimiento.", Severity.Warning);
+            Snackbar.Add("Debe agregar al menos un artículo al documento.", Severity.Warning);
+            return;
+        }
+
+        if (selectedType == InventoryMovementType.Purchase && selectedSupplier == null)
+        {
+            Snackbar.Add("Debe seleccionar un proveedor para la compra.", Severity.Warning);
             return;
         }
 
@@ -430,7 +619,7 @@
             }
         }
 
-        // Re-validar stock para todos los artículos agregados si el tipo de movimiento disminuye stock
+        // Re-validar stock para salidas y traspasos
         var needsStockValidation = selectedType == InventoryMovementType.AdjustmentOutput || selectedType == InventoryMovementType.Transfer;
         if (needsStockValidation)
         {
@@ -447,28 +636,42 @@
         isSubmitting = true;
         try
         {
-            var command = new RegisterInventoryMovementCommand
+            var command = new RegisterInventoryDocumentCommand
             {
                 BranchId = selectedBranchId,
                 DestinationBranchId = destinationBranchId,
                 Type = selectedType,
+                Subtype = selectedSubtype,
+                SupplierId = selectedSupplier?.Id,
+                SupplierCode = selectedSupplier?.Code,
+                SupplierName = selectedSupplier?.Name,
+                Folio = string.IsNullOrWhiteSpace(folio) ? null : folio.Trim(),
+                Reference = reference,
                 Remarks = remarks,
-                Items = addedItems.Select(i => new InventoryMovementItemCommand
+                Items = addedItems.Select(i => new InventoryDocumentItemInputDto
                 {
                     ProductId = i.Product.Id,
-                    Quantity = i.Quantity
+                    Quantity = i.Quantity,
+                    UnitCost = i.UnitCost
                 }).ToList()
             };
 
-            var success = await Mediator.Send(command);
-            if (success)
+            var result = await Mediator.Send(command);
+            if (result.Success)
             {
-                Snackbar.Add("Movimientos de inventario registrados con éxito.", Severity.Success);
+                if (result.SyncStatus == OutboxState.Processed)
+                {
+                    Snackbar.Add(result.Message ?? "Documento registrado y sincronizado con CONTPAQi.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add(result.Message ?? "Documento registrado localmente. Sincronización encolada en segundo plano.", Severity.Warning);
+                }
                 MudDialog.Close(DialogResult.Ok(true));
             }
             else
             {
-                Snackbar.Add("No se pudo registrar el movimiento de inventario.", Severity.Error);
+                Snackbar.Add("No se pudo registrar el documento de inventario.", Severity.Error);
             }
         }
         catch (Exception ex)

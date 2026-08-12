@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Features.Suppliers.Dtos;
 using PDV.Domain.Entities;
 using PDV.Domain.Repositories;
 using PDV.Domain.Enums;
@@ -435,6 +436,174 @@ public class ComercialApiSyncService : IComercialApiSyncService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al generar factura global en el API Comercial.");
+            throw;
+        }
+    }
+
+    public async Task<bool> SendSupplierToComercialAsync(Supplier supplier, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var rfc = string.IsNullOrWhiteSpace(supplier.TaxId) ? "XAXX010101000" : supplier.TaxId.Trim();
+            var payload = new CreateClienteCommandDto
+            {
+                Codigo = supplier.Code.Trim(),
+                RazonSocial = supplier.Name.Trim(),
+                RFC = rfc,
+                TipoCliente = 3 // Proveedor
+            };
+
+            var response = await httpClient.PostAsJsonAsync("api/Proveedores", payload, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al registrar proveedor {Code} en Comercial. Código: {Status}, Detalle: {Body}", supplier.Code, response.StatusCode, body);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al enviar proveedor {Code} a Comercial.", supplier.Code);
+            return false;
+        }
+    }
+
+    public async Task<List<SupplierDto>> GetSuppliersFromComercialAsync(string? search, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var endpoint = $"api/Proveedores?searchTerm={Uri.EscapeDataString(search ?? "")}&pageSize=100";
+            var response = await httpClient.GetAsync(endpoint, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Error al consultar proveedores desde Comercial. Código: {Status}", response.StatusCode);
+                return new List<SupplierDto>();
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<PaginatedResultDto<ClienteDto>>(cancellationToken: cancellationToken);
+            if (result == null || result.Items == null) return new List<SupplierDto>();
+
+            return result.Items.Select(c => new SupplierDto
+            {
+                Code = c.Codigo,
+                Name = c.RazonSocial,
+                TaxId = c.RFC ?? "",
+                Email = c.Email ?? "",
+                IsActive = c.Activo,
+                CommercialId = c.Id
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener proveedores desde Comercial.");
+            return new List<SupplierDto>();
+        }
+    }
+
+    public async Task<CreateDocumentoResultDto?> SendCompraToComercialAsync(SendCompraDto command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var endpoint = "api/Compras";
+            var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al enviar Compra a Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Error al registrar compra en Comercial: {body}");
+            }
+
+            return await response.Content.ReadFromJsonAsync<CreateDocumentoResultDto>(cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al enviar Compra a Comercial.");
+            throw;
+        }
+    }
+
+    public async Task<CreateDocumentoResultDto?> SendEntradaToComercialAsync(SendEntradaDto command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var endpoint = "api/EntradasAlmacen";
+            var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al enviar Entrada de Almacén a Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Error al registrar entrada en Comercial: {body}");
+            }
+
+            var docId = await response.Content.ReadFromJsonAsync<int>(cancellationToken: cancellationToken);
+            return new CreateDocumentoResultDto
+            {
+                IdDocumento = docId,
+                CodigoConcepto = command.CodigoConcepto,
+                Serie = command.Serie,
+                Folio = ""
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al enviar Entrada de Almacén a Comercial.");
+            throw;
+        }
+    }
+
+    public async Task<CreateDocumentoResultDto?> SendSalidaToComercialAsync(SendSalidaDto command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var endpoint = "api/SalidasAlmacen";
+            var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al enviar Salida de Almacén a Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Error al registrar salida en Comercial: {body}");
+            }
+
+            return await response.Content.ReadFromJsonAsync<CreateDocumentoResultDto>(cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al enviar Salida de Almacén a Comercial.");
+            throw;
+        }
+    }
+
+    public async Task<CreateDocumentoResultDto?> SendTraspasoToComercialAsync(SendTraspasoDto command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var endpoint = "api/Traspasos";
+            var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al enviar Traspaso a Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Error al registrar traspaso en Comercial: {body}");
+            }
+
+            return await response.Content.ReadFromJsonAsync<CreateDocumentoResultDto>(cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al enviar Traspaso a Comercial.");
             throw;
         }
     }

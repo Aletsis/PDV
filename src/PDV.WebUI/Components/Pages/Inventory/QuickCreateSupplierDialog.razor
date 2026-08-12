@@ -1,0 +1,143 @@
+@using MediatR
+@using PDV.Application.Features.Suppliers.Commands.CreateSupplier
+@using PDV.Application.Features.Suppliers.Dtos
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog Class="premium-supplier-dialog" Style="max-width: 600px; width: 100%;">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2 font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Primary" />
+            Nuevo Proveedor (Alta Rápida)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="code"
+                                  Label="Código Proveedor *"
+                                  Required="true"
+                                  RequiredError="El código es obligatorio"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  MaxLength="30" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="name"
+                                  Label="Razón Social / Nombre *"
+                                  Required="true"
+                                  RequiredError="El nombre es obligatorio"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  MaxLength="150" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="taxId"
+                                  Label="RFC"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  MaxLength="20"
+                                  Placeholder="XAXX010101000" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="phone"
+                                  Label="Teléfono"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  MaxLength="30" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="email"
+                                  Label="Correo Electrónico"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  MaxLength="100" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Outlined" Color="Color.Secondary">Cancelar</MudButton>
+        <MudButton OnClick="Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="!isValid || isSaving">
+            @if (isSaving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>Guardar Proveedor</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string? InitialCode { get; set; }
+
+    private MudForm form = default!;
+    private bool isValid;
+    private bool isSaving;
+
+    private string code = string.Empty;
+    private string name = string.Empty;
+    private string taxId = string.Empty;
+    private string phone = string.Empty;
+    private string email = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(InitialCode))
+        {
+            code = InitialCode.Trim().ToUpperInvariant();
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await form.Validate();
+        if (!isValid) return;
+
+        isSaving = true;
+        try
+        {
+            var command = new CreateSupplierCommand
+            {
+                Code = code.Trim().ToUpperInvariant(),
+                Name = name.Trim(),
+                TaxId = string.IsNullOrWhiteSpace(taxId) ? "XAXX010101000" : taxId.Trim().ToUpperInvariant(),
+                Phone = phone?.Trim(),
+                Email = email?.Trim()
+            };
+
+            var id = await Mediator.Send(command);
+            Snackbar.Add($"Proveedor '{name}' creado exitosamente.", Severity.Success);
+
+            var createdSupplier = new SupplierDto
+            {
+                Id = id,
+                Code = command.Code,
+                Name = command.Name,
+                TaxId = command.TaxId,
+                Phone = command.Phone ?? "",
+                Email = command.Email ?? "",
+                IsActive = true
+            };
+
+            MudDialog.Close(DialogResult.Ok(createdSupplier));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al crear proveedor: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

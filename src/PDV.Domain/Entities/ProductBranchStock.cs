@@ -73,7 +73,13 @@ public class ProductBranchStock : BaseEntity, IAggregateRoot
     public bool IsLowStock()
         => MinStock > 0 && Stock <= MinStock;
 
-    public void ApplyMovement(decimal quantity, InventoryMovementType type, Guid? referenceId = null, string? remarks = null)
+    public void ApplyMovement(
+        decimal quantity, 
+        InventoryMovementType type, 
+        Guid? referenceId = null, 
+        string? remarks = null,
+        Guid? documentId = null,
+        InventoryMovementSubtype? subtype = null)
     {
         if (quantity == 0)
             throw new DomainException("La cantidad del movimiento no puede ser cero.");
@@ -82,6 +88,15 @@ public class ProductBranchStock : BaseEntity, IAggregateRoot
 
         // Registrar el movimiento de inventario en la sucursal
         var movementId = Guid.CreateVersion7();
-        AddDomainEvent(new InventoryMovementRegisteredEvent(movementId, ProductId, BranchId, quantity, type, referenceId, remarks));
+        AddDomainEvent(new InventoryMovementRegisteredEvent(
+            movementId, 
+            ProductId, 
+            BranchId, 
+            quantity, 
+            type, 
+            referenceId, 
+            remarks,
+            documentId,
+            subtype));
     }
 }
