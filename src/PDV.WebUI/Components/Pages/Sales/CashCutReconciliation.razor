@@ -1,0 +1,373 @@
+@page "/sales/cash-cut-reconciliation"
+@page "/reconciliation"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Manager")]
+@using MediatR
+@using MudBlazor
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Sales.Queries.GetReconciliationsList
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Sync.Queries
+@using PDV.Domain.Enums
+@using PDV.WebUI.Components.Shared.UI
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+
+@if (isLocalMode)
+{
+    <PageTitle>Acceso Denegado — Conciliación de Cortes</PageTitle>
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-8" style="min-height: 400px;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Align="Align.Center">Módulo no Disponible en Modo Local</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center" Style="max-width: 550px;">
+            El módulo de <strong>Conciliación de Cortes</strong> está habilitado exclusivamente en el Servidor Central (Modo Server) para usuarios con rol Administrador y Encargada/Gerente.
+        </MudText>
+    </div>
+}
+else
+{
+    <PageTitle>Conciliación de Cortes — Punto de Venta</PageTitle>
+
+    <div class="d-flex flex-column gap-6">
+        <!-- Encabezado del Módulo -->
+        <PdvHeader Title="Conciliación de Cortes"
+                   Subtitle="Valida y concilia el efectivo físico y váuchers entregados por las cajeras al cierre de turno"
+                   Icon="@Icons.Material.Filled.FactCheck"
+                   IconColor="Color.Primary">
+            <Actions>
+                <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadData">
+                    Actualizar Cortes
+                </PdvInteractiveButton>
+            </Actions>
+        </PdvHeader>
+
+        <!-- Tarjetas KPI -->
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <PdvKpiCard Title="Pendientes de Conciliar"
+                            Value="@summary.TotalPending.ToString()"
+                            Icon="@Icons.Material.Filled.PendingActions"
+                            IconColor="Color.Warning"
+                            IsLoading="@isLoading"
+                            GradientType="@(summary.TotalPending > 0 ? PdvKpiCard.KpiGradientType.Warning : PdvKpiCard.KpiGradientType.None)" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <PdvKpiCard Title="Conciliados"
+                            Value="@summary.TotalReconciled.ToString()"
+                            Icon="@Icons.Material.Filled.AssignmentTurnedIn"
+                            IconColor="Color.Info"
+                            IsLoading="@isLoading"
+                            GradientType="PdvKpiCard.KpiGradientType.Info" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <PdvKpiCard Title="Cortes Cuadrados"
+                            Value="@summary.TotalBalanced.ToString()"
+                            Icon="@Icons.Material.Filled.CheckCircle"
+                            IconColor="Color.Success"
+                            IsLoading="@isLoading"
+                            GradientType="PdvKpiCard.KpiGradientType.Success" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <PdvKpiCard Title="Con Diferencias"
+                            Value="@summary.TotalWithDifference.ToString()"
+                            Icon="@Icons.Material.Filled.Warning"
+                            IconColor="Color.Error"
+                            IsLoading="@isLoading"
+                            GradientType="@(summary.TotalWithDifference > 0 ? PdvKpiCard.KpiGradientType.Error : PdvKpiCard.KpiGradientType.None)" />
+            </MudItem>
+        </MudGrid>
+
+        <!-- Barra de Filtros -->
+        <MudPaper Class="pa-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.015);">
+            <MudGrid Spacing="2" Class="align-center">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudDatePicker @bind-Date="startDate"
+                                   Label="Fecha Inicio"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Placeholder="Seleccionar fecha..." />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudDatePicker @bind-Date="endDate"
+                                   Label="Fecha Fin"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Placeholder="Seleccionar fecha..." />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="Guid?"
+                               @bind-Value="selectedCashRegisterId"
+                               Label="Caja Registradora"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Clearable="true">
+                        <MudSelectItem T="Guid?" Value="null">Todas las Cajas</MudSelectItem>
+                        @foreach (var cr in cashRegisters)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)cr.Id)">@cr.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="ReconciliationFilterStatus"
+                               @bind-Value="filterStatus"
+                               Label="Estatus de Conciliación"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+                        <MudSelectItem Value="ReconciliationFilterStatus.All">Todos los Turnos</MudSelectItem>
+                        <MudSelectItem Value="ReconciliationFilterStatus.PendingOnly">Solo Pendientes</MudSelectItem>
+                        <MudSelectItem Value="ReconciliationFilterStatus.ReconciledOnly">Solo Conciliados</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- Contenedor Principal de la Tabla de Cortes -->
+        <PdvStateContainer IsLoading="@isLoading"
+                           IsEmpty="@(!summary.Items.Any())"
+                           EmptyTitle="Sin turnos encontrados"
+                           EmptyMessage="No hay turnos o cortes de caja cerrados con los filtros seleccionados."
+                           EmptyIcon="@Icons.Material.Filled.FactCheck"
+                           SkeletonRows="5"
+                           SkeletonColumns="8">
+            <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden;">
+                <MudTable Items="@summary.Items" Dense="true" Elevation="0" Striped="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Fecha / Cierre</MudTh>
+                        <MudTh>Caja</MudTh>
+                        <MudTh>Cajera</MudTh>
+                        <MudTh Style="text-align: right;">Ventas Totales</MudTh>
+                        <MudTh Style="text-align: right;">Efectivo Esperado</MudTh>
+                        <MudTh Style="text-align: right;">Tarjetas Esperadas</MudTh>
+                        <MudTh Style="text-align: center;">Estatus</MudTh>
+                        <MudTh Style="text-align: right;">Diferencia Neta</MudTh>
+                        <MudTh Style="text-align: center; width: 160px;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <div>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">
+                                    @(context.EndTime?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? context.StartTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    Inicio: @context.StartTime.ToLocalTime().ToString("HH:mm")
+                                </MudText>
+                            </div>
+                        </MudTd>
+                        <MudTd>
+                            <div class="d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Size="Size.Small" Color="Color.Secondary" />
+                                <span>@context.CashRegisterName</span>
+                            </div>
+                        </MudTd>
+                        <MudTd>@context.CashierName</MudTd>
+                        <MudTd Style="text-align: right; font-weight: bold;">@context.TotalSales.ToString("C2")</MudTd>
+                        <MudTd Style="text-align: right;" Class="mud-text-success font-weight-bold">@context.ExpectedCash.ToString("C2")</MudTd>
+                        <MudTd Style="text-align: right;" Class="mud-text-info font-weight-bold">@context.ExpectedCardVouchers.ToString("C2")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            @if (!context.IsReconciled)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">
+                                    <MudIcon Icon="@Icons.Material.Filled.Pending" Size="Size.Small" Class="mr-1" />
+                                    Pendiente
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Filled">
+                                    <MudIcon Icon="@GetStatusIcon(context.Status)" Size="Size.Small" Class="mr-1" />
+                                    @GetStatusName(context.Status)
+                                </MudChip>
+                            }
+                        </MudTd>
+                        <MudTd Style="text-align: right;">
+                            @if (context.IsReconciled && context.TotalDifference.HasValue)
+                            {
+                                <span class="@GetDiffStyleClass(context.TotalDifference.Value) font-weight-bold">
+                                    @(context.TotalDifference.Value > 0 ? "+" : "")@context.TotalDifference.Value.ToString("C2")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="mud-text-secondary">-</span>
+                            }
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            @if (!context.IsReconciled)
+                            {
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.FactCheck"
+                                           OnClick="@(() => OpenReconcileDialog(context.ShiftId))"
+                                           Style="text-transform: none; border-radius: 6px; font-weight: bold;">
+                                    Conciliar
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Secondary"
+                                           Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.Visibility"
+                                           OnClick="@(() => OpenDetailDialog(context.ShiftId))"
+                                           Style="text-transform: none; border-radius: 6px;">
+                                    Ver Detalle
+                                </MudButton>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </PdvStateContainer>
+    </div>
+}
+
+@code {
+    private bool isLocalMode = false;
+    private bool isLoading = true;
+    private DateTime? startDate = DateTime.Today.AddDays(-7);
+    private DateTime? endDate = DateTime.Today;
+    private Guid? selectedCashRegisterId;
+    private ReconciliationFilterStatus filterStatus = ReconciliationFilterStatus.All;
+
+    private ReconciliationsSummaryDto summary = new();
+    private List<CashRegisterDto> cashRegisters = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLocalMode = ConnectionMonitor.IsLocalMode;
+        if (!isLocalMode)
+        {
+            try
+            {
+                var syncStatus = await Mediator.Send(new GetSyncStatusQuery());
+                isLocalMode = syncStatus.IsLocalMode;
+            }
+            catch
+            {
+                isLocalMode = false;
+            }
+        }
+
+        if (!isLocalMode)
+        {
+            await LoadCashRegisters();
+            await LoadData();
+        }
+    }
+
+    private async Task LoadCashRegisters()
+    {
+        try
+        {
+            cashRegisters = await Mediator.Send(new ListCashRegistersQuery());
+        }
+        catch
+        {
+            cashRegisters = new List<CashRegisterDto>();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        if (isLocalMode) return;
+
+        isLoading = true;
+        try
+        {
+            summary = await Mediator.Send(new GetReconciliationsListQuery(
+                StartDate: startDate,
+                EndDate: endDate,
+                CashRegisterId: selectedCashRegisterId,
+                FilterStatus: filterStatus
+            ));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar cortes para conciliación: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenReconcileDialog(Guid shiftId)
+    {
+        var parameters = new DialogParameters<ReconciliationDialog>
+        {
+            { x => x.ShiftId, shiftId }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<ReconciliationDialog>("Conciliación de Corte", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task OpenDetailDialog(Guid shiftId)
+    {
+        var parameters = new DialogParameters<ReconciliationDetailDialog>
+        {
+            { x => x.ShiftId, shiftId }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        await DialogService.ShowAsync<ReconciliationDetailDialog>("Detalle de Conciliación", parameters, options);
+    }
+
+    private Color GetStatusColor(ReconciliationStatus? status) => status switch
+    {
+        ReconciliationStatus.Balanced => Color.Success,
+        ReconciliationStatus.CashShortage or ReconciliationStatus.VoucherShortage => Color.Error,
+        ReconciliationStatus.CashSurplus or ReconciliationStatus.VoucherSurplus => Color.Warning,
+        _ => Color.Info
+    };
+
+    private string GetStatusIcon(ReconciliationStatus? status) => status switch
+    {
+        ReconciliationStatus.Balanced => Icons.Material.Filled.CheckCircle,
+        ReconciliationStatus.CashShortage or ReconciliationStatus.VoucherShortage => Icons.Material.Filled.Error,
+        ReconciliationStatus.CashSurplus or ReconciliationStatus.VoucherSurplus => Icons.Material.Filled.Info,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private string GetStatusName(ReconciliationStatus? status) => status switch
+    {
+        ReconciliationStatus.Balanced => "Cuadrado",
+        ReconciliationStatus.CashShortage => "Faltante Efectivo",
+        ReconciliationStatus.CashSurplus => "Sobrante Efectivo",
+        ReconciliationStatus.VoucherShortage => "Faltante Váuchers",
+        ReconciliationStatus.VoucherSurplus => "Sobrante Váuchers",
+        ReconciliationStatus.Discrepancy => "Con Diferencias",
+        _ => "Conciliado"
+    };
+
+    private string GetDiffStyleClass(decimal diff)
+    {
+        if (Math.Abs(diff) < 0.01m) return "mud-text-success";
+        if (diff < 0) return "mud-text-error";
+        return "mud-text-warning";
+    }
+}

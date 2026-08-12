@@ -92,6 +92,13 @@ public class SalesController : ControllerBase
         return CreatedAtAction(null, new { id }, new { id });
     }
 
+    [HttpPost("/api/reconciliations")]
+    public async Task<IActionResult> ReconcileCashCut([FromBody] PDV.Application.Features.Sales.Commands.ReconcileCashCut.ReconcileCashCutCommand cmd)
+    {
+        var result = await _mediator.Send(cmd);
+        return Ok(result);
+    }
+
     public class CancelSaleRequest { public string? Reason { get; set; } public string? UserId { get; set; } }
     public class ReturnItemRequest { public int Quantity { get; set; } public string? Reason { get; set; } public string? UserId { get; set; } }
     public class ReturnSaleRequest { public string? Reason { get; set; } public string? UserId { get; set; } }

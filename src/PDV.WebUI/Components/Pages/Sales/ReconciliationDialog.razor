@@ -1,0 +1,516 @@
+@using MediatR
+@using MudBlazor
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Sales.Queries.GetShiftReconciliationDetail
+@using PDV.Application.Features.Sales.Commands.ReconcileCashCut
+@using PDV.Domain.Enums
+@using PDV.Domain.ValueObjects
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center justify-space-between w-100">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.FactCheck" Color="Color.Primary" Size="Size.Large" />
+                <div>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-primary">Conciliación de Corte de Caja</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Valida el efectivo físico y váuchers entregados por el cajero</MudText>
+                </div>
+            </MudStack>
+            @if (detail != null)
+            {
+                <MudChip T="string" Color="Color.Default" Variant="Variant.Outlined" Size="Size.Small">
+                    @detail.CashRegisterName | @detail.CashierName
+                </MudChip>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (isLoading)
+        {
+            <MudStack Spacing="3" Class="pa-4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="60px" Style="border-radius: 8px;" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" Style="border-radius: 8px;" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" Style="border-radius: 8px;" />
+            </MudStack>
+        }
+        else if (detail == null)
+        {
+            <MudAlert Severity="Severity.Error">No se pudieron cargar los datos del turno para conciliar.</MudAlert>
+        }
+        else
+        {
+            <MudGrid Spacing="3">
+                <!-- COLUMNA IZQUIERDA: RESUMEN DE SISTEMA (ESPERADO) -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="0" Class="pa-4 border-solid border mud-border-secondary h-100" Style="border-radius: 12px; background: rgba(255,255,255,0.015);">
+                        <div class="d-flex align-center justify-space-between mb-3">
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mud-text-primary d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Calculate" Size="Size.Small" />
+                                Totales del Sistema (Esperado)
+                            </MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                Turno: @detail.StartTime.ToLocalTime().ToString("dd/MM HH:mm") - @(detail.EndTime?.ToLocalTime().ToString("HH:mm") ?? "Abierto")
+                            </MudText>
+                        </div>
+
+                        <MudStack Spacing="2">
+                            <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Fondo Inicial de Caja:</MudText>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">@detail.InitialCash.ToString("C2")</MudText>
+                            </div>
+                            <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Cobrado en Efectivo:</MudText>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-success">+@detail.CashSalesTotal.ToString("C2")</MudText>
+                            </div>
+                            <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Cobrado con Tarjeta (Váuchers):</MudText>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-info">@detail.CardSalesTotal.ToString("C2")</MudText>
+                            </div>
+                            <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <div class="d-flex align-center gap-1">
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Entradas de Morralla:</MudText>
+                                    @if (detail.InflowMovements.Any())
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">@detail.InflowMovements.Count movs</MudChip>
+                                    }
+                                </div>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-success">+@detail.InflowsTotal.ToString("C2")</MudText>
+                            </div>
+                            <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <div class="d-flex align-center gap-1">
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Recolecciones (Salidas):</MudText>
+                                    @if (detail.OutflowMovements.Any())
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">@detail.OutflowMovements.Count movs</MudChip>
+                                    }
+                                </div>
+                                <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-warning">-@detail.OutflowsTotal.ToString("C2")</MudText>
+                            </div>
+                            @if (detail.ReturnsTotal > 0)
+                            {
+                                <div class="d-flex justify-space-between pa-2 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Devoluciones en Efectivo:</MudText>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-error">-@detail.ReturnsTotal.ToString("C2")</MudText>
+                                </div>
+                            }
+
+                            <MudDivider Class="my-2" />
+
+                            <!-- Tarjetas destacadas de totales esperados -->
+                            <div class="pa-3 border-solid border-2 mud-border-primary" style="border-radius: 10px; background: rgba(124, 77, 255, 0.08);">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">Efectivo Esperado en Caja</MudText>
+                                        <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-primary">@detail.ExpectedCash.ToString("C2")</MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Primary" Size="Size.Large" />
+                                </div>
+                            </div>
+
+                            <div class="pa-3 border-solid border mud-border-info" style="border-radius: 10px; background: rgba(3, 169, 244, 0.08);">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">Váuchers de Tarjeta Esperados</MudText>
+                                        <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-info">@detail.ExpectedCardVouchers.ToString("C2")</MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Filled.CreditCard" Color="Color.Info" Size="Size.Large" />
+                                </div>
+                            </div>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- COLUMNA DERECHA: CAPTURA DE LA ENCARGADA (ENTREGADO) -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="0" Class="pa-4 border-solid border mud-border-secondary h-100" Style="border-radius: 12px; background: rgba(255,255,255,0.015);">
+                        <div class="d-flex align-center justify-space-between mb-3">
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mud-text-warning d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.AssignmentTurnedIn" Size="Size.Small" />
+                                Registro de Entrega Física
+                            </MudText>
+                            <MudSwitch @bind-Value="useDenominations" Color="Color.Primary" Size="Size.Small">
+                                <MudText Typo="Typo.caption">Desglose por Billetes/Monedas</MudText>
+                            </MudSwitch>
+                        </div>
+
+                        <MudStack Spacing="3">
+                            <!-- Captura de Váuchers de Tarjeta -->
+                            <MudPaper Elevation="0" Class="pa-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                <div class="d-flex align-center justify-space-between mb-2">
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-info d-flex align-center gap-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Small" />
+                                        Total Váuchers de Tarjeta Entregados:
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Esperado: @detail.ExpectedCardVouchers.ToString("C2")</MudText>
+                                </div>
+                                <MudNumericField @bind-Value="deliveredCardVouchers"
+                                                 Format="N2"
+                                                 T="decimal"
+                                                 Culture="@System.Globalization.CultureInfo.GetCultureInfo("es-MX")"
+                                                 Variant="Variant.Outlined"
+                                                 Adornment="Adornment.Start"
+                                                 AdornmentIcon="@Icons.Material.Filled.AttachMoney"
+                                                 AdornmentColor="Color.Info"
+                                                 Margin="Margin.Dense"
+                                                 Immediate="true"
+                                                 Placeholder="0.00" />
+                            </MudPaper>
+
+                            <!-- Captura de Efectivo -->
+                            @if (!useDenominations)
+                            {
+                                <MudPaper Elevation="0" Class="pa-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02);">
+                                    <div class="d-flex align-center justify-space-between mb-2">
+                                        <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-success d-flex align-center gap-1">
+                                            <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Small" />
+                                            Total Efectivo Entregado (Directo):
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Esperado: @detail.ExpectedCash.ToString("C2")</MudText>
+                                    </div>
+                                    <MudNumericField @bind-Value="deliveredCashDirect"
+                                                     Format="N2"
+                                                     T="decimal"
+                                                     Culture="@System.Globalization.CultureInfo.GetCultureInfo("es-MX")"
+                                                     Variant="Variant.Outlined"
+                                                     Adornment="Adornment.Start"
+                                                     AdornmentIcon="@Icons.Material.Filled.AttachMoney"
+                                                     AdornmentColor="Color.Success"
+                                                     Margin="Margin.Dense"
+                                                     Immediate="true"
+                                                     Placeholder="0.00" />
+                                </MudPaper>
+                            }
+                            else
+                            {
+                                <!-- Contador de Denominaciones de Billetes y Monedas -->
+                                <MudPaper Elevation="0" Class="pa-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.02); max-height: 240px; overflow-y: auto;">
+                                    <div class="d-flex align-center justify-space-between mb-2">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold mud-text-primary text-uppercase">Arqueo por Billetes y Monedas</MudText>
+                                        <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-success">Total: @DeliveredCashCalculated.ToString("C2")</MudText>
+                                    </div>
+                                    <MudGrid Spacing="1">
+                                        @foreach (var denom in denominationItems)
+                                        {
+                                            <MudItem xs="6">
+                                                <div class="d-flex align-center justify-space-between pa-1 px-2 border-solid border mud-border-secondary" style="border-radius: 6px; background: rgba(255,255,255,0.01);">
+                                                    <MudText Typo="Typo.caption" Class="font-weight-bold" Style="min-width: 50px;">
+                                                        @denom.UnitValue.ToString("C0")
+                                                    </MudText>
+                                                    <div class="d-flex align-center gap-1" style="width: 100px;">
+                                                        <MudNumericField @bind-Value="denom.Quantity"
+                                                                         T="int"
+                                                                         Min="0"
+                                                                         Max="99999"
+                                                                         Variant="Variant.Outlined"
+                                                                         Margin="Margin.Dense"
+                                                                         Immediate="true"
+                                                                         Style="font-size: 0.8rem; text-align: center;" />
+                                                    </div>
+                                                </div>
+                                            </MudItem>
+                                        }
+                                    </MudGrid>
+                                </MudPaper>
+                            }
+
+                            <!-- Observaciones -->
+                            <MudTextField @bind-Value="notes"
+                                          Label="Observaciones / Justificaciones de la Encargada"
+                                          Variant="Variant.Outlined"
+                                          Lines="2"
+                                          Margin="Margin.Dense"
+                                          Placeholder="Ej. Faltante autorizado, corte cuadrado conforme, etc." />
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- PANEL INFERIOR: RESULTADO Y VALIDACIÓN EN TIEMPO REAL -->
+                <MudItem xs="12">
+                    <MudPaper Elevation="0" Class="pa-4 border-solid border-2" Style="@GetResultCardStyle()">
+                        <MudGrid Spacing="2" Justify="Justify.SpaceBetween" Class="align-center">
+                            <MudItem xs="12" md="4">
+                                <div class="d-flex align-center gap-3">
+                                    <MudIcon Icon="@GetResultIcon()" Color="@GetResultColor()" Size="Size.Large" />
+                                    <div>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase font-weight-bold">Estatus de Conciliación</MudText>
+                                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold" Style="@GetResultTextColorStyle()">
+                                            @GetResultStatusLabel()
+                                        </MudText>
+                                    </div>
+                                </div>
+                            </MudItem>
+
+                            <MudItem xs="6" md="4">
+                                <div class="d-flex flex-column align-end">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Diferencia en Efectivo:</MudText>
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Style="@GetDiffColorStyle(CashDiff)">
+                                        @(CashDiff > 0 ? "+" : "")@CashDiff.ToString("C2")
+                                        <span style="font-size: 0.75rem;">(@GetDiffLabel(CashDiff))</span>
+                                    </MudText>
+                                </div>
+                            </MudItem>
+
+                            <MudItem xs="6" md="4">
+                                <div class="d-flex flex-column align-end">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Diferencia en Váuchers Tarjeta:</MudText>
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Style="@GetDiffColorStyle(VoucherDiff)">
+                                        @(VoucherDiff > 0 ? "+" : "")@VoucherDiff.ToString("C2")
+                                        <span style="font-size: 0.75rem;">(@GetDiffLabel(VoucherDiff))</span>
+                                    </MudText>
+                                </div>
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Secondary" Variant="Variant.Outlined" Style="text-transform: none; border-radius: 8px; font-weight: bold;">
+            Cancelar
+        </MudButton>
+        <MudButton OnClick="SubmitReconciliation"
+                   Color="@GetSubmitButtonColor()"
+                   Variant="Variant.Filled"
+                   Disabled="@(isLoading || isProcessing)"
+                   Class="px-6 font-weight-bold"
+                   Style="text-transform: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(124, 77, 255, 0.2);">
+            @if (isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Guardando Conciliación...</span>
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="mr-1" Size="Size.Small" />
+                <span>Guardar y Validar Conciliación</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid ShiftId { get; set; }
+
+    private ShiftReconciliationDetailDto? detail;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private bool useDenominations = false;
+
+    private decimal deliveredCardVouchers = 0m;
+    private decimal deliveredCashDirect = 0m;
+    private string? notes;
+
+    private List<DenominationInputItem> denominationItems = new();
+
+    private class DenominationInputItem
+    {
+        public DenominationType Type { get; set; }
+        public decimal UnitValue { get; set; }
+        public int Quantity { get; set; }
+        public decimal Total => Quantity * UnitValue;
+    }
+
+    private decimal DeliveredCashCalculated => useDenominations
+        ? denominationItems.Sum(d => d.Total)
+        : deliveredCashDirect;
+
+    private decimal CashDiff => DeliveredCashCalculated - (detail?.ExpectedCash ?? 0m);
+    private decimal VoucherDiff => deliveredCardVouchers - (detail?.ExpectedCardVouchers ?? 0m);
+
+    protected override async Task OnInitializedAsync()
+    {
+        InitializeDenominations();
+        await LoadDetail();
+    }
+
+    private void InitializeDenominations()
+    {
+        denominationItems = new List<DenominationInputItem>
+        {
+            new() { Type = DenominationType.Bill_1000, UnitValue = 1000m, Quantity = 0 },
+            new() { Type = DenominationType.Bill_500, UnitValue = 500m, Quantity = 0 },
+            new() { Type = DenominationType.Bill_200, UnitValue = 200m, Quantity = 0 },
+            new() { Type = DenominationType.Bill_100, UnitValue = 100m, Quantity = 0 },
+            new() { Type = DenominationType.Bill_50, UnitValue = 50m, Quantity = 0 },
+            new() { Type = DenominationType.Bill_20, UnitValue = 20m, Quantity = 0 },
+            new() { Type = DenominationType.Coin_10, UnitValue = 10m, Quantity = 0 },
+            new() { Type = DenominationType.Coin_5, UnitValue = 5m, Quantity = 0 },
+            new() { Type = DenominationType.Coin_2, UnitValue = 2m, Quantity = 0 },
+            new() { Type = DenominationType.Coin_1, UnitValue = 1m, Quantity = 0 },
+            new() { Type = DenominationType.Coin_050, UnitValue = 0.50m, Quantity = 0 },
+            new() { Type = DenominationType.Coin_020, UnitValue = 0.20m, Quantity = 0 }
+        };
+    }
+
+    private async Task LoadDetail()
+    {
+        isLoading = true;
+        try
+        {
+            detail = await Mediator.Send(new GetShiftReconciliationDetailQuery(ShiftId));
+            if (detail != null)
+            {
+                deliveredCardVouchers = detail.DeliveredCardVouchers ?? detail.ExpectedCardVouchers;
+                deliveredCashDirect = detail.DeliveredCash ?? detail.ExpectedCash;
+                notes = detail.Notes;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar detalle del turno: {ex.Message}", Severity.Error);
+            MudDialog.Cancel();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SubmitReconciliation()
+    {
+        if (detail == null) return;
+
+        bool hasDifferences = Math.Abs(CashDiff) >= 0.01m || Math.Abs(VoucherDiff) >= 0.01m;
+
+        if (hasDifferences)
+        {
+            var confirm = await DialogService.ShowMessageBox(
+                title: "Atención: Corte con Diferencias",
+                message: $"Se detectaron diferencias en el corte:\n" +
+                         $"• Efectivo: {(CashDiff > 0 ? "+" : "")}{CashDiff:C2} ({GetDiffLabel(CashDiff)})\n" +
+                         $"• Váuchers: {(VoucherDiff > 0 ? "+" : "")}{VoucherDiff:C2} ({GetDiffLabel(VoucherDiff)})\n\n" +
+                         "¿Deseas registrar y validar esta conciliación con las diferencias indicadas?",
+                yesText: "Sí, Registrar Conciliación",
+                cancelText: "Verificar Cantidades"
+            );
+
+            if (confirm != true) return;
+        }
+
+        isProcessing = true;
+        try
+        {
+            List<CashDenominationDto>? denoms = null;
+            if (useDenominations)
+            {
+                denoms = denominationItems
+                    .Where(d => d.Quantity > 0)
+                    .Select(d => new CashDenominationDto
+                    {
+                        Type = d.Type,
+                        Quantity = d.Quantity,
+                        UnitValue = d.UnitValue
+                    })
+                    .ToList();
+            }
+
+            var command = new ReconcileCashCutCommand(
+                ShiftId: ShiftId,
+                DeliveredCash: DeliveredCashCalculated,
+                DeliveredCardVouchers: deliveredCardVouchers,
+                Notes: notes,
+                Denominations: denoms
+            );
+
+            var result = await Mediator.Send(command);
+
+            if (result.IsBalanced)
+            {
+                Snackbar.Add(result.Message, Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add(result.Message, Severity.Warning);
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al registrar conciliación: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private Color GetSubmitButtonColor()
+    {
+        if (Math.Abs(CashDiff) < 0.01m && Math.Abs(VoucherDiff) < 0.01m) return Color.Success;
+        return Color.Warning;
+    }
+
+    private string GetDiffLabel(decimal diff)
+    {
+        if (Math.Abs(diff) < 0.01m) return "Cuadrado";
+        return diff < 0 ? "Faltante" : "Sobrante";
+    }
+
+    private string GetDiffColorStyle(decimal diff)
+    {
+        if (Math.Abs(diff) < 0.01m) return "color: #00E676;"; // Verde
+        if (diff < 0) return "color: #FF5252;"; // Rojo
+        return "color: #FFB300;"; // Naranja / Sobrante
+    }
+
+    private Color GetResultColor()
+    {
+        bool cashOk = Math.Abs(CashDiff) < 0.01m;
+        bool voucherOk = Math.Abs(VoucherDiff) < 0.01m;
+        if (cashOk && voucherOk) return Color.Success;
+        if (CashDiff < 0 || VoucherDiff < 0) return Color.Error;
+        return Color.Warning;
+    }
+
+    private string GetResultIcon()
+    {
+        bool cashOk = Math.Abs(CashDiff) < 0.01m;
+        bool voucherOk = Math.Abs(VoucherDiff) < 0.01m;
+        if (cashOk && voucherOk) return Icons.Material.Filled.CheckCircle;
+        if (CashDiff < 0 || VoucherDiff < 0) return Icons.Material.Filled.Warning;
+        return Icons.Material.Filled.Info;
+    }
+
+    private string GetResultStatusLabel()
+    {
+        bool cashOk = Math.Abs(CashDiff) < 0.01m;
+        bool voucherOk = Math.Abs(VoucherDiff) < 0.01m;
+        if (cashOk && voucherOk) return "¡Corte Cuadrado Exacto!";
+        if (!cashOk && voucherOk) return CashDiff < 0 ? "Corte con Faltante de Efectivo" : "Corte con Sobrante de Efectivo";
+        if (cashOk && !voucherOk) return VoucherDiff < 0 ? "Corte con Faltante de Váuchers" : "Corte con Sobrante de Váuchers";
+        return "Corte con Diferencias Mixtas";
+    }
+
+    private string GetResultTextColorStyle()
+    {
+        bool cashOk = Math.Abs(CashDiff) < 0.01m;
+        bool voucherOk = Math.Abs(VoucherDiff) < 0.01m;
+        if (cashOk && voucherOk) return "color: #00E676;";
+        if (CashDiff < 0 || VoucherDiff < 0) return "color: #FF5252;";
+        return "color: #FFB300;";
+    }
+
+    private string GetResultCardStyle()
+    {
+        bool cashOk = Math.Abs(CashDiff) < 0.01m;
+        bool voucherOk = Math.Abs(VoucherDiff) < 0.01m;
+        if (cashOk && voucherOk)
+        {
+            return "border-radius: 12px; background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.4);";
+        }
+        if (CashDiff < 0 || VoucherDiff < 0)
+        {
+            return "border-radius: 12px; background: rgba(244, 67, 54, 0.08); border-color: rgba(244, 67, 54, 0.4);";
+        }
+        return "border-radius: 12px; background: rgba(255, 179, 0, 0.08); border-color: rgba(255, 179, 0, 0.4);";
+    }
+}

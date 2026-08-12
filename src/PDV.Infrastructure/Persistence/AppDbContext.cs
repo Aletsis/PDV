@@ -52,6 +52,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
 
     public DbSet<CashRegister> CashRegisters { get; set; }
     public DbSet<CashCut> CashCuts { get; set; }
+    public DbSet<CashCutReconciliation> CashCutReconciliations { get; set; }
     public DbSet<CashCollection> CashCollections { get; set; }
     public DbSet<Cancellation> Cancellations { get; set; }
     public DbSet<Return> Returns { get; set; }

@@ -60,7 +60,8 @@ public static class AppDbContextSeed
             new Permission("Capturar Pedidos", "orders.capture", "Permite capturar nuevos pedidos en caja"),
             new Permission("Gestionar Rutas de Reparto", "orders.routes", "Permite crear, despachar y gestionar rutas de reparto"),
             new Permission("Liquidar Cuentas de Ruta", "orders.settle", "Permite realizar la liquidación de cuentas de rutas de reparto"),
-            new Permission("Gestionar Zonas de Reparto", "delivery_zones.manage", "Permite configurar zonas de reparto en el mapa")
+            new Permission("Gestionar Zonas de Reparto", "delivery_zones.manage", "Permite configurar zonas de reparto en el mapa"),
+            new Permission("Conciliar Corte de Caja", "sales.reconcile_cash_cut", "Permite validar y conciliar el efectivo y váuchers del corte de caja")
         };
 
         foreach (var p in permissions)

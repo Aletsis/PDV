@@ -37,6 +37,9 @@ public class CashCut : BaseEntity, IAggregateRoot
     /// </summary>
     public decimal Difference { get; private set; }
 
+    public bool IsReconciled { get; private set; }
+    public DateTime? ReconciledAt { get; private set; }
+
     public IReadOnlyCollection<CashDenomination> CashDenominations => _cashDenominations.AsReadOnly();
     public IReadOnlyCollection<PaymentMethodBreakdown> DeclaredVouchers => _declaredVouchers.AsReadOnly();
 
@@ -64,6 +67,8 @@ public class CashCut : BaseEntity, IAggregateRoot
         UserId = userId;
         SystemExpectedCash = systemExpectedCash;
         CutDate = DateTime.UtcNow;
+        IsReconciled = false;
+        ReconciledAt = null;
 
         _cashDenominations.AddRange(cashDenominationsList);
         _declaredVouchers.AddRange(declaredVouchersList);
@@ -79,4 +84,10 @@ public class CashCut : BaseEntity, IAggregateRoot
 
         AddDomainEvent(new CashCutCreatedEvent(Id, ShiftId, SystemExpectedCash, DeclaredPhysicalCash, Difference));
     }
-}
+
+    public void MarkAsReconciled(DateTime? reconciledAt = null)
+    {
+        IsReconciled = true;
+        ReconciledAt = reconciledAt ?? DateTime.UtcNow;
+    }
+}

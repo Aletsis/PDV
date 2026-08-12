@@ -32,6 +32,8 @@ public class Shift : BaseEntity, IAggregateRoot
     public bool IsGlobalInvoiced { get; private set; }
     public string? GlobalInvoiceId { get; private set; }
     public bool IsConsolidated { get; private set; }
+    public bool IsReconciled { get; private set; }
+    public DateTime? ReconciledAt { get; private set; }
 
     public IReadOnlyCollection<PaymentMethodBreakdown> PaymentMethodTotals => _paymentMethodTotals.AsReadOnly();
     public IReadOnlyCollection<TaxBreakdown> SalesTaxTotals => _salesTaxTotals.AsReadOnly();
@@ -58,6 +60,8 @@ public class Shift : BaseEntity, IAggregateRoot
         IsGlobalInvoiced = false;
         GlobalInvoiceId = null;
         IsConsolidated = false;
+        IsReconciled = false;
+        ReconciledAt = null;
 
         SystemExpectedCash = 0;
         TotalCashReturns = 0;
@@ -139,4 +143,16 @@ public class Shift : BaseEntity, IAggregateRoot
         IsConsolidated = true;
         AddDomainEvent(new ShiftConsolidatedEvent(Id));
     }
+
+    public void MarkAsReconciled(DateTime? reconciledAt = null)
+    {
+        if (Status != ShiftStatus.Closed)
+            throw new DomainException("Solo se pueden conciliar turnos que ya estén cerrados.");
+        if (IsReconciled)
+            throw new DomainException("El turno ya ha sido conciliado previamente.");
+
+        IsReconciled = true;
+        ReconciledAt = reconciledAt ?? DateTime.UtcNow;
+    }
 }
+

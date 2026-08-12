@@ -1,0 +1,212 @@
+@using MediatR
+@using MudBlazor
+@using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Sales.Queries.GetShiftReconciliationDetail
+@using PDV.Domain.Enums
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center justify-space-between w-100">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Info" Size="Size.Large" />
+                <div>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mud-text-info">Detalle de Conciliación</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Registro histórico de arqueo y validación de corte</MudText>
+                </div>
+            </MudStack>
+            @if (detail != null)
+            {
+                <MudChip T="string" Color="@GetStatusChipColor(detail.Status)" Variant="Variant.Filled" Size="Size.Small">
+                    @GetStatusLabel(detail.Status)
+                </MudChip>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (isLoading)
+        {
+            <MudStack Spacing="2" Class="pa-4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" Style="border-radius: 8px;" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Style="border-radius: 8px;" />
+            </MudStack>
+        }
+        else if (detail == null)
+        {
+            <MudAlert Severity="Severity.Error">No se encontraron los datos de la conciliación.</MudAlert>
+        }
+        else
+        {
+            <MudStack Spacing="3">
+                <!-- Información General -->
+                <MudPaper Elevation="0" Class="pa-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.015);">
+                    <MudGrid Spacing="1">
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Caja Registradora</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">@detail.CashRegisterName</MudText>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Cajero(a)</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">@detail.CashierName</MudText>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Encargada / Concilió</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold mud-text-primary">@(detail.ReconciledByName ?? "Encargada")</MudText>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Fecha Conciliación</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">@(detail.ReconciliationDate?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "-")</MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <!-- Comparativa Sistema vs Entregado -->
+                <MudTable Items="@GetComparisonRows()" Elevation="0" Dense="true" Outlined="true" Hover="true">
+                    <HeaderContent>
+                        <MudTh>Concepto</MudTh>
+                        <MudTh Style="text-align: right;">Esperado (Sistema)</MudTh>
+                        <MudTh Style="text-align: right;">Entregado (Físico)</MudTh>
+                        <MudTh Style="text-align: right;">Diferencia</MudTh>
+                        <MudTh Style="text-align: center;">Resultado</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd Class="font-weight-bold">@context.Concept</MudTd>
+                        <MudTd Style="text-align: right;">@context.Expected.ToString("C2")</MudTd>
+                        <MudTd Style="text-align: right;" Class="font-weight-bold">@context.Delivered.ToString("C2")</MudTd>
+                        <MudTd Style="text-align: right; font-weight: bold;" Class="@context.DiffClass">
+                            @(context.Difference > 0 ? "+" : "")@context.Difference.ToString("C2")
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudChip T="string" Color="@context.ChipColor" Size="Size.Small" Variant="Variant.Text">
+                                @context.ResultLabel
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <!-- Desglose de denominaciones si existe -->
+                @if (detail.Denominations.Any())
+                {
+                    <MudPaper Elevation="0" Class="pa-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.015);">
+                        <MudText Typo="Typo.caption" Class="font-weight-bold mud-text-secondary text-uppercase mb-2 d-block">Desglose de Billetes y Monedas Contados</MudText>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var d in detail.Denominations.Where(x => x.Quantity > 0))
+                            {
+                                <div class="pa-1 px-3 border-solid border mud-border-secondary" style="border-radius: 6px; background: rgba(255,255,255,0.02); font-size: 0.8rem;">
+                                    <span class="mud-text-secondary">@d.UnitValue.ToString("C0"):</span>
+                                    <strong class="ml-1">@d.Quantity</strong> (@d.TotalValue.ToString("C2"))
+                                </div>
+                            }
+                        </div>
+                    </MudPaper>
+                }
+
+                <!-- Observaciones -->
+                @if (!string.IsNullOrWhiteSpace(detail.Notes))
+                {
+                    <MudPaper Elevation="0" Class="pa-3 border-solid border mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.015);">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold">Observaciones Registradas:</MudText>
+                        <MudText Typo="Typo.body2" Class="italic mt-1">@detail.Notes</MudText>
+                    </MudPaper>
+                }
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Color="Color.Primary" Variant="Variant.Filled" Style="text-transform: none; border-radius: 8px;">
+            Cerrar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid ShiftId { get; set; }
+
+    private ShiftReconciliationDetailDto? detail;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            detail = await Mediator.Send(new GetShiftReconciliationDetailQuery(ShiftId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar conciliación: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+
+    private class ComparisonRow
+    {
+        public string Concept { get; set; } = string.Empty;
+        public decimal Expected { get; set; }
+        public decimal Delivered { get; set; }
+        public decimal Difference { get; set; }
+        public string DiffClass { get; set; } = string.Empty;
+        public Color ChipColor { get; set; }
+        public string ResultLabel { get; set; } = string.Empty;
+    }
+
+    private List<ComparisonRow> GetComparisonRows()
+    {
+        if (detail == null) return new();
+
+        var list = new List<ComparisonRow>();
+
+        var cashDiff = (detail.DeliveredCash ?? 0m) - detail.ExpectedCash;
+        var voucherDiff = (detail.DeliveredCardVouchers ?? 0m) - detail.ExpectedCardVouchers;
+
+        list.Add(new ComparisonRow
+        {
+            Concept = "Efectivo",
+            Expected = detail.ExpectedCash,
+            Delivered = detail.DeliveredCash ?? 0m,
+            Difference = cashDiff,
+            DiffClass = Math.Abs(cashDiff) < 0.01m ? "mud-text-success" : (cashDiff < 0 ? "mud-text-error" : "mud-text-warning"),
+            ChipColor = Math.Abs(cashDiff) < 0.01m ? Color.Success : (cashDiff < 0 ? Color.Error : Color.Warning),
+            ResultLabel = Math.Abs(cashDiff) < 0.01m ? "Cuadrado" : (cashDiff < 0 ? "Faltante" : "Sobrante")
+        });
+
+        list.Add(new ComparisonRow
+        {
+            Concept = "Váuchers con Tarjeta",
+            Expected = detail.ExpectedCardVouchers,
+            Delivered = detail.DeliveredCardVouchers ?? 0m,
+            Difference = voucherDiff,
+            DiffClass = Math.Abs(voucherDiff) < 0.01m ? "mud-text-success" : (voucherDiff < 0 ? "mud-text-error" : "mud-text-warning"),
+            ChipColor = Math.Abs(voucherDiff) < 0.01m ? Color.Success : (voucherDiff < 0 ? Color.Error : Color.Warning),
+            ResultLabel = Math.Abs(voucherDiff) < 0.01m ? "Cuadrado" : (voucherDiff < 0 ? "Faltante" : "Sobrante")
+        });
+
+        return list;
+    }
+
+    private Color GetStatusChipColor(ReconciliationStatus? status) => status switch
+    {
+        ReconciliationStatus.Balanced => Color.Success,
+        ReconciliationStatus.CashShortage or ReconciliationStatus.VoucherShortage => Color.Error,
+        ReconciliationStatus.CashSurplus or ReconciliationStatus.VoucherSurplus => Color.Warning,
+        _ => Color.Info
+    };
+
+    private string GetStatusLabel(ReconciliationStatus? status) => status switch
+    {
+        ReconciliationStatus.Balanced => "Cuadrado",
+        ReconciliationStatus.CashShortage => "Faltante Efectivo",
+        ReconciliationStatus.CashSurplus => "Sobrante Efectivo",
+        ReconciliationStatus.VoucherShortage => "Faltante Váuchers",
+        ReconciliationStatus.VoucherSurplus => "Sobrante Váuchers",
+        ReconciliationStatus.Discrepancy => "Con Diferencias",
+        _ => "Conciliado"
+    };
+}

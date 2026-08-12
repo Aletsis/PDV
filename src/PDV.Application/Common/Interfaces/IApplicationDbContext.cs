@@ -14,6 +14,7 @@ public interface IApplicationDbContext
 
     DbSet<CashRegister> CashRegisters { get; }
     DbSet<CashCut> CashCuts { get; }
+    DbSet<CashCutReconciliation> CashCutReconciliations { get; }
     DbSet<CashCollection> CashCollections { get; }
     DbSet<Cancellation> Cancellations { get; }
     DbSet<Return> Returns { get; }
