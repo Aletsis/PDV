@@ -674,11 +674,11 @@ public class SyncWorker : BackgroundService
                     product.ClearDomainEvents();
                     db.Products.Add(product);
 
-                    // Inicializar el stock en la sucursal local
-                    var localBranch = await db.Branches.FirstOrDefaultAsync(stoppingToken);
-                    if (localBranch != null)
+                    // Inicializar el stock en todas las sucursales locales
+                    var allBranches = await db.Branches.ToListAsync(stoppingToken);
+                    foreach (var b in allBranches)
                     {
-                        var branchStock = new ProductBranchStock(dto.Id, localBranch.Id, 0, 0);
+                        var branchStock = new ProductBranchStock(dto.Id, b.Id, 0, 0);
                         db.ProductBranchStocks.Add(branchStock);
                     }
                 }
@@ -723,14 +723,14 @@ public class SyncWorker : BackgroundService
                         existing.ChangeSaleType(saleType);
                         existing.UpdateTaxRate(taxRate);
 
-                        // Garantizar que exista el registro de stock local
-                        var localBranch = await db.Branches.FirstOrDefaultAsync(stoppingToken);
-                        if (localBranch != null)
+                        // Garantizar que exista el registro de stock para todas las sucursales locales
+                        var allBranches = await db.Branches.ToListAsync(stoppingToken);
+                        foreach (var b in allBranches)
                         {
-                            var hasStockRecord = await db.ProductBranchStocks.AnyAsync(s => s.ProductId == existing.Id && s.BranchId == localBranch.Id, stoppingToken);
+                            var hasStockRecord = await db.ProductBranchStocks.AnyAsync(s => s.ProductId == existing.Id && s.BranchId == b.Id, stoppingToken);
                             if (!hasStockRecord)
                             {
-                                var branchStock = new ProductBranchStock(existing.Id, localBranch.Id, 0, 0);
+                                var branchStock = new ProductBranchStock(existing.Id, b.Id, 0, 0);
                                 db.ProductBranchStocks.Add(branchStock);
                             }
                         }
@@ -825,6 +825,18 @@ public class SyncWorker : BackgroundService
 
                     branch.ClearDomainEvents();
                     db.Branches.Add(branch);
+
+                    // Inicializar ProductBranchStock para todos los productos locales en la nueva sucursal
+                    var productIds = await db.Products.Select(p => p.Id).ToListAsync(stoppingToken);
+                    foreach (var prodId in productIds)
+                    {
+                        var hasStock = await db.ProductBranchStocks.AnyAsync(s => s.ProductId == prodId && s.BranchId == dto.Id, stoppingToken);
+                        if (!hasStock)
+                        {
+                            var branchStock = new ProductBranchStock(prodId, dto.Id, 0, 0);
+                            db.ProductBranchStocks.Add(branchStock);
+                        }
+                    }
                 }
                 else
                 {

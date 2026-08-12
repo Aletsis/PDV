@@ -3,9 +3,11 @@
 @using PDV.Application.Features.Products.Queries.GetProductsWithPagination
 @using PDV.Application.Features.Products.Queries.GetProductByCode
 @using PDV.Application.Features.Products.Dtos
+@using PDV.WebUI.Components.Pages.Product
 @using MediatR
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudDialog>
     <TitleContent>
@@ -48,9 +50,18 @@
                             }
                         </MudTd>
                         <MudTd Style="text-align: right;">
-                            <span style="font-weight: bold; color: @(context.Stock > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
-                                @context.Stock.ToString(context.SaleType == "Bulk" ? "N3" : "N0")
-                            </span>
+                            <div class="d-flex align-center justify-end gap-1">
+                                <span style="font-weight: bold; color: @(context.Stock > 0 ? "var(--mud-palette-success)" : "var(--mud-palette-error)")">
+                                    @context.Stock.ToString(context.SaleType == "Bulk" ? "N3" : "N0")
+                                </span>
+                                <MudTooltip Text="Ver existencias por sucursal">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Storefront" 
+                                                   Size="Size.Small" 
+                                                   Color="Color.Info" 
+                                                   OnClick="@(() => OpenBranchStockDialog(context))" 
+                                                   Style="padding: 2px;" />
+                                </MudTooltip>
+                            </div>
                         </MudTd>
                         <MudTd Style="text-align: right;" Class="font-weight-bold">$@context.Price.ToString("F2")</MudTd>
                         <MudTd Style="text-align: right;" Class="mud-text-secondary">
@@ -143,6 +154,18 @@
         {
             await table.ReloadServerData();
         }
+    }
+
+    private async Task OpenBranchStockDialog(ProductDto product)
+    {
+        var parameters = new DialogParameters<ProductBranchStockDialog>
+        {
+            { x => x.ProductId, product.Id },
+            { x => x.ProductName, product.Name },
+            { x => x.ProductCode, product.Code }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        await DialogService.ShowAsync<ProductBranchStockDialog>("Existencias por Sucursal", parameters, options);
     }
 
     private async Task SelectProduct(ProductDto productDto)

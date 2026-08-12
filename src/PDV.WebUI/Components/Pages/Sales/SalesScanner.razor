@@ -9,9 +9,11 @@
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
 @using PDV.Application.Common.Interfaces
+@using PDV.WebUI.Components.Pages.Product
 @using Microsoft.EntityFrameworkCore
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @inject IApplicationDbContext DbContext
 @inject IJSRuntime JSRuntime
 @inject IScaleService ScaleService
@@ -47,9 +49,18 @@
                     <MudChip T="string" Size="Size.Small" Color="@(searchedProduct.SaleType == SaleType.Bulk ? Color.Info : Color.Default)">
                         @(searchedProduct.SaleType == SaleType.Bulk ? "A Granel" : "Por Pieza")
                     </MudChip>
-                    <MudText Color="@(searchedProductStock > 0 ? Color.Success : Color.Error)" Class="font-weight-bold">
-                        Stock: @searchedProductStock.ToString(searchedProduct.SaleType == SaleType.Bulk ? "N3" : "N0")
-                    </MudText>
+                    <div class="d-flex align-center gap-1">
+                        <MudText Color="@(searchedProductStock > 0 ? Color.Success : Color.Error)" Class="font-weight-bold">
+                            Stock: @searchedProductStock.ToString(searchedProduct.SaleType == SaleType.Bulk ? "N3" : "N0")
+                        </MudText>
+                        <MudTooltip Text="Ver existencias por sucursal">
+                            <MudIconButton Icon="@Icons.Material.Filled.Storefront" 
+                                           Size="Size.Small" 
+                                           Color="Color.Info" 
+                                           OnClick="OpenBranchStockDialog" 
+                                           Style="padding: 2px;" />
+                        </MudTooltip>
+                    </div>
                 </div>
                 <MudText Typo="Typo.h6" Class="font-weight-bold">@searchedProduct.Name</MudText>
                 <MudText Typo="Typo.body2" Class="mud-text-secondary">Código: @searchedProduct.Code</MudText>
@@ -369,5 +380,18 @@
         {
             await barcodeField.FocusAsync();
         }
+    }
+
+    private async Task OpenBranchStockDialog()
+    {
+        if (searchedProduct == null) return;
+        var parameters = new DialogParameters<ProductBranchStockDialog>
+        {
+            { x => x.ProductId, searchedProduct.Id },
+            { x => x.ProductName, searchedProduct.Name },
+            { x => x.ProductCode, searchedProduct.Code }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        await DialogService.ShowAsync<ProductBranchStockDialog>("Existencias por Sucursal", parameters, options);
     }
 }

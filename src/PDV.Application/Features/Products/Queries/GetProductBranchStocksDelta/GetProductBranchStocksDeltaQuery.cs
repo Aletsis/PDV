@@ -34,7 +34,9 @@ public class GetProductBranchStocksDeltaQueryHandler : IRequestHandler<GetProduc
 
     public async Task<List<ProductBranchStockSyncDto>> Handle(GetProductBranchStocksDeltaQuery request, CancellationToken cancellationToken)
     {
-        var since = request.SinceUtc;
+        var since = request.SinceUtc == DateTime.MinValue 
+            ? DateTime.MinValue 
+            : request.SinceUtc.AddMinutes(-10);
 
         return await _context.ProductBranchStocks
             .IgnoreQueryFilters() // In case soft-deleted or inactive items need to be sync'd too

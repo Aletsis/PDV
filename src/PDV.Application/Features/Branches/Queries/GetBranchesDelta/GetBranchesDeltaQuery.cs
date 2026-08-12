@@ -41,7 +41,9 @@ public class GetBranchesDeltaQueryHandler : IRequestHandler<GetBranchesDeltaQuer
 
     public async Task<List<BranchSyncDto>> Handle(GetBranchesDeltaQuery request, CancellationToken cancellationToken)
     {
-        var since = request.SinceUtc;
+        var since = request.SinceUtc == DateTime.MinValue 
+            ? DateTime.MinValue 
+            : request.SinceUtc.AddMinutes(-10);
 
         return await _context.Branches
             .IgnoreQueryFilters() // In case soft-deleted or inactive items need to be sync'd too

@@ -205,7 +205,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
 
         if (result > 0 && _syncNotifier != null && modifiedEntities.Any())
         {
-            var syncEntities = new HashSet<string> { "Product", "Client", "CashRegister", "ApplicationUser", "Printer", "FolioSequence", "TicketSequence", "Branch" };
+            var syncEntities = new HashSet<string> { "Product", "Client", "CashRegister", "ApplicationUser", "Printer", "FolioSequence", "TicketSequence", "Branch", "ProductBranchStock" };
             foreach (var entityName in modifiedEntities)
             {
                 var cleanName = entityName.Split('_').First();
@@ -254,7 +254,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
 
         if (result > 0 && _syncNotifier != null && modifiedEntities.Any())
         {
-            var syncEntities = new HashSet<string> { "Product", "Client", "CashRegister", "ApplicationUser", "Printer", "FolioSequence", "TicketSequence", "Branch" };
+            var syncEntities = new HashSet<string> { "Product", "Client", "CashRegister", "ApplicationUser", "Printer", "FolioSequence", "TicketSequence", "Branch", "ProductBranchStock" };
             foreach (var entityName in modifiedEntities)
             {
                 var cleanName = entityName.Split('_').First();
