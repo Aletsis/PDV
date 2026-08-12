@@ -17,17 +17,20 @@ namespace PDV.Infrastructure.Common;
 public class ComercialApiSyncService : IComercialApiSyncService
 {
     private readonly ISystemConfigurationRepository _systemConfigRepository;
+    private readonly ICurrentUserService? _currentUserService;
     private readonly ILogger<ComercialApiSyncService> _logger;
 
     public ComercialApiSyncService(
         ISystemConfigurationRepository systemConfigRepository,
-        ILogger<ComercialApiSyncService> logger)
+        ILogger<ComercialApiSyncService> logger,
+        ICurrentUserService? currentUserService = null)
     {
         _systemConfigRepository = systemConfigRepository;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
-    private async Task<HttpClient> CreateHttpClientAsync(CancellationToken cancellationToken)
+    protected virtual async Task<HttpClient> CreateHttpClientAsync(CancellationToken cancellationToken, string? usuario = null)
     {
         var config = await _systemConfigRepository.GetAsync(cancellationToken);
         if (config == null || string.IsNullOrWhiteSpace(config.ComercialApiUrl))
@@ -43,6 +46,13 @@ public class ComercialApiSyncService : IComercialApiSyncService
         if (!string.IsNullOrWhiteSpace(config.ComercialApiKey))
         {
             httpClient.DefaultRequestHeaders.Add("X-Api-Key", config.ComercialApiKey);
+        }
+
+        var userToSend = !string.IsNullOrWhiteSpace(usuario) ? usuario : _currentUserService?.UserName;
+        if (!string.IsNullOrWhiteSpace(userToSend))
+        {
+            httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Usuario", userToSend);
+            httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-User-Name", userToSend);
         }
 
         return httpClient;
@@ -394,7 +404,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         try
         {
-            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
             var endpoint = "api/Facturas/generar";
             var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
 
@@ -419,7 +429,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         try
         {
-            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
             var endpoint = "api/Facturas/global";
             var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
 
@@ -509,7 +519,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         try
         {
-            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
             var endpoint = "api/Compras";
             var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
 
@@ -533,7 +543,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         try
         {
-            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
             var endpoint = "api/EntradasAlmacen";
             var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
 
@@ -564,7 +574,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         try
         {
-            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
             var endpoint = "api/SalidasAlmacen";
             var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
 
@@ -588,14 +598,46 @@ public class ComercialApiSyncService : IComercialApiSyncService
     {
         try
         {
-            using var httpClient = await CreateHttpClientAsync(cancellationToken);
-            var endpoint = "api/Traspasos";
-            var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
+            var endpoint = "api/SalidasAlmacen";
+
+            var referencia = string.IsNullOrWhiteSpace(command.Referencia)
+                ? (!string.IsNullOrWhiteSpace(command.CodigoAlmacenDestino) ? $"TRAS -> {command.CodigoAlmacenDestino}" : "")
+                : command.Referencia;
+
+            if (referencia.Length > 30)
+            {
+                referencia = referencia.Substring(0, 30);
+            }
+
+            var observaciones = command.Observaciones ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(command.CodigoAlmacenDestino) &&
+                !observaciones.Contains(command.CodigoAlmacenDestino, StringComparison.OrdinalIgnoreCase))
+            {
+                var destNote = $"Destino: {command.CodigoAlmacenDestino}";
+                observaciones = string.IsNullOrWhiteSpace(observaciones) ? destNote : $"{destNote}. {observaciones}";
+            }
+
+            var payload = new SendSalidaDto
+            {
+                CodigoConcepto = command.CodigoConcepto,
+                Serie = command.Serie,
+                Referencia = referencia,
+                Observaciones = observaciones,
+                Partidas = command.Partidas.Select(p => new SalidaPartidaSyncDto
+                {
+                    CodigoProducto = p.CodigoProducto,
+                    CodigoAlmacen = command.CodigoAlmacenOrigen,
+                    Unidades = p.Unidades
+                }).ToList()
+            };
+
+            var response = await httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("Error al enviar Traspaso a Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                _logger.LogWarning("Error al enviar Traspaso a Comercial vía SalidasAlmacen. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
                 throw new InvalidOperationException($"Error al registrar traspaso en Comercial: {body}");
             }
 
@@ -603,7 +645,7 @@ public class ComercialApiSyncService : IComercialApiSyncService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al enviar Traspaso a Comercial.");
+            _logger.LogError(ex, "Error al enviar Traspaso a Comercial vía SalidasAlmacen.");
             throw;
         }
     }

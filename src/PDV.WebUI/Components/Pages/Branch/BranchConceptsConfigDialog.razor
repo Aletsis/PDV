@@ -172,7 +172,7 @@
                 <!-- PESTAÑA 3: TRASPASOS SALIENTES -->
                 <MudTabPanel Text="Traspasos" Icon="@Icons.Material.Filled.CompareArrows">
                     <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
-                        Configura el concepto de CONTPAQi Comercial para traspasos salientes desde esta sucursal hacia cada sucursal de destino.
+                        Configura el concepto de CONTPAQi Comercial para traspasos salientes desde esta sucursal hacia cada sucursal de destino y subtipo.
                     </MudText>
 
                     @if (!transferMappings.Any())
@@ -183,10 +183,34 @@
                     }
                     else
                     {
-                        <MudTable Items="@transferMappings" Dense="false" Hover="true" Bordered="false" Striped="true"
+                        <MudCard Outlined="true" Class="mb-3 pa-2" Style="background: rgba(255,255,255,0.02); border-radius: 8px;">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.FilterList" Color="Color.Primary" Size="Size.Small" />
+                                <MudSelect T="Guid?" 
+                                           Label="Filtrar por Sucursal Destino" 
+                                           @bind-Value="selectedDestinationBranchId"
+                                           Variant="Variant.Outlined" 
+                                           Margin="Margin.Dense" 
+                                           Dense="true" 
+                                           Clearable="true"
+                                           Style="min-width: 260px; max-width: 360px;">
+                                    <MudSelectItem Value="@((Guid?)null)">Todas las sucursales destino (@UniqueDestinationBranches.Count())</MudSelectItem>
+                                    @foreach (var b in UniqueDestinationBranches)
+                                    {
+                                        <MudSelectItem Value="@((Guid?)b.Id)">@b.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                <MudSpacer />
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    Mostrando <b>@FilteredTransferMappings.Count()</b> de <b>@transferMappings.Count</b> configuraciones
+                                </MudText>
+                            </MudStack>
+                        </MudCard>
+
+                        <MudTable Items="@FilteredTransferMappings" Dense="false" Hover="true" Bordered="false" Striped="true"
                                   Elevation="0" Style="border-radius: 12px; overflow: hidden;">
                             <HeaderContent>
-                                <MudTh Style="font-weight: 600; width: 35%;">Ruta de Traspaso (Destino)</MudTh>
+                                <MudTh Style="font-weight: 600; width: 35%;">Ruta de Traspaso (Destino y Subtipo)</MudTh>
                                 <MudTh Style="font-weight: 600; width: 40%;">Concepto CONTPAQi</MudTh>
                                 <MudTh Style="font-weight: 600; width: 25%;">Serie por Omisión</MudTh>
                             </HeaderContent>
@@ -392,8 +416,8 @@
             {
                 conceptsType4 = await ComercialApiSyncService.GetConceptosAsync(4, CancellationToken.None);
                 conceptsType5 = await ComercialApiSyncService.GetConceptosAsync(5, CancellationToken.None);
-                conceptsPurchases = await ComercialApiSyncService.GetConceptosAsync(17, CancellationToken.None);
-                conceptsTransfers = await ComercialApiSyncService.GetConceptosAsync(31, CancellationToken.None);
+                conceptsPurchases = await ComercialApiSyncService.GetConceptosAsync(19, CancellationToken.None);
+                conceptsTransfers = await ComercialApiSyncService.GetConceptosAsync(33, CancellationToken.None);
                 conceptsEntradas = await ComercialApiSyncService.GetConceptosAsync(32, CancellationToken.None);
                 conceptsSalidas = await ComercialApiSyncService.GetConceptosAsync(33, CancellationToken.None);
             }
@@ -581,4 +605,18 @@
         InventoryMovementSubtype.TransferSupplies => Color.Warning,
         _ => Color.Default
     };
+
+    private Guid? selectedDestinationBranchId = null;
+
+    private IEnumerable<(Guid Id, string Name)> UniqueDestinationBranches =>
+        transferMappings
+            .Where(m => m.DestinationBranchId.HasValue)
+            .GroupBy(m => m.DestinationBranchId!.Value)
+            .Select(g => (Id: g.Key, Name: g.First().DestinationBranchName ?? "Sucursal"))
+            .OrderBy(b => b.Name);
+
+    private IEnumerable<InventoryConceptMappingDto> FilteredTransferMappings =>
+        selectedDestinationBranchId.HasValue
+            ? transferMappings.Where(m => m.DestinationBranchId == selectedDestinationBranchId.Value)
+            : transferMappings;
 }

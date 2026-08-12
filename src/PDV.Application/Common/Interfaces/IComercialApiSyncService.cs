@@ -47,6 +47,7 @@ public class SendCompraDto
     public string Referencia { get; set; } = string.Empty;
     public string Observaciones { get; set; } = string.Empty;
     public string CodigoAlmacen { get; set; } = string.Empty;
+    public string? Usuario { get; set; }
     public List<CompraPartidaSyncDto> Partidas { get; set; } = new();
 }
 
@@ -63,6 +64,7 @@ public class SendEntradaDto
     public string Serie { get; set; } = string.Empty;
     public string Referencia { get; set; } = string.Empty;
     public string Observaciones { get; set; } = string.Empty;
+    public string? Usuario { get; set; }
     public List<EntradaPartidaSyncDto> Partidas { get; set; } = new();
 }
 
@@ -80,6 +82,7 @@ public class SendSalidaDto
     public string Serie { get; set; } = string.Empty;
     public string Referencia { get; set; } = string.Empty;
     public string Observaciones { get; set; } = string.Empty;
+    public string? Usuario { get; set; }
     public List<SalidaPartidaSyncDto> Partidas { get; set; } = new();
 }
 
@@ -99,6 +102,7 @@ public class SendTraspasoDto
     public string CodigoAlmacenDestino { get; set; } = string.Empty;
     public string Referencia { get; set; } = string.Empty;
     public string Observaciones { get; set; } = string.Empty;
+    public string? Usuario { get; set; }
     public List<TraspasoPartidaSyncDto> Partidas { get; set; } = new();
 }
 
@@ -123,6 +127,7 @@ public class CreateFacturaGlobalCommandDto
     public string CodigoProductoExento { get; set; } = string.Empty;
     public bool AutoTimbrar { get; set; } = true;
     public string CodigoAlmacen { get; set; } = "1";
+    public string? Usuario { get; set; }
     public List<ConceptoGlobalDto> Conceptos { get; set; } = new();
 }
 
@@ -156,6 +161,7 @@ public class GenerarFacturaComercialDto
     public string MetodoPago { get; set; } = "PUE";
     public string FormaPago { get; set; } = "01";
     public bool AutoTimbrar { get; set; } = true;
+    public string? Usuario { get; set; }
     public List<FacturaPartidaDto> Partidas { get; set; } = new();
 }
 

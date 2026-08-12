@@ -359,6 +359,7 @@ public class RegisterInventoryDocumentCommandHandler : IRequestHandler<RegisterI
                     Referencia = document.Reference ?? string.Empty,
                     Observaciones = document.Remarks ?? string.Empty,
                     CodigoAlmacen = sourceBranch.Code,
+                    Usuario = document.CreatedBy,
                     Partidas = document.Items.Select(i => new CompraPartidaSyncDto
                     {
                         CodigoProducto = products.TryGetValue(i.ProductId, out var prod) ? prod.Code : string.Empty,
@@ -378,6 +379,7 @@ public class RegisterInventoryDocumentCommandHandler : IRequestHandler<RegisterI
                     CodigoAlmacenDestino = destBranch?.Code ?? string.Empty,
                     Referencia = document.Reference ?? string.Empty,
                     Observaciones = document.Remarks ?? string.Empty,
+                    Usuario = document.CreatedBy,
                     Partidas = document.Items.Select(i => new TraspasoPartidaSyncDto
                     {
                         CodigoProducto = products.TryGetValue(i.ProductId, out var prod) ? prod.Code : string.Empty,
@@ -393,6 +395,7 @@ public class RegisterInventoryDocumentCommandHandler : IRequestHandler<RegisterI
                     Serie = document.Series,
                     Referencia = document.Reference ?? string.Empty,
                     Observaciones = document.Remarks ?? string.Empty,
+                    Usuario = document.CreatedBy,
                     Partidas = document.Items.Select(i => new SalidaPartidaSyncDto
                     {
                         CodigoProducto = products.TryGetValue(i.ProductId, out var prod) ? prod.Code : string.Empty,
@@ -410,6 +413,7 @@ public class RegisterInventoryDocumentCommandHandler : IRequestHandler<RegisterI
                     Serie = document.Series,
                     Referencia = document.Reference ?? string.Empty,
                     Observaciones = document.Remarks ?? string.Empty,
+                    Usuario = document.CreatedBy,
                     Partidas = document.Items.Select(i => new EntradaPartidaSyncDto
                     {
                         CodigoProducto = products.TryGetValue(i.ProductId, out var prod) ? prod.Code : string.Empty,
