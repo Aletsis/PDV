@@ -111,12 +111,20 @@
                         </CardHeaderContent>
                     </MudCardHeader>
                     <MudCardContent>
-                        <MudSelect T="string" @bind-Value="_selectedDeliveryManId" Label="Seleccionar Repartidor" Variant="Variant.Outlined" Required="true" Class="mb-4" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person">
-                            @foreach (var user in _deliveryMen)
-                            {
-                                <MudSelectItem Value="@user.Id">@user.FullName</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <MudAutocomplete T="UserSyncDataDto" 
+                                         Label="Seleccionar Repartidor"
+                                         SearchFunc="SearchDeliveryMen"
+                                         Value="_selectedDeliveryMan"
+                                         ValueChanged="OnDeliveryManChanged"
+                                         ToStringFunc="@(u => u == null ? "" : $"{u.FullName} (No. {u.EmployeeNumber ?? "N/A"})")"
+                                         Variant="Variant.Outlined"
+                                         Required="true"
+                                         Class="mb-4"
+                                         Adornment="Adornment.Start"
+                                         AdornmentIcon="@Icons.Material.Filled.Person"
+                                         ResetValueOnEmptyText="true"
+                                         CoerceText="true"
+                                         CoerceValue="true" />
 
                         <MudButton OnClick="CreateAndDispatchRoute" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.LocalShipping" FullWidth="true" Disabled="@(!CanCreateRoute)" Class="py-3">
                             Despachar Ruta
@@ -163,8 +171,10 @@
     private List<Order> _pendingOrders = new();
     private HashSet<Order> _selectedOrders = new();
     private List<UserSyncDataDto> _deliveryMen = new();
+    private List<UserSyncDataDto> _allUsers = new();
     private List<DeliveryRoute> _activeRoutes = new();
 
+    private UserSyncDataDto? _selectedDeliveryMan;
     private string _selectedDeliveryManId = string.Empty;
 
     private bool CanCreateRoute => !string.IsNullOrWhiteSpace(_selectedDeliveryManId) && _selectedOrders.Count > 0;
@@ -186,8 +196,13 @@
             BranchId = ShiftSession.BranchId
         });
 
-        // 2. Cargar repartidores / usuarios del sistema
-        _deliveryMen = await IdentityService.GetUsersAsync(default);
+        // 2. Cargar repartidores / usuarios del sistema y filtrar
+        _allUsers = await IdentityService.GetUsersAsync(default);
+        _deliveryMen = _allUsers
+            .Where(u => u.BranchId == ShiftSession.BranchId &&
+                        u.Roles.Any(r => r.Equals("DeliveryMan", StringComparison.OrdinalIgnoreCase) || 
+                                         r.Equals("repartidor", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
 
         // 3. Cargar rutas activas en estado "EnRoute"
         _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
@@ -197,6 +212,7 @@
         });
 
         _selectedOrders.Clear();
+        _selectedDeliveryMan = null;
         _selectedDeliveryManId = string.Empty;
         StateHasChanged();
     }
@@ -209,8 +225,27 @@
 
     private string GetDeliveryManName(string userId)
     {
-        var user = _deliveryMen.FirstOrDefault(u => u.Id == userId);
+        var user = _allUsers.FirstOrDefault(u => u.Id == userId);
         return user?.FullName ?? userId;
+    }
+
+    private Task<IEnumerable<UserSyncDataDto>> SearchDeliveryMen(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<UserSyncDataDto>>(_deliveryMen);
+
+        var search = value.Trim().ToLower();
+        return Task.FromResult<IEnumerable<UserSyncDataDto>>(
+            _deliveryMen.Where(u => 
+                u.FullName.ToLower().Contains(search) || 
+                (u.EmployeeNumber != null && u.EmployeeNumber.ToLower().Contains(search)))
+        );
+    }
+
+    private void OnDeliveryManChanged(UserSyncDataDto deliveryMan)
+    {
+        _selectedDeliveryMan = deliveryMan;
+        _selectedDeliveryManId = deliveryMan?.Id ?? string.Empty;
     }
 
     private async Task CreateAndDispatchRoute()

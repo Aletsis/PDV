@@ -63,6 +63,22 @@ public class CreateDeliveryRouteCommandHandler : IRequestHandler<CreateDeliveryR
                 throw new DomainException("Repartidor no encontrado en el sistema.");
             }
 
+            // Validar rol repartidor
+            var isDeliveryMan = deliveryMan.Roles.Any(r => 
+                r.Equals("DeliveryMan", StringComparison.OrdinalIgnoreCase) || 
+                r.Equals("repartidor", StringComparison.OrdinalIgnoreCase));
+                
+            if (!isDeliveryMan)
+            {
+                throw new DomainException("El usuario seleccionado no tiene el rol de repartidor.");
+            }
+
+            // Validar que pertenezca a la misma sucursal
+            if (!deliveryMan.BranchId.HasValue || deliveryMan.BranchId.Value != request.BranchId)
+            {
+                throw new DomainException("El repartidor debe pertenecer a la misma sucursal de la ruta.");
+            }
+
             int nextFolio = await _routeRepository.GetNextFolioAsync(request.BranchId, cancellationToken);
 
             var route = new DeliveryRoute(
