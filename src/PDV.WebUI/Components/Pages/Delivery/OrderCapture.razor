@@ -17,6 +17,7 @@
 @using PDV.Application.Features.Products.Queries.GetProductByCode
 @using PDV.Application.Common.Interfaces
 @using PDV.WebUI.Components.Pages.Product
+@using PDV.WebUI.Components.Pages.Auth
 @using Microsoft.EntityFrameworkCore
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
@@ -654,12 +655,17 @@
         await DialogService.ShowAsync<ProductBranchStockDialog>("Existencias por Sucursal", parameters, options);
     }
 
-    private void RemoveFromCart(CartItem item)
+    private async Task RemoveFromCart(CartItem item)
     {
-        _cart.Remove(item);
+        var auth = await RequestAuthorizationAsync($"Eliminar producto '{item.Product.Name}' del pedido", "orders.remove_item");
+        if (auth.Success)
+        {
+            _cart.Remove(item);
+            Snackbar.Add($"{item.Product.Name} eliminado del pedido", Severity.Warning);
+        }
     }
 
-    private void ClearOrder()
+    private void ResetOrderState()
     {
         _cart.Clear();
         _selectedClient = null;
@@ -670,6 +676,16 @@
         weightToAdd = 1.0m;
         _deliveryCost = 0m;
         _paymentMethod = "Cash";
+    }
+
+    private async Task ClearOrder()
+    {
+        var auth = await RequestAuthorizationAsync("Limpiar pedido completo", "orders.clear_order");
+        if (auth.Success)
+        {
+            ResetOrderState();
+            Snackbar.Add("Pedido limpiado", Severity.Info);
+        }
     }
 
     private async Task SubmitOrder()
@@ -702,12 +718,34 @@
             // Imprimir el ticket de forma asíncrona
             await Mediator.Send(new PrintOrderTicketCommand(orderId, ShiftSession.ActiveCashRegisterId ?? Guid.Empty));
 
-            ClearOrder();
+            ResetOrderState();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error al registrar pedido: {ex.Message}", Severity.Error);
         }
+    }
+
+    private async Task<AuthorizationDialog.AuthorizationResult> RequestAuthorizationAsync(string actionName, string requiredPermissionCode)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true && (user.IsInRole("Admin") || user.IsInRole("Manager")))
+        {
+            return new AuthorizationDialog.AuthorizationResult(true, null, null);
+        }
+
+        var parameters = new DialogParameters { ["ActionName"] = actionName };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
+        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result != null && !result.Canceled && result.Data is AuthorizationDialog.AuthorizationResult authResult && authResult.Success)
+        {
+            return authResult;
+        }
+
+        return new AuthorizationDialog.AuthorizationResult(false, null, null);
     }
 
     private decimal GetTaxRatePercent(string taxRate)
