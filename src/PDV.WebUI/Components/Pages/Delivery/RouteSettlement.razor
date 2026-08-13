@@ -172,10 +172,12 @@
 
     private async Task RefreshDataAsync()
     {
+        var branchId = ShiftSession.BranchId ?? Guid.Empty;
+
         _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
         { 
             Status = DeliveryRouteStatus.EnRoute,
-            BranchId = ShiftSession.BranchId
+            BranchId = branchId
         });
 
         _users = await IdentityService.GetUsersAsync(default);

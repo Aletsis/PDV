@@ -100,6 +100,11 @@ public class CreateDeliveryRouteCommandHandler : IRequestHandler<CreateDeliveryR
                     throw new DomainException($"Pedido con ID {orderId} no encontrado.");
                 }
 
+                if (order.BranchId != request.BranchId)
+                {
+                    throw new DomainException($"El pedido con ID {orderId} (Folio {order.Series}-{order.Folio}) no pertenece a esta sucursal.");
+                }
+
                 route.AddOrder(order);
                 await _orderRepository.UpdateAsync(order, cancellationToken);
             }

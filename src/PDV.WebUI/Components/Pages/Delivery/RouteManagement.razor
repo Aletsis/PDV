@@ -51,7 +51,17 @@
                         }
                         else
                         {
-                            <MudTable T="Order" Items="@_pendingOrders" MultiSelection="true" @bind-SelectedItems="_selectedOrders" Hover="true" Dense="true" Elevation="0">
+                            <MudTextField @bind-Value="_searchString"
+                                          Placeholder="Buscar por folio o nombre de cliente..."
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Search"
+                                          IconSize="Size.Medium"
+                                          Class="mb-4"
+                                          Clearable="true"
+                                          Immediate="true"
+                                          Variant="Variant.Outlined" />
+
+                            <MudTable T="Order" Items="@_pendingOrders" MultiSelection="true" @bind-SelectedItems="_selectedOrders" Hover="true" Dense="true" Elevation="0" Filter="new Func<Order,bool>(FilterFunc1)">
                                 <HeaderContent>
                                     <MudTh>Folio</MudTh>
                                     <MudTh>Fecha/Hora</MudTh>
@@ -173,6 +183,7 @@
     private List<UserSyncDataDto> _deliveryMen = new();
     private List<UserSyncDataDto> _allUsers = new();
     private List<DeliveryRoute> _activeRoutes = new();
+    private string _searchString = string.Empty;
 
     private UserSyncDataDto? _selectedDeliveryMan;
     private string _selectedDeliveryManId = string.Empty;
@@ -189,32 +200,56 @@
 
     private async Task RefreshDataAsync()
     {
-        // 1. Cargar pedidos en estado "Confirmed" (Listos para reparto)
+        var branchId = ShiftSession.BranchId ?? Guid.Empty;
+
+        // 1. Cargar pedidos en estado "Confirmed" (Listos para reparto) del branch del usuario
         _pendingOrders = await Mediator.Send(new GetOrdersQuery 
         { 
             Status = OrderStatus.Confirmed,
-            BranchId = ShiftSession.BranchId
+            BranchId = branchId
         });
 
-        // 2. Cargar repartidores / usuarios del sistema y filtrar
+        // 2. Cargar repartidores / usuarios del sistema y filtrar por branch del usuario
         _allUsers = await IdentityService.GetUsersAsync(default);
         _deliveryMen = _allUsers
-            .Where(u => u.BranchId == ShiftSession.BranchId &&
+            .Where(u => u.BranchId == branchId &&
                         u.Roles.Any(r => r.Equals("DeliveryMan", StringComparison.OrdinalIgnoreCase) || 
                                          r.Equals("repartidor", StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        // 3. Cargar rutas activas en estado "EnRoute"
+        // 3. Cargar rutas activas en estado "EnRoute" del branch del usuario
         _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
         { 
             Status = DeliveryRouteStatus.EnRoute,
-            BranchId = ShiftSession.BranchId
+            BranchId = branchId
         });
 
         _selectedOrders.Clear();
         _selectedDeliveryMan = null;
         _selectedDeliveryManId = string.Empty;
+        _searchString = string.Empty;
         StateHasChanged();
+    }
+
+    private bool FilterFunc1(Order order) => FilterFunc(order, _searchString);
+
+    private bool FilterFunc(Order order, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+
+        var search = searchString.Trim().ToLower();
+
+        var folioComplete = $"{order.Series}-{order.Folio}".ToLower();
+        var folioNum = order.Folio.ToString();
+        if (folioComplete.Contains(search) || folioNum.Contains(search))
+            return true;
+
+        var clientName = (order.Client?.Name ?? "Público General").ToLower();
+        if (clientName.Contains(search))
+            return true;
+
+        return false;
     }
 
     private bool IsOrderDelayed(Order order)
