@@ -33,7 +33,7 @@ builder.Services.AddSingleton<IPrinterProfileFactory, PrinterProfileFactory>();
 builder.Services.AddSingleton<IPrinterManager, PrinterManager>();
 
 // Register Legacy Printer & Peripherals Services
-builder.Services.AddSingleton<IEscPosPrinter, MultiChannelEscPosPrinter>();
+builder.Services.AddSingleton<IEscPosPrinter>(sp => new MultiChannelEscPosPrinter(null));
 builder.Services.AddSingleton<IScaleService, PDV.HardwareAgent.Services.ScaleService>();
 builder.Services.AddSingleton<IPaymentTerminalService, PDV.HardwareAgent.Services.PaymentTerminalService>();
 

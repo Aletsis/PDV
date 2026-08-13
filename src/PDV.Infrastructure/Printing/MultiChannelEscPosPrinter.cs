@@ -14,10 +14,10 @@ namespace PDV.Infrastructure.Printing;
 
 public class MultiChannelEscPosPrinter : IEscPosPrinter
 {
-    private readonly AppDbContext _context;
+    private readonly AppDbContext? _context;
     private readonly Encoding _defaultEncoding = Encoding.GetEncoding(1252);
 
-    public MultiChannelEscPosPrinter(AppDbContext context)
+    public MultiChannelEscPosPrinter(AppDbContext? context = null)
     {
         _context = context;
     }
@@ -108,8 +108,12 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         buffer.AddRange(new byte[] { 0x1B, 0x40 });
 
         // 3. Contenido parseado mediante el compilador de comandos ESC/POS
-        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        int width = config?.TicketWidth ?? 48;
+        int width = 48;
+        if (_context != null)
+        {
+            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+            width = config?.TicketWidth ?? 48;
+        }
         var encoding = ChooseEncoding(text, encodingCodePage);
         var textBytes = EscPosParser.Parse(text, width, encoding);
 
@@ -140,8 +144,12 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         var sb = new List<byte>();
         sb.AddRange(new byte[] { 0x1B, 0x40 }); // Init
 
-        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        int width = config?.TicketWidth ?? 48;
+        int width = 48;
+        if (_context != null)
+        {
+            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+            width = config?.TicketWidth ?? 48;
+        }
         var encoding = ChooseEncoding(text, encodingCodePage);
         var textBytes = EscPosParser.Parse(text, width, encoding);
 
