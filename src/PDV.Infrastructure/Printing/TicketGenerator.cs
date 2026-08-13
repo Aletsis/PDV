@@ -26,7 +26,7 @@ public class TicketGenerator : ITicketGenerator
         _identityService = identityService;
     }
 
-    public async Task<string> GenerateSaleTicketAsync(Guid saleId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateSaleTicketAsync(Guid saleId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var sale = await _context.Sales
             .Include(s => s.Items)
@@ -38,7 +38,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Venta {saleId} no encontrada");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         var user = !string.IsNullOrEmpty(sale.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == sale.UserId, cancellationToken)
@@ -83,7 +83,7 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
-    public async Task<string> GenerateInvoiceTicketAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateInvoiceTicketAsync(Guid invoiceId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var invoice = await _context.Invoices
             .Include(i => i.Branch)
@@ -99,7 +99,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Factura {invoiceId} no encontrada");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         var variables = new Dictionary<string, string>
         {
@@ -162,7 +162,7 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
-    public async Task<string> GenerateReturnTicketAsync(Guid returnId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateReturnTicketAsync(Guid returnId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var returnSale = await _context.Returns
             .Include(r => r.Items)
@@ -175,7 +175,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Devolución {returnId} no encontrada");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         var user = !string.IsNullOrEmpty(returnSale.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == returnSale.UserId, cancellationToken)
@@ -224,7 +224,7 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
-    public async Task<string> GenerateCashCollectionTicketAsync(Guid collectionId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateCashCollectionTicketAsync(Guid collectionId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var collection = await _context.CashCollections
             .Include(c => c.CashRegister)
@@ -234,7 +234,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Movimiento de caja {collectionId} no encontrado");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         var user = !string.IsNullOrEmpty(collection.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == collection.UserId, cancellationToken)
@@ -275,7 +275,7 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
-    public async Task<string> GenerateCashCutTicketAsync(Guid cutId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateCashCutTicketAsync(Guid cutId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var cut = await _context.CashCuts
             .Include(c => c.CashRegister)
@@ -286,7 +286,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Corte de caja {cutId} no encontrado");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         var user = !string.IsNullOrEmpty(cut.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == cut.UserId, cancellationToken)
@@ -342,7 +342,7 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
-    public async Task<string> GenerateOrderTicketAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateOrderTicketAsync(Guid orderId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var order = await _context.Orders
             .Include(o => o.Items)
@@ -354,7 +354,7 @@ public class TicketGenerator : ITicketGenerator
             : null;
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         decimal deliveryCost = client?.DeliveryZone?.DeliveryCost ?? 0m;
 
@@ -396,7 +396,7 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
-    public async Task<string> GenerateRouteManifestTicketAsync(Guid routeId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateRouteManifestTicketAsync(Guid routeId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var route = await _context.DeliveryRoutes
             .Include(r => r.Orders)
@@ -406,7 +406,7 @@ public class TicketGenerator : ITicketGenerator
         var deliveryMan = await _identityService.GetUserByIdAsync(route.DeliveryManId, cancellationToken);
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 48;
 
         decimal totalCash = 0;
         decimal totalCard = 0;

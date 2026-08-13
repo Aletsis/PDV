@@ -34,7 +34,9 @@ public class PrintOrderTicketCommandHandler : IRequestHandler<PrintOrderTicketCo
         var printer = await _context.Printers.FindAsync(new object[] { cashRegister.AssignedPrinterId.Value }, cancellationToken);
         if (printer == null) return;
 
-        string ticketText = await _ticketGenerator.GenerateOrderTicketAsync(request.OrderId, cancellationToken);
+        int widthChars = printer.MaxWidth / 12;
+        if (widthChars <= 0) widthChars = 48;
+        string ticketText = await _ticketGenerator.GenerateOrderTicketAsync(request.OrderId, cancellationToken, widthCharacters: widthChars);
 
         string connectionUri = printer.ConnectionType switch
         {

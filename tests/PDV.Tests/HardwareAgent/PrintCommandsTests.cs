@@ -61,7 +61,7 @@ public class PrintCommandsTests
         var mockTicketGenerator = new Mock<ITicketGenerator>();
         var mockPrinter = new Mock<IEscPosPrinter>();
 
-        mockTicketGenerator.Setup(t => t.GenerateInvoiceTicketAsync(invoice.Id, It.IsAny<CancellationToken>()))
+        mockTicketGenerator.Setup(t => t.GenerateInvoiceTicketAsync(invoice.Id, It.IsAny<CancellationToken>(), It.IsAny<int?>()))
             .ReturnsAsync("=== FACTURA FISCAL ===");
 
         var handler = new PrintInvoiceTicketCommandHandler(
@@ -115,7 +115,7 @@ public class PrintCommandsTests
         var mockTicketGenerator = new Mock<ITicketGenerator>();
         var mockPrinter = new Mock<IEscPosPrinter>();
 
-        mockTicketGenerator.Setup(t => t.GenerateReturnTicketAsync(returnEntity.Id, It.IsAny<CancellationToken>()))
+        mockTicketGenerator.Setup(t => t.GenerateReturnTicketAsync(returnEntity.Id, It.IsAny<CancellationToken>(), It.IsAny<int?>()))
             .ReturnsAsync("=== TICKET DEVOLUCION ===");
 
         var handler = new PrintReturnTicketCommandHandler(

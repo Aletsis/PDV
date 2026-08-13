@@ -52,7 +52,9 @@ public class PrintSaleTicketCommandHandler : IRequestHandler<PrintSaleTicketComm
             _ => printer.IpAddress ?? string.Empty
         };
 
-        var ticketContent = await _ticketGenerator.GenerateSaleTicketAsync(request.SaleId, cancellationToken);
+        int widthChars = printer.MaxWidth / 12;
+        if (widthChars <= 0) widthChars = 48;
+        var ticketContent = await _ticketGenerator.GenerateSaleTicketAsync(request.SaleId, cancellationToken, widthCharacters: widthChars);
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;
         bool isCashPayment = sale.PaymentMethod == PaymentMethodType.Cash;

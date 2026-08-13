@@ -48,7 +48,9 @@ public class PrintReturnTicketCommandHandler : IRequestHandler<PrintReturnTicket
             _ => printer.IpAddress ?? string.Empty
         };
 
-        var ticketContent = await _ticketGenerator.GenerateReturnTicketAsync(request.ReturnId, cancellationToken);
+        int widthChars = printer.MaxWidth / 12;
+        if (widthChars <= 0) widthChars = 48;
+        var ticketContent = await _ticketGenerator.GenerateReturnTicketAsync(request.ReturnId, cancellationToken, widthCharacters: widthChars);
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;
 

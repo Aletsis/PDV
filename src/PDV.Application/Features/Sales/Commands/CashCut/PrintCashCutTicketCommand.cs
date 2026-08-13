@@ -48,7 +48,9 @@ public class PrintCashCutTicketCommandHandler : IRequestHandler<PrintCashCutTick
             _ => printer.IpAddress ?? string.Empty
         };
 
-        var ticketContent = await _ticketGenerator.GenerateCashCutTicketAsync(request.CutId, cancellationToken);
+        int widthChars = printer.MaxWidth / 12;
+        if (widthChars <= 0) widthChars = 48;
+        var ticketContent = await _ticketGenerator.GenerateCashCutTicketAsync(request.CutId, cancellationToken, widthCharacters: widthChars);
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;
 
