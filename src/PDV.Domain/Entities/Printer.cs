@@ -29,7 +29,7 @@ public class Printer : BaseEntity, IAggregateRoot
     // ──────────────────────────────────────────────
     /// <summary>Página de código para la codificación de caracteres. Ej: 1252 (Windows Latin-1).</summary>
     public int CodePage { get; private set; }
-    /// <summary>Ancho máximo de impresión en dots. 384 = papel 80mm, 576 = papel 80mm alta resolución.</summary>
+    /// <summary>Ancho máximo de impresión en dots. 384 = papel 58mm, 512 = papel 80mm (180 DPI), 576 = papel 80mm (203 DPI).</summary>
     public int MaxWidth { get; private set; }
 
     public Guid? BranchId { get; private set; }
