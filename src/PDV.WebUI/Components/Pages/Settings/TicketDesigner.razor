@@ -96,12 +96,12 @@ else
     <MudItem xs="12" md="5" Class="d-flex justify-center">
         <div class="d-flex flex-column align-center w-100">
             <MudToggleGroup T="int" Value="@_simulatedWidth" ValueChanged="OnSimulatedWidthChanged" Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3">
-                <MudToggleItem Value="@(48)" Text="80mm (Estándar)" />
+                <MudToggleItem Value="@(42)" Text="80mm (Estándar)" />
                 <MudToggleItem Value="@(32)" Text="58mm (Estrecho)" />
             </MudToggleGroup>
 
             <!-- Contenedor del Ticket Físico Simulado -->
-            <div class="ticket-simulator-container" style="width: @(_simulatedWidth == 48 ? "380px" : "280px"); transition: width 0.3s ease;">
+            <div class="ticket-simulator-container" style="width: @(_simulatedWidth == 42 ? "380px" : "280px"); transition: width 0.3s ease;">
                 <div class="ticket-paper">
                     @if (_templateJson.Blocks.Count == 0)
                     {
@@ -143,7 +143,7 @@ else
 
                                         case "separator":
                                             <div class="text-center text-monospace py-1" style="letter-spacing: 2px;">
-                                                @(new string(string.IsNullOrEmpty(block.SeparatorChar) ? '-' : block.SeparatorChar[0], _simulatedWidth == 48 ? 32 : 22))
+                                                @(new string(string.IsNullOrEmpty(block.SeparatorChar) ? '-' : block.SeparatorChar[0], _simulatedWidth == 42 ? 32 : 22))
                                             </div>
                                             break;
 
@@ -428,7 +428,7 @@ else
     private TicketTemplate? _templateEntity;
     
     private int _selectedBlockIndex = -1;
-    private int _simulatedWidth = 48; // 80mm
+    private int _simulatedWidth = 42; // 80mm
 
     private List<Printer> _printers = new();
     private Guid? _selectedPrinterId;

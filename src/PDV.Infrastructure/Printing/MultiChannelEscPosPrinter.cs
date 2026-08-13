@@ -108,11 +108,11 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         buffer.AddRange(new byte[] { 0x1B, 0x40 });
 
         // 3. Contenido parseado mediante el compilador de comandos ESC/POS
-        int width = 48;
+        int width = 42;
         if (_context != null)
         {
             var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-            width = config?.TicketWidth ?? 48;
+            width = config?.TicketWidth ?? 42;
         }
         var encoding = ChooseEncoding(text, encodingCodePage);
         var textBytes = EscPosParser.Parse(text, width, encoding);
@@ -144,11 +144,11 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         var sb = new List<byte>();
         sb.AddRange(new byte[] { 0x1B, 0x40 }); // Init
 
-        int width = 48;
+        int width = 42;
         if (_context != null)
         {
             var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-            width = config?.TicketWidth ?? 48;
+            width = config?.TicketWidth ?? 42;
         }
         var encoding = ChooseEncoding(text, encodingCodePage);
         var textBytes = EscPosParser.Parse(text, width, encoding);

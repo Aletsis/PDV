@@ -11,7 +11,7 @@ public class SystemConfigurationDto
     public string Currency { get; set; } = "MXN";
     
     // Ticket
-    public int TicketWidth { get; set; } = 48; 
+    public int TicketWidth { get; set; } = 42; 
     public bool PrintLogoOnTicket { get; set; } = true;
     public bool AutoPrintTicket { get; set; } = true;
     public string? TicketHeader { get; set; }

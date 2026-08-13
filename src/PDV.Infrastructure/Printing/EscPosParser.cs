@@ -158,7 +158,7 @@ public static class EscPosParser
 
     private static byte[] ConvertLogoToRaster(byte[] imagePngBytes, int widthCharacters)
     {
-        int maxWidth = widthCharacters >= 48 ? 384 : 256;
+        int maxWidth = widthCharacters >= 42 ? 384 : 256;
         using var ms = new MemoryStream(imagePngBytes);
         using var bmp = new Bitmap(ms);
 

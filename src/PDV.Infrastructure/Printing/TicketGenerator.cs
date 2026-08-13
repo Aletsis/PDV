@@ -38,7 +38,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Venta {saleId} no encontrada");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         var user = !string.IsNullOrEmpty(sale.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == sale.UserId, cancellationToken)
@@ -99,7 +99,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Factura {invoiceId} no encontrada");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         var variables = new Dictionary<string, string>
         {
@@ -175,7 +175,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Devolución {returnId} no encontrada");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         var user = !string.IsNullOrEmpty(returnSale.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == returnSale.UserId, cancellationToken)
@@ -234,7 +234,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Movimiento de caja {collectionId} no encontrado");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         var user = !string.IsNullOrEmpty(collection.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == collection.UserId, cancellationToken)
@@ -286,7 +286,7 @@ public class TicketGenerator : ITicketGenerator
             ?? throw new KeyNotFoundException($"Corte de caja {cutId} no encontrado");
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         var user = !string.IsNullOrEmpty(cut.UserId)
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == cut.UserId, cancellationToken)
@@ -354,7 +354,7 @@ public class TicketGenerator : ITicketGenerator
             : null;
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         decimal deliveryCost = client?.DeliveryZone?.DeliveryCost ?? 0m;
 
@@ -406,7 +406,7 @@ public class TicketGenerator : ITicketGenerator
         var deliveryMan = await _identityService.GetUserByIdAsync(route.DeliveryManId, cancellationToken);
 
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-        var width = widthCharacters ?? config?.TicketWidth ?? 48;
+        var width = widthCharacters ?? config?.TicketWidth ?? 42;
 
         decimal totalCash = 0;
         decimal totalCard = 0;

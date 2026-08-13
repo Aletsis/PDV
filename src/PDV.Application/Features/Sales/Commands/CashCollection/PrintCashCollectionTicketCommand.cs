@@ -49,7 +49,7 @@ public class PrintCashCollectionTicketCommandHandler : IRequestHandler<PrintCash
         };
 
         int widthChars = printer.MaxWidth / 12;
-        if (widthChars <= 0) widthChars = 48;
+        if (widthChars <= 0) widthChars = 42;
         var ticketContent = await _ticketGenerator.GenerateCashCollectionTicketAsync(request.CollectionId, cancellationToken, widthCharacters: widthChars);
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;

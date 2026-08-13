@@ -53,7 +53,7 @@ public class PrintSaleTicketCommandHandler : IRequestHandler<PrintSaleTicketComm
         };
 
         int widthChars = printer.MaxWidth / 12;
-        if (widthChars <= 0) widthChars = 48;
+        if (widthChars <= 0) widthChars = 42;
         var ticketContent = await _ticketGenerator.GenerateSaleTicketAsync(request.SaleId, cancellationToken, widthCharacters: widthChars);
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         int copies = config?.TicketCopies > 0 ? config.TicketCopies : 1;

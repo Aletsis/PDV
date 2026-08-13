@@ -34,7 +34,7 @@ public class PrintRouteManifestCommandHandler : IRequestHandler<PrintRouteManife
         if (printer == null) return;
 
         int widthChars = printer.MaxWidth / 12;
-        if (widthChars <= 0) widthChars = 48;
+        if (widthChars <= 0) widthChars = 42;
         string ticketText = await _ticketGenerator.GenerateRouteManifestTicketAsync(request.RouteId, cancellationToken, widthCharacters: widthChars);
 
         string connectionUri = printer.ConnectionType switch

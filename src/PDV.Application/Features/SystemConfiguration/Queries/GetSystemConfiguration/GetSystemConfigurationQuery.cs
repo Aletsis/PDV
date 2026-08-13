@@ -39,7 +39,7 @@ public class GetSystemConfigurationQueryHandler : IRequestHandler<GetSystemConfi
             return new SystemConfigurationDto
             {
                  CompanyName = "Mi Empresa",
-                 TicketWidth = 48,
+                 TicketWidth = 42,
                  PrintLogoOnTicket = true,
                  AutoPrintTicket = true,
                  LogoImage = ticketLogo?.Data,

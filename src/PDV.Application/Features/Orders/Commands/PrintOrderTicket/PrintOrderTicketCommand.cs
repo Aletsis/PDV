@@ -35,7 +35,7 @@ public class PrintOrderTicketCommandHandler : IRequestHandler<PrintOrderTicketCo
         if (printer == null) return;
 
         int widthChars = printer.MaxWidth / 12;
-        if (widthChars <= 0) widthChars = 48;
+        if (widthChars <= 0) widthChars = 42;
         string ticketText = await _ticketGenerator.GenerateOrderTicketAsync(request.OrderId, cancellationToken, widthCharacters: widthChars);
 
         string connectionUri = printer.ConnectionType switch

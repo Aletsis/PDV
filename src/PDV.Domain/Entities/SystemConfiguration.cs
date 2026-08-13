@@ -49,7 +49,7 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
     // ──────────────────────────────────────────────
     // Configuración de Tickets
     // ──────────────────────────────────────────────
-    /// <summary>Ancho del ticket en caracteres (32–80). 48 = papel 80mm estándar.</summary>
+    /// <summary>Ancho del ticket en caracteres (32–80). 42 = papel 80mm estándar (180 DPI).</summary>
     public int TicketWidth { get; private set; }
     public bool PrintLogoOnTicket { get; private set; }
     public bool AutoPrintTicket { get; private set; }
@@ -122,7 +122,7 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         Email = email?.Trim();
 
         // Defaults para tickets
-        TicketWidth = 48;
+        TicketWidth = 42;
         PrintLogoOnTicket = true;
         AutoPrintTicket = true;
         TicketCopies = 1;
