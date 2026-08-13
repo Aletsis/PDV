@@ -7,4 +7,6 @@ public interface ITicketGenerator
     Task<string> GenerateReturnTicketAsync(Guid returnId, CancellationToken cancellationToken = default);
     Task<string> GenerateCashCollectionTicketAsync(Guid collectionId, CancellationToken cancellationToken = default);
     Task<string> GenerateCashCutTicketAsync(Guid cutId, CancellationToken cancellationToken = default);
+    Task<string> GenerateOrderTicketAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<string> GenerateRouteManifestTicketAsync(Guid routeId, CancellationToken cancellationToken = default);
 }

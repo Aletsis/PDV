@@ -18,10 +18,12 @@ namespace PDV.Infrastructure.Printing;
 public class TicketGenerator : ITicketGenerator
 {
     private readonly AppDbContext _context;
+    private readonly IIdentityService _identityService;
 
-    public TicketGenerator(AppDbContext context)
+    public TicketGenerator(AppDbContext context, IIdentityService identityService)
     {
         _context = context;
+        _identityService = identityService;
     }
 
     public async Task<string> GenerateSaleTicketAsync(Guid saleId, CancellationToken cancellationToken = default)
@@ -52,7 +54,7 @@ public class TicketGenerator : ITicketGenerator
             { "{Folio}", sale.SaleNumber.ToString() },
             { "{Date}", sale.Date.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
             { "{CashRegisterName}", sale.CashRegister?.Name ?? string.Empty },
-            { "{UserFullName}", user?.FullName ?? sale.UserId },
+            { "{UserFullName}", user?.FullName ?? sale.UserId ?? string.Empty },
             { "{ClientName}", sale.Client?.Name ?? "Público General" },
             { "{Subtotal}", sale.Subtotal.ToString("C2") },
             { "{Tax}", sale.Taxes.Sum(t => t.TaxAmount).ToString("C2") },
@@ -76,7 +78,6 @@ public class TicketGenerator : ITicketGenerator
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
         var sb = new StringBuilder(ticketText);
 
-        // Agregar comando de corte
         sb.Append("\x1B\x69");
         return sb.ToString();
     }
@@ -336,6 +337,122 @@ public class TicketGenerator : ITicketGenerator
         return sb.ToString();
     }
 
+    public async Task<string> GenerateOrderTicketAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var order = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Pedido {orderId} no encontrado");
+
+        var client = order.ClientId.HasValue
+            ? await _context.Clients.Include(c => c.DeliveryZone).FirstOrDefaultAsync(c => c.Id == order.ClientId.Value, cancellationToken)
+            : null;
+
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        var width = config?.TicketWidth ?? 48;
+
+        decimal deliveryCost = client?.DeliveryZone?.DeliveryCost ?? 0m;
+
+        var variables = new Dictionary<string, string>
+        {
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{Folio}", $"{order.Series}-{order.Folio}" },
+            { "{Date}", order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{ClientName}", client?.Name ?? "Público General" },
+            { "{ClientPhone}", client?.Phone ?? string.Empty },
+            { "{ClientAddress}", client?.Address?.Street ?? "Sin dirección" },
+            { "{DeliveryZoneName}", client?.DeliveryZone?.Name ?? "N/A" },
+            { "{DeliveryCost}", deliveryCost.ToString("C2") },
+            { "{PaymentMethod}", order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta" },
+            { "{Subtotal}", order.Subtotal.ToString("C2") },
+            { "{Tax}", order.TotalTax.ToString("C2") },
+            { "{Total}", (order.TotalAmount + deliveryCost).ToString("C2") }
+        };
+
+        var tableItems = order.Items.Select(item => new TicketTableItem
+        {
+            Name = item.ProductName,
+            Quantity = item.Quantity.ToString("0.##"),
+            Price = item.UnitPrice.ToString("C2"),
+            Total = item.TotalAmount.ToString("C2")
+        }).ToList();
+
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.Order && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.Order);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
+
+        var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        var sb = new StringBuilder(ticketText);
+
+        sb.Append("\x1B\x69");
+        return sb.ToString();
+    }
+
+    public async Task<string> GenerateRouteManifestTicketAsync(Guid routeId, CancellationToken cancellationToken = default)
+    {
+        var route = await _context.DeliveryRoutes
+            .Include(r => r.Orders)
+            .FirstOrDefaultAsync(r => r.Id == routeId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Ruta {routeId} no encontrada");
+
+        var deliveryMan = await _identityService.GetUserByIdAsync(route.DeliveryManId, cancellationToken);
+
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        var width = config?.TicketWidth ?? 48;
+
+        decimal totalCash = 0;
+        decimal totalCard = 0;
+        var ordersSb = new StringBuilder();
+        int orderCount = 0;
+
+        foreach (var order in route.Orders)
+        {
+            orderCount++;
+            var client = order.ClientId.HasValue
+                ? await _context.Clients.FindAsync(new object[] { order.ClientId.Value }, cancellationToken)
+                : null;
+
+            ordersSb.AppendLine($"#{orderCount} Pedido: {order.Series}-{order.Folio}");
+            ordersSb.AppendLine($"Cliente: {client?.Name ?? "Público General"}");
+            ordersSb.AppendLine($"Direcc:  {client?.Address?.Street ?? "Sin dirección"}");
+            
+            string payMethodStr = order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta";
+            ordersSb.AppendLine($"Cobro:   {order.TotalAmount:C2} ({payMethodStr})");
+            ordersSb.AppendLine(new string('-', width));
+
+            if (order.PaymentMethod == PaymentMethodType.Cash)
+                totalCash += order.TotalAmount;
+            else
+                totalCard += order.TotalAmount;
+        }
+
+        var variables = new Dictionary<string, string>
+        {
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{Folio}", route.Folio.ToString() },
+            { "{Date}", route.CreatedDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{DeliveryManName}", deliveryMan?.FullName ?? route.DeliveryManId },
+            { "{OrdersList}", ordersSb.ToString() },
+            { "{ExpectedCash}", totalCash.ToString("C2") },
+            { "{ExpectedCard}", totalCard.ToString("C2") },
+            { "{Total}", (totalCash + totalCard).ToString("C2") }
+        };
+
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.RouteManifest && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.RouteManifest);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
+
+        var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        var sb = new StringBuilder(ticketText);
+
+        sb.Append("\x1B\x69");
+        return sb.ToString();
+    }
+
     private string GetDefaultTemplateJson(TicketTemplateType type)
     {
         switch (type)
@@ -359,10 +476,10 @@ public class TicketGenerator : ITicketGenerator
                         { ""Type"": ""KeyValue"", ""Key"": ""Cliente:"", ""ValuePlaceholder"": ""{ClientName}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""ItemsTable"", ""Columns"": [
-                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 45 },
-                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 12 },
-                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 21 },
-                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 22 }
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
                         { ""Type"": ""Totals"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
@@ -393,10 +510,10 @@ public class TicketGenerator : ITicketGenerator
                         { ""Type"": ""KeyValue"", ""Key"": ""Nota de Origen:"", ""ValuePlaceholder"": ""{SaleNumber}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""ItemsTable"", ""Columns"": [
-                            { ""Field"": ""Name"", ""Title"": ""Concepto"", ""WidthPercentage"": 45 },
-                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 12 },
-                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 21 },
-                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 22 }
+                            { ""Field"": ""Name"", ""Title"": ""Concepto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
                         { ""Type"": ""Totals"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
@@ -426,10 +543,10 @@ public class TicketGenerator : ITicketGenerator
                         { ""Type"": ""Text"", ""Content"": ""Motivo: {Reason}"", ""Align"": ""Left"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""ItemsTable"", ""Columns"": [
-                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 45 },
-                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 12 },
-                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 21 },
-                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 22 }
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
                         { ""Type"": ""Totals"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
@@ -482,6 +599,53 @@ public class TicketGenerator : ITicketGenerator
                         { ""Type"": ""KeyValue"", ""Key"": ""DIFERENCIA ("", ""ValuePlaceholder"": ""{DiffStatus}) : {Difference}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Auditor"", ""Align"": ""Center"" }
+                    ]
+                }";
+
+            case TicketTemplateType.Order:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""--- COMPROBANTE DE PEDIDO ---"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""CLIENTE Y ENTREGA:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""Nombre: {ClientName}\\nTel: {ClientPhone}\\nDirecc: {ClientAddress}"", ""Align"": ""Left"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Zona:"", ""ValuePlaceholder"": ""{DeliveryZoneName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Envio:"", ""ValuePlaceholder"": ""{DeliveryCost}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Método Pago:"", ""ValuePlaceholder"": ""{PaymentMethod}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Footer"", ""Content"": ""¡Gracias por su compra!"" }
+                    ]
+                }";
+
+            case TicketTemplateType.RouteManifest:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Text"", ""Content"": ""=== MANIFIESTO DE REPARTO ==="", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Ruta Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Repartidor:"", ""ValuePlaceholder"": ""{DeliveryManName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""PEDIDOS EN RUTA:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{OrdersList}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""RESUMEN DE ARQUEO A ENTREGAR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Vouchers Esperados:"", ""ValuePlaceholder"": ""{ExpectedCard}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""MONTO TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma Repartidor"", ""Align"": ""Center"" }
                     ]
                 }";
 

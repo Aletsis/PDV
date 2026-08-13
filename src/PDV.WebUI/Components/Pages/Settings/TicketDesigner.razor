@@ -59,6 +59,8 @@ else
                 <MudSelectItem Value="@TicketTemplateType.Return">Ticket de Devolución</MudSelectItem>
                 <MudSelectItem Value="@TicketTemplateType.CashCollection">Dotación / Recolección</MudSelectItem>
                 <MudSelectItem Value="@TicketTemplateType.CashCut">Corte de Caja</MudSelectItem>
+                <MudSelectItem Value="@TicketTemplateType.Order">Ticket de Pedido</MudSelectItem>
+                <MudSelectItem Value="@TicketTemplateType.RouteManifest">Manifiesto de Reparto</MudSelectItem>
             </MudSelect>
             
             <MudDivider Class="my-4" />
@@ -702,6 +704,22 @@ else
                     else
                         Snackbar.Add("No hay cortes en el sistema para usar como ejemplo.", Severity.Warning);
                     break;
+
+                case TicketTemplateType.Order:
+                    var ord = await DbContext.Orders.OrderByDescending(o => o.OrderDate).FirstOrDefaultAsync();
+                    if (ord != null)
+                        ticketText = await TicketGenerator.GenerateOrderTicketAsync(ord.Id);
+                    else
+                        Snackbar.Add("No hay pedidos en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
+
+                case TicketTemplateType.RouteManifest:
+                    var route = await DbContext.DeliveryRoutes.OrderByDescending(r => r.CreatedDate).FirstOrDefaultAsync();
+                    if (route != null)
+                        ticketText = await TicketGenerator.GenerateRouteManifestTicketAsync(route.Id);
+                    else
+                        Snackbar.Add("No hay rutas de reparto en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
             }
 
             if (string.IsNullOrEmpty(ticketText))
@@ -780,6 +798,15 @@ else
                 "{InitialCash}", "{CashSales}", "{Inflows}", "{Outflows}", "{Returns}",
                 "{ExpectedCash}", "{PhysicalCash}", "{DiffStatus}", "{Difference}"
             },
+            TicketTemplateType.Order => new() {
+                "{CompanyName}", "{TaxId}", "{Folio}", "{Date}", "{ClientName}",
+                "{ClientPhone}", "{ClientAddress}", "{DeliveryZoneName}", "{DeliveryCost}",
+                "{PaymentMethod}", "{Subtotal}", "{Tax}", "{Total}"
+            },
+            TicketTemplateType.RouteManifest => new() {
+                "{CompanyName}", "{TaxId}", "{Folio}", "{Date}", "{DeliveryManName}",
+                "{OrdersList}", "{ExpectedCash}", "{ExpectedCard}", "{Total}"
+            },
             _ => new()
         };
     }
@@ -797,9 +824,17 @@ else
             .Replace("{CashRegisterName}", "Caja Principal 01")
             .Replace("{UserFullName}", "Cajero Administrador")
             .Replace("{ClientName}", "Juan Pérez Domínguez")
+            .Replace("{ClientPhone}", "555-987-6543")
+            .Replace("{ClientAddress}", "Calle Falsa 123, Col. Lindavista")
+            .Replace("{DeliveryZoneName}", "Zona Norte")
+            .Replace("{DeliveryCost}", "$35.00")
+            .Replace("{DeliveryManName}", "Carlos Repartidor")
+            .Replace("{OrdersList}", "#1 Pedido: P-000101\nCliente: Juan Pérez\nDirecc: Calle Falsa 123\nCobro: $150.00 (Efectivo)\n------------------------\n#2 Pedido: P-000102\nCliente: Maria G.\nDirecc: Av. Patria 450\nCobro: $200.00 (Tarjeta)\n------------------------")
+            .Replace("{ExpectedCash}", "$150.00")
+            .Replace("{ExpectedCard}", "$200.00")
             .Replace("{TicketTitle}", "RECOLECCIÓN DE EFECTIVO")
             .Replace("{Reason}", "Corte parcial de caja")
-            .Replace("{Total}", "$100.00")
+            .Replace("{Total}", "$350.00")
             .Replace("{RefundMethod}", "Efectivo")
             .Replace("{PaymentMethod}", "Efectivo");
     }
@@ -975,6 +1010,53 @@ else
                         { ""Type"": ""KeyValue"", ""Key"": ""DIFERENCIA ("", ""ValuePlaceholder"": ""{DiffStatus}) : {Difference}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Auditor"", ""Align"": ""Center"" }
+                    ]
+                }";
+
+            case TicketTemplateType.Order:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""--- COMPROBANTE DE PEDIDO ---"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""CLIENTE Y ENTREGA:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""Nombre: {ClientName}\nTel: {ClientPhone}\nDirecc: {ClientAddress}"", ""Align"": ""Left"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Zona:"", ""ValuePlaceholder"": ""{DeliveryZoneName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Envio:"", ""ValuePlaceholder"": ""{DeliveryCost}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Método Pago:"", ""ValuePlaceholder"": ""{PaymentMethod}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Footer"", ""Content"": ""¡Gracias por su compra!"" }
+                    ]
+                }";
+
+            case TicketTemplateType.RouteManifest:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Text"", ""Content"": ""=== MANIFIESTO DE REPARTO ==="", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Ruta Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Repartidor:"", ""ValuePlaceholder"": ""{DeliveryManName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""PEDIDOS EN RUTA:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{OrdersList}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""RESUMEN DE ARQUEO A ENTREGAR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Vouchers Esperados:"", ""ValuePlaceholder"": ""{ExpectedCard}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""MONTO TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma Repartidor"", ""Align"": ""Center"" }
                     ]
                 }";
 
