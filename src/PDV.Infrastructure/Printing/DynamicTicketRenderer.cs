@@ -154,11 +154,18 @@ public class DynamicTicketRenderer
 
     private static string FormatText(string text, string? align, bool bold, string? fontSize, int width)
     {
+        int adjustedWidth = width;
+        bool isDoubleWidth = fontSize?.ToLowerInvariant() == "doublewidth" || fontSize?.ToLowerInvariant() == "large";
+        if (isDoubleWidth)
+        {
+            adjustedWidth = width / 2;
+        }
+
         var formatted = align?.ToLowerInvariant() switch
         {
-            "center" => Center(text, width),
-            "right" => text.PadLeft(width),
-            _ => text.PadRight(width)
+            "center" => Center(text, adjustedWidth),
+            "right" => text.PadLeft(adjustedWidth),
+            _ => text.PadRight(adjustedWidth)
         };
 
         if (bold)

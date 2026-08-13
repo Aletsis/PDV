@@ -1,15 +1,20 @@
 using Microsoft.JSInterop;
 using PDV.Application.Common.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using System.Text;
+using PDV.Infrastructure.Printing;
 
 namespace PDV.WebUI.Services;
 
 public class WebUIProxyPrinter : IEscPosPrinter
 {
     private readonly IJSRuntime _jsRuntime;
+    private readonly IApplicationDbContext _context;
 
-    public WebUIProxyPrinter(IJSRuntime jsRuntime)
+    public WebUIProxyPrinter(IJSRuntime jsRuntime, IApplicationDbContext context)
     {
         _jsRuntime = jsRuntime;
+        _context = context;
     }
 
     public async Task<bool> CheckStatusAsync(string ipAddress, int port, CancellationToken cancellationToken = default)
@@ -50,12 +55,27 @@ public class WebUIProxyPrinter : IEscPosPrinter
             targetUri = $"tcp://{ipAddress}:{targetPort}";
         }
 
+        string base64Data = string.Empty;
+        try
+        {
+            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+            int width = config?.TicketWidth ?? 48;
+            var encoding = encodingCodePage.HasValue ? Encoding.GetEncoding(encodingCodePage.Value) : Encoding.GetEncoding(1252);
+            var bytes = EscPosParser.Parse(text, width, encoding);
+            base64Data = Convert.ToBase64String(bytes);
+        }
+        catch
+        {
+            // Fallback a base64 simple en caso de error
+            base64Data = Convert.ToBase64String(Encoding.GetEncoding(1252).GetBytes(text));
+        }
+
         var job = new
         {
             target = targetUri,
             profile = 1, // EscPos
-            contentType = 1, // Text
-            data = text,
+            contentType = 2, // RawBase64
+            data = base64Data,
             codePage = encodingCodePage ?? 1252,
             autoCut = autoCut,
             partialCut = partialCut,
@@ -105,7 +125,19 @@ public class WebUIProxyPrinter : IEscPosPrinter
 
     public async Task PrintTextAsync(string ipAddress, int port, string text, int? encodingCodePage = null, CancellationToken cancellationToken = default)
     {
-        await _jsRuntime.InvokeVoidAsync("posPrintText", cancellationToken, ipAddress, port, text, encodingCodePage);
+        try
+        {
+            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+            int width = config?.TicketWidth ?? 48;
+            var encoding = encodingCodePage.HasValue ? Encoding.GetEncoding(encodingCodePage.Value) : Encoding.GetEncoding(1252);
+            var bytes = EscPosParser.Parse(text, width, encoding);
+            await PrintRawAsync(ipAddress, port, bytes, cancellationToken);
+        }
+        catch
+        {
+            // Fallback a print text normal en JS en caso de excepción catastrófica
+            await _jsRuntime.InvokeVoidAsync("posPrintText", cancellationToken, ipAddress, port, text, encodingCodePage);
+        }
     }
 
     public async Task PrintRawAsync(string ipAddress, int port, byte[] data, CancellationToken cancellationToken = default)

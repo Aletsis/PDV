@@ -76,6 +76,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -154,6 +155,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -215,6 +217,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -265,6 +268,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -331,6 +335,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -384,6 +389,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -447,6 +453,7 @@ public class TicketGenerator : ITicketGenerator
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         var sb = new StringBuilder(ticketText);
 
         sb.Append("\x1B\x69");
@@ -687,5 +694,20 @@ public class TicketGenerator : ITicketGenerator
             CfdiUsage.ToDefine => "S01 - Sin efectos fiscales",
             _ => usage.ToString()
         };
+    }
+
+    private async Task<string> ProcessLogoPlaceholderAsync(string ticketText, CancellationToken cancellationToken)
+    {
+        if (!ticketText.Contains("[LOGO]", StringComparison.OrdinalIgnoreCase))
+        {
+            return ticketText;
+        }
+
+        var logoEntity = await _context.Logos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Purpose == LogoPurpose.Ticket, cancellationToken);
+
+        string logoTag = logoEntity != null ? $"[LOGO:{Convert.ToBase64String(logoEntity.Data)}]" : "";
+        return ticketText.Replace("[LOGO]", logoTag, StringComparison.OrdinalIgnoreCase);
     }
 }

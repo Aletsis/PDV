@@ -6,13 +6,21 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Web;
+using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Infrastructure.Persistence;
 
 namespace PDV.Infrastructure.Printing;
 
 public class MultiChannelEscPosPrinter : IEscPosPrinter
 {
+    private readonly AppDbContext _context;
     private readonly Encoding _defaultEncoding = Encoding.GetEncoding(1252);
+
+    public MultiChannelEscPosPrinter(AppDbContext context)
+    {
+        _context = context;
+    }
 
     private Encoding ChooseEncoding(string text, int? codePage)
     {
@@ -99,9 +107,11 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         // 2. Inicializar
         buffer.AddRange(new byte[] { 0x1B, 0x40 });
 
-        // 3. Contenido
+        // 3. Contenido parseado mediante el compilador de comandos ESC/POS
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        int width = config?.TicketWidth ?? 48;
         var encoding = ChooseEncoding(text, encodingCodePage);
-        var textBytes = encoding.GetBytes(text);
+        var textBytes = EscPosParser.Parse(text, width, encoding);
 
         int numCopies = Math.Clamp(copies, 1, 5);
         for (int i = 0; i < numCopies; i++)
@@ -130,8 +140,12 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         var sb = new List<byte>();
         sb.AddRange(new byte[] { 0x1B, 0x40 }); // Init
 
+        var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
+        int width = config?.TicketWidth ?? 48;
         var encoding = ChooseEncoding(text, encodingCodePage);
-        sb.AddRange(encoding.GetBytes(text));
+        var textBytes = EscPosParser.Parse(text, width, encoding);
+
+        sb.AddRange(textBytes);
         sb.AddRange(new byte[] { 0x0A }); // LF
 
         sb.AddRange(new byte[] { 0x1B, 0x64, 0x03 }); // Feed 3 lines
