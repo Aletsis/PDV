@@ -9,6 +9,8 @@
 @using PDV.Application.Features.Sales.Queries.GetReconciliationsList
 @using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
 @using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
 @using PDV.Application.Features.Sync.Queries
 @using PDV.Domain.Enums
 @using PDV.WebUI.Components.Shared.UI
@@ -85,28 +87,38 @@ else
         <MudPaper Class="pa-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.015);">
             <MudGrid Spacing="2" Class="align-center">
                 <MudItem xs="12" sm="6" md="3">
-                    <MudDatePicker @bind-Date="startDate"
-                                   Label="Fecha Inicio"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense"
-                                   Placeholder="Seleccionar fecha..." />
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudDatePicker @bind-Date="endDate"
-                                   Label="Fecha Fin"
+                    <MudDatePicker Date="selectedDate"
+                                   DateChanged="OnDateChanged"
+                                   Label="Fecha"
                                    Variant="Variant.Outlined"
                                    Margin="Margin.Dense"
                                    Placeholder="Seleccionar fecha..." />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3">
                     <MudSelect T="Guid?"
-                               @bind-Value="selectedCashRegisterId"
+                               Value="selectedBranchId"
+                               ValueChanged="OnBranchChanged"
+                               Label="Sucursal"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Clearable="true">
+                        <MudSelectItem T="Guid?" Value="null">Todas las Sucursales</MudSelectItem>
+                        @foreach (var b in branches)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)b.Id)">@b.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="Guid?"
+                               Value="selectedCashRegisterId"
+                               ValueChanged="OnCashRegisterChanged"
                                Label="Caja Registradora"
                                Variant="Variant.Outlined"
                                Margin="Margin.Dense"
                                Clearable="true">
                         <MudSelectItem T="Guid?" Value="null">Todas las Cajas</MudSelectItem>
-                        @foreach (var cr in cashRegisters)
+                        @foreach (var cr in GetFilteredCashRegisters())
                         {
                             <MudSelectItem T="Guid?" Value="@((Guid?)cr.Id)">@cr.Name</MudSelectItem>
                         }
@@ -114,7 +126,8 @@ else
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3">
                     <MudSelect T="ReconciliationFilterStatus"
-                               @bind-Value="filterStatus"
+                               Value="filterStatus"
+                               ValueChanged="OnFilterStatusChanged"
                                Label="Estatus de Conciliación"
                                Variant="Variant.Outlined"
                                Margin="Margin.Dense">
@@ -230,13 +243,14 @@ else
 @code {
     private bool isLocalMode = false;
     private bool isLoading = true;
-    private DateTime? startDate = DateTime.Today.AddDays(-7);
-    private DateTime? endDate = DateTime.Today;
+    private DateTime? selectedDate = DateTime.Today;
+    private Guid? selectedBranchId;
     private Guid? selectedCashRegisterId;
     private ReconciliationFilterStatus filterStatus = ReconciliationFilterStatus.All;
 
     private ReconciliationsSummaryDto summary = new();
     private List<CashRegisterDto> cashRegisters = new();
+    private List<BranchDto> branches = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -256,8 +270,21 @@ else
 
         if (!isLocalMode)
         {
+            await LoadBranches();
             await LoadCashRegisters();
             await LoadData();
+        }
+    }
+
+    private async Task LoadBranches()
+    {
+        try
+        {
+            branches = await Mediator.Send(new GetBranchesQuery(IncludeInactive: false));
+        }
+        catch
+        {
+            branches = new List<BranchDto>();
         }
     }
 
@@ -281,10 +308,11 @@ else
         try
         {
             summary = await Mediator.Send(new GetReconciliationsListQuery(
-                StartDate: startDate,
-                EndDate: endDate,
+                StartDate: selectedDate,
+                EndDate: selectedDate,
                 CashRegisterId: selectedCashRegisterId,
-                FilterStatus: filterStatus
+                FilterStatus: filterStatus,
+                BranchId: selectedBranchId
             ));
         }
         catch (Exception ex)
@@ -295,6 +323,50 @@ else
         {
             isLoading = false;
         }
+    }
+
+    private async Task OnDateChanged(DateTime? newDate)
+    {
+        selectedDate = newDate;
+        await LoadData();
+    }
+
+    private async Task OnBranchChanged(Guid? newBranchId)
+    {
+        selectedBranchId = newBranchId;
+        
+        // Si la caja seleccionada no pertenece a la nueva sucursal, la limpiamos
+        if (selectedCashRegisterId.HasValue)
+        {
+            var selectedReg = cashRegisters.FirstOrDefault(c => c.Id == selectedCashRegisterId);
+            if (selectedReg == null || (selectedBranchId.HasValue && selectedReg.BranchId != selectedBranchId.Value))
+            {
+                selectedCashRegisterId = null;
+            }
+        }
+        
+        await LoadData();
+    }
+
+    private async Task OnCashRegisterChanged(Guid? newCashRegisterId)
+    {
+        selectedCashRegisterId = newCashRegisterId;
+        await LoadData();
+    }
+
+    private async Task OnFilterStatusChanged(ReconciliationFilterStatus newStatus)
+    {
+        filterStatus = newStatus;
+        await LoadData();
+    }
+
+    private IEnumerable<CashRegisterDto> GetFilteredCashRegisters()
+    {
+        if (!selectedBranchId.HasValue)
+        {
+            return cashRegisters;
+        }
+        return cashRegisters.Where(cr => cr.BranchId == selectedBranchId.Value);
     }
 
     private async Task OpenReconcileDialog(Guid shiftId)

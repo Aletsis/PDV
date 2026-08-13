@@ -22,7 +22,8 @@ public record GetReconciliationsListQuery(
     DateTime? StartDate = null,
     DateTime? EndDate = null,
     Guid? CashRegisterId = null,
-    ReconciliationFilterStatus FilterStatus = ReconciliationFilterStatus.All
+    ReconciliationFilterStatus FilterStatus = ReconciliationFilterStatus.All,
+    Guid? BranchId = null
 ) : IRequest<ReconciliationsSummaryDto>;
 
 public class GetReconciliationsListQueryHandler : IRequestHandler<GetReconciliationsListQuery, ReconciliationsSummaryDto>
@@ -45,6 +46,11 @@ public class GetReconciliationsListQueryHandler : IRequestHandler<GetReconciliat
         if (request.CashRegisterId.HasValue && request.CashRegisterId.Value != Guid.Empty)
         {
             shiftsQuery = shiftsQuery.Where(s => s.CashRegisterId == request.CashRegisterId.Value);
+        }
+
+        if (request.BranchId.HasValue && request.BranchId.Value != Guid.Empty)
+        {
+            shiftsQuery = shiftsQuery.Where(s => s.CashRegister!.BranchId == request.BranchId.Value);
         }
 
         if (request.StartDate.HasValue)
