@@ -64,6 +64,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public DbSet<SystemConfiguration> SystemConfigurations { get; set; }
     public DbSet<FolioSequence> FolioSequences { get; set; }
     public DbSet<TicketSequence> TicketSequences { get; set; }
+    public DbSet<TicketTemplate> TicketTemplates { get; set; }
     public DbSet<Shift> Shifts { get; set; }
     public DbSet<OutboxMessage> OutboxMessages { get; set; }
     public DbSet<InventoryMovement> InventoryMovements { get; set; }

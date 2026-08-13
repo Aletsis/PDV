@@ -29,6 +29,7 @@ public interface IApplicationDbContext
     DbSet<UnidadMedida> UnidadesMedida { get; }
     DbSet<FolioSequence> FolioSequences { get; }
     DbSet<TicketSequence> TicketSequences { get; }
+    DbSet<TicketTemplate> TicketTemplates { get; }
     DbSet<SystemConfiguration> SystemConfigurations { get; }
     DbSet<ContpaqiSyncQueue> ContpaqiSyncQueues { get; }
     DbSet<Company> Companies { get; }

@@ -1,0 +1,985 @@
+@page "/admin/settings/tickets"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@using PDV.Application.Common.Interfaces
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Infrastructure.Printing
+@using System.Text.Json
+@using Microsoft.EntityFrameworkCore
+@inject IApplicationDbContext DbContext
+@inject ISnackbar Snackbar
+@inject ITicketGenerator TicketGenerator
+@inject IEscPosPrinter EscPosPrinter
+@inject NavigationManager NavigationManager
+@inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+
+<PageTitle>Diseñador Visual de Tickets — Administración</PageTitle>
+
+@if (isLocalMode)
+{
+    <PageTitle>Acceso Denegado - Diseñador de Tickets</PageTitle>
+    <div class="d-flex flex-column align-center justify-center gap-4 pa-8" style="min-height: 400px;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Error" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Align="Align.Center">Módulo no Disponible en Modo Local</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary" Align="Align.Center" Style="max-width: 500px;">
+            El diseñador visual de tickets está deshabilitado en esta terminal local. Por favor, acceda desde el Servidor Central para modificar las plantillas de impresión globales.
+        </MudText>
+        <PdvInteractiveButton Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="BackToSettings">
+            Regresar
+        </PdvInteractiveButton>
+    </div>
+}
+else
+{
+<PdvHeader Title="Diseñador de Tickets Adaptables"
+           Subtitle="Diseña y personaliza el formato visual de tus comprobantes de venta, facturas, devoluciones y cortes."
+           Icon="@Icons.Material.Filled.DesignServices"
+           IconColor="Color.Secondary">
+    <Actions>
+        <PdvInteractiveButton Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="BackToSettings">
+            Regresar
+        </PdvInteractiveButton>
+        <PdvInteractiveButton Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveTemplate" IsLoading="@_isSaving">
+            Guardar Plantilla
+        </PdvInteractiveButton>
+    </Actions>
+</PdvHeader>
+
+<MudGrid Class="mt-2">
+    <!-- Panel Izquierdo: Selección de Plantilla y Bloques a Añadir -->
+    <MudItem xs="12" md="3">
+        <MudPaper Class="pa-4 mb-4" Style="background: var(--mud-palette-background-grey);">
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-3">Plantilla Activa</MudText>
+            
+            <MudSelect T="TicketTemplateType" Value="@_selectedType" ValueChanged="OnTemplateTypeChanged" Label="Tipo de Ticket" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" Class="mb-4">
+                <MudSelectItem Value="@TicketTemplateType.Sale">Ticket de Venta</MudSelectItem>
+                <MudSelectItem Value="@TicketTemplateType.Invoice">Factura Electrónica (CFDI)</MudSelectItem>
+                <MudSelectItem Value="@TicketTemplateType.Return">Ticket de Devolución</MudSelectItem>
+                <MudSelectItem Value="@TicketTemplateType.CashCollection">Dotación / Recolección</MudSelectItem>
+                <MudSelectItem Value="@TicketTemplateType.CashCut">Corte de Caja</MudSelectItem>
+            </MudSelect>
+            
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-3">Agregar Bloques</MudText>
+            <div class="d-flex flex-column gap-2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Image" OnClick='() => AddBlock("Logo")'>Logotipo</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TextFields" OnClick='() => AddBlock("Text")'>Línea de Texto</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label" OnClick='() => AddBlock("KeyValue")'>Clave - Valor</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TableRows" OnClick='() => AddBlock("ItemsTable")'>Tabla de Artículos</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachMoney" OnClick='() => AddBlock("Totals")'>Bloque de Totales</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.QrCode" OnClick='() => AddBlock("BarcodeOrQr")'>Código QR / Barra</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.HorizontalRule" OnClick='() => AddBlock("Separator")'>Separador</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Notes" OnClick='() => AddBlock("Footer")'>Pie de Página</MudButton>
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Style="background: var(--mud-palette-background-grey);">
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-3">Impresión de Prueba</MudText>
+            <MudSelect T="Guid?" @bind-Value="_selectedPrinterId" Label="Impresora Destino" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" Class="mb-3">
+                @foreach (var p in _printers)
+                {
+                    <MudSelectItem Value="@((Guid?)p.Id)">@p.Name (@p.ConnectionType)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.Print" FullWidth="true" OnClick="PrintTestTicket" Disabled="@(!_selectedPrinterId.HasValue || _isPrinting)">
+                @(_isPrinting ? "Imprimiendo..." : "Imprimir Prueba")
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+
+    <!-- Panel Central: Previsualizador del Ticket Fluido -->
+    <MudItem xs="12" md="5" Class="d-flex justify-center">
+        <div class="d-flex flex-column align-center w-100">
+            <MudToggleGroup T="int" Value="@_simulatedWidth" ValueChanged="OnSimulatedWidthChanged" Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3">
+                <MudToggleItem Value="@(48)" Text="80mm (Estándar)" />
+                <MudToggleItem Value="@(32)" Text="58mm (Estrecho)" />
+            </MudToggleGroup>
+
+            <!-- Contenedor del Ticket Físico Simulado -->
+            <div class="ticket-simulator-container" style="width: @(_simulatedWidth == 48 ? "380px" : "280px"); transition: width 0.3s ease;">
+                <div class="ticket-paper">
+                    @if (_templateJson.Blocks.Count == 0)
+                    {
+                        <div class="d-flex align-center justify-center py-8 text-muted">
+                            <MudText Typo="Typo.body2">La plantilla está vacía. Agrega bloques para comenzar.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        @for (int i = 0; i < _templateJson.Blocks.Count; i++)
+                        {
+                            var idx = i;
+                            var block = _templateJson.Blocks[idx];
+                            bool isSelected = _selectedBlockIndex == idx;
+
+                            <div class="ticket-block-wrapper @(isSelected ? "selected" : "")" @onclick="() => SelectBlock(idx)">
+                                <div class="ticket-block-content">
+                                    @switch (block.Type.ToLowerInvariant())
+                                    {
+                                        case "logo":
+                                            <div class="d-flex justify-center py-2" style="border: 1px dashed #ccc;">
+                                                <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Class="mud-text-secondary" />
+                                                <MudText Typo="Typo.caption" Class="align-self-center ml-2">[Logotipo de Marca]</MudText>
+                                            </div>
+                                            break;
+
+                                        case "text":
+                                            <div class="@GetAlignClass(block.Align) @GetFontClass(block.FontSize) @(block.Bold ? "font-weight-bold" : "") @(block.Italic ? "font-italic" : "")">
+                                                @(string.IsNullOrEmpty(block.Content) ? "Texto de ejemplo..." : ResolvePreviewVariables(block.Content))
+                                            </div>
+                                            break;
+
+                                        case "keyvalue":
+                                            <div class="d-flex justify-content-between w-100 @(block.Bold ? "font-weight-bold" : "")">
+                                                <span>@block.Key</span>
+                                                <span class="ml-auto text-monospace">@ResolvePreviewVariables(block.ValuePlaceholder ?? "{Valor}")</span>
+                                            </div>
+                                            break;
+
+                                        case "separator":
+                                            <div class="text-center text-monospace py-1" style="letter-spacing: 2px;">
+                                                @(new string(string.IsNullOrEmpty(block.SeparatorChar) ? '-' : block.SeparatorChar[0], _simulatedWidth == 48 ? 32 : 22))
+                                            </div>
+                                            break;
+
+                                        case "itemstable":
+                                            <table class="w-100 text-monospace mt-1" style="font-size: 0.8rem; border-collapse: collapse;">
+                                                <thead>
+                                                    <tr style="border-bottom: 1px solid #000;">
+                                                        @foreach (var col in block.Columns ?? new())
+                                                        {
+                                                            <th class="@(col.Field.ToLowerInvariant() == "name" ? "text-left" : "text-right")" style="width: @(col.WidthPercentage)%;">
+                                                                @col.Title.ToUpperInvariant()
+                                                            </th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        @foreach (var col in block.Columns ?? new())
+                                                        {
+                                                            <td class="@(col.Field.ToLowerInvariant() == "name" ? "text-left" : "text-right")">
+                                                                @GetMockColumnValue(col.Field)
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                            break;
+
+                                        case "totals":
+                                            <div class="d-flex flex-column align-end w-100 mt-2 text-monospace" style="font-size: 0.85rem;">
+                                                <div class="d-flex justify-content-between w-100">
+                                                    <span>Subtotal:</span>
+                                                    <span class="ml-auto">$86.20</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between w-100">
+                                                    <span>IVA 16%:</span>
+                                                    <span class="ml-auto">$13.80</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between w-100 font-weight-bold" style="border-top: 1px double #000; padding-top: 2px;">
+                                                    <span>TOTAL:</span>
+                                                    <span class="ml-auto">$100.00</span>
+                                                </div>
+                                            </div>
+                                            break;
+
+                                        case "barcodeorqr":
+                                            <div class="d-flex flex-column align-center py-2" style="border: 1px dashed #ccc;">
+                                                <MudIcon Icon="@(block.CodeType?.ToLowerInvariant() == "qr" ? Icons.Material.Filled.QrCode2 : Icons.Material.Filled.ViewWeek)" Size="Size.Large" Class="mud-text-secondary" />
+                                                <MudText Typo="Typo.caption" Class="mt-1">[@(block.CodeType?.ToUpperInvariant() ?? "CÓDIGO"): @ResolvePreviewVariables(block.CodifiedValue ?? "{Folio}")]</MudText>
+                                            </div>
+                                            break;
+
+                                        case "footer":
+                                            <div class="text-center font-italic text-wrap" style="font-size: 0.85rem;">
+                                                @((block.Content ?? "Pie de página de ejemplo").Replace("\n", "<br/>"))
+                                            </div>
+                                            break;
+                                    }
+                                </div>
+                                
+                                <!-- Botonera de control del bloque -->
+                                <div class="block-actions">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Color="Color.Default" OnClick="() => MoveBlockUp(idx)" StopPropagation="true" Disabled="@(idx == 0)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Color="Color.Default" OnClick="() => MoveBlockDown(idx)" StopPropagation="true" Disabled="@(idx == _templateJson.Blocks.Count - 1)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteBlock(idx)" StopPropagation="true" />
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </MudItem>
+
+    <!-- Panel Derecho: Configuración de Propiedades del Bloque Seleccionado -->
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4 h-100" Style="background: var(--mud-palette-background-grey); min-height: 500px;">
+            @if (_selectedBlockIndex >= 0 && _selectedBlockIndex < _templateJson.Blocks.Count)
+            {
+                var block = _templateJson.Blocks[_selectedBlockIndex];
+                <div class="d-flex align-center mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" Class="mr-2" />
+                    <MudText Typo="Typo.h6" Class="font-weight-bold">Propiedades del Bloque</MudText>
+                </div>
+                
+                <MudText Typo="Typo.subtitle2" Class="mb-3">Tipo: <span class="font-weight-bold mud-text-secondary">@block.Type.ToUpper()</span></MudText>
+
+                @switch (block.Type.ToLowerInvariant())
+                {
+                    case "logo":
+                        <MudSelect @bind-Value="block.LogoScale" Label="Escala del Logotipo" Variant="Variant.Outlined" Class="mb-3">
+                            <MudSelectItem Value='("25")'>Pequeño (25%)</MudSelectItem>
+                            <MudSelectItem Value='("50")'>Mediano (50%)</MudSelectItem>
+                            <MudSelectItem Value='("100")'>Ancho Completo (100%)</MudSelectItem>
+                        </MudSelect>
+                        <MudSelect @bind-Value="block.Align" Label="Alineación" Variant="Variant.Outlined">
+                            <MudSelectItem Value='("Center")'>Centrado</MudSelectItem>
+                            <MudSelectItem Value='("Left")'>Izquierda</MudSelectItem>
+                            <MudSelectItem Value='("Right")'>Derecha</MudSelectItem>
+                        </MudSelect>
+                        break;
+
+                    case "text":
+                    case "footer":
+                        <MudTextField @bind-Value="block.Content" Label="Contenido de Texto" Variant="Variant.Outlined" Lines="4" HelperText="Puedes insertar llaves de variables (ej. {CompanyName})" Class="mb-3" />
+                        <MudGrid>
+                            <MudItem xs="6">
+                                <MudSelect @bind-Value="block.Align" Label="Alineación" Variant="Variant.Outlined">
+                                    <MudSelectItem Value='("Left")'>Izquierda</MudSelectItem>
+                                    <MudSelectItem Value='("Center")'>Centrado</MudSelectItem>
+                                    <MudSelectItem Value='("Right")'>Derecha</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudSelect @bind-Value="block.FontSize" Label="Tamaño de Fuente" Variant="Variant.Outlined">
+                                    <MudSelectItem Value='("Normal")'>Normal</MudSelectItem>
+                                    <MudSelectItem Value='("DoubleHeight")'>Doble Altura</MudSelectItem>
+                                    <MudSelectItem Value='("DoubleWidth")'>Doble Ancho</MudSelectItem>
+                                    <MudSelectItem Value='("Large")'>Grande (Ambos)</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                        </MudGrid>
+                        <div class="d-flex gap-4 mt-3">
+                            <MudSwitch @bind-Value="block.Bold" Color="Color.Primary" Label="Negrita" />
+                            <MudSwitch @bind-Value="block.Italic" Color="Color.Primary" Label="Cursiva" />
+                        </div>
+                        break;
+
+                    case "keyvalue":
+                        <MudTextField @bind-Value="block.Key" Label="Clave (Texto fijo)" Variant="Variant.Outlined" Class="mb-3" Placeholder="Ej. Folio:" />
+                        <MudTextField @bind-Value="block.ValuePlaceholder" Label="Valor (Variable dinámica)" Variant="Variant.Outlined" Class="mb-3" Placeholder="Ej. {Folio}" />
+                        <MudSwitch @bind-Value="block.Bold" Color="Color.Primary" Label="Negrita completa" />
+                        break;
+
+                    case "separator":
+                        <MudSelect @bind-Value="block.SeparatorChar" Label="Carácter Separador" Variant="Variant.Outlined">
+                            <MudSelectItem Value='("-")'>Línea Simple (-)</MudSelectItem>
+                            <MudSelectItem Value='("=")'>Línea Doble (=)</MudSelectItem>
+                            <MudSelectItem Value='("*")'>Línea de Asteriscos (*)</MudSelectItem>
+                            <MudSelectItem Value='(".")'>Línea Punteada (.)</MudSelectItem>
+                        </MudSelect>
+                        break;
+
+                    case "itemstable":
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Columnas de la Tabla</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3 d-block">Distribuye los anchos cuidando que el total sume el 100%.</MudText>
+                        @if (block.Columns != null)
+                        {
+                            @for (int cIdx = 0; cIdx < block.Columns.Count; cIdx++)
+                            {
+                                var col = block.Columns[cIdx];
+                                <div class="d-flex align-center gap-2 mb-2" style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
+                                    <MudSelect @bind-Value="col.Field" Label="Campo" Variant="Variant.Outlined" Margin="Margin.Dense" Style="width:120px;">
+                                        <MudSelectItem Value='("Name")'>Producto</MudSelectItem>
+                                        <MudSelectItem Value='("Quantity")'>Cant</MudSelectItem>
+                                        <MudSelectItem Value='("Price")'>Precio</MudSelectItem>
+                                        <MudSelectItem Value='("Total")'>Total</MudSelectItem>
+                                    </MudSelect>
+                                    <MudTextField @bind-Value="col.Title" Label="Título" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    <MudNumericField @bind-Value="col.WidthPercentage" Label="Ancho %" Variant="Variant.Outlined" Margin="Margin.Dense" Min="5" Max="90" Style="width:80px;" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.RemoveCircle" Color="Color.Error" OnClick="() => RemoveColumn(block, col)" Size="Size.Small" />
+                                </div>
+                            }
+                        }
+                        <div class="d-flex justify-space-between mt-3">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="() => AddColumn(block)">Añadir Columna</MudButton>
+                            <MudText Typo="Typo.caption" Color="@(GetColumnsTotalPercentage(block) == 100 ? Color.Success : Color.Error)">Total: @(GetColumnsTotalPercentage(block))%</MudText>
+                        </div>
+                        break;
+
+                    case "barcodeorqr":
+                        <MudSelect @bind-Value="block.CodeType" Label="Tipo de Código" Variant="Variant.Outlined" Class="mb-3">
+                            <MudSelectItem Value='("QR")'>Código QR</MudSelectItem>
+                            <MudSelectItem Value='("Barcode")'>Código de Barras</MudSelectItem>
+                        </MudSelect>
+                        <MudTextField @bind-Value="block.CodifiedValue" Label="Valor a Codificar" Variant="Variant.Outlined" Class="mb-3" HelperText="Usa placeholders como {Folio} o {Uuid}" />
+                        <MudNumericField @bind-Value="block.ModuleSize" Label="Tamaño de Módulo" Variant="Variant.Outlined" Min="1" Max="10" />
+                        break;
+                }
+
+                <MudDivider Class="my-4" />
+
+                <!-- Listado de Placeholders Disponibles de Forma Contextual -->
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Variables del Sistema</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3 d-block">Haz clic en una variable para insertarla o copiarla:</MudText>
+                <div class="d-flex flex-wrap gap-1" style="max-height: 150px; overflow-y: auto;">
+                    @foreach (var key in GetAvailableVariables())
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Dark" OnClick="() => InsertVariable(key)">@key</MudChip>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="d-flex flex-column align-center justify-center h-100 text-muted gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.TouchApp" Style="font-size: 3rem;" />
+                    <MudText Typo="Typo.body1" Align="Align.Center">Selecciona un bloque del ticket de previsualización central para editar sus propiedades específicas.</MudText>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<style>
+    .ticket-simulator-container {
+        background: #e0e0e0;
+        padding: 20px 20px 40px 20px;
+        border-radius: 8px;
+        box-shadow: inset 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .ticket-paper {
+        background: #fff;
+        color: #000;
+        font-family: 'Courier New', Courier, monospace;
+        padding: 24px 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-bottom: 8px dashed #e0e0e0;
+        min-height: 400px;
+    }
+
+    .ticket-block-wrapper {
+        position: relative;
+        padding: 4px;
+        margin: 2px 0;
+        cursor: pointer;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        transition: border-color 0.2s;
+    }
+
+    .ticket-block-wrapper:hover {
+        border-color: rgba(23, 162, 184, 0.4);
+    }
+
+    .ticket-block-wrapper.selected {
+        border-color: var(--mud-palette-secondary);
+        background: rgba(23, 162, 184, 0.05);
+    }
+
+    .block-actions {
+        display: none;
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        z-index: 10;
+        padding: 2px;
+    }
+
+    .ticket-block-wrapper:hover .block-actions,
+    .ticket-block-wrapper.selected .block-actions {
+        display: flex;
+        gap: 2px;
+    }
+
+    /* ESC/POS simulated sizes */
+    .fs-doubleheight {
+        font-size: 1.5rem !important;
+        line-height: 1.8rem;
+    }
+    .fs-doublewidth {
+        letter-spacing: 2px;
+        font-weight: bold;
+    }
+    .fs-large {
+        font-size: 1.75rem !important;
+        line-height: 2.1rem;
+        letter-spacing: 2px;
+    }
+</style>
+}
+
+@code {
+    private bool isLocalMode = false;
+    private TicketTemplateType _selectedType = TicketTemplateType.Sale;
+    private TicketTemplateJson _templateJson = new();
+    private TicketTemplate? _templateEntity;
+    
+    private int _selectedBlockIndex = -1;
+    private int _simulatedWidth = 48; // 80mm
+
+    private List<Printer> _printers = new();
+    private Guid? _selectedPrinterId;
+    
+    private bool _isSaving = false;
+    private bool _isPrinting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLocalMode = ConnectionMonitor.IsLocalMode;
+        if (isLocalMode)
+        {
+            return;
+        }
+
+        _printers = await DbContext.Printers.Where(p => p.IsActive).ToListAsync();
+        if (_printers.Any())
+        {
+            var config = await DbContext.SystemConfigurations.FirstOrDefaultAsync();
+            _selectedPrinterId = _printers.FirstOrDefault()?.Id;
+        }
+
+        await LoadTemplateForType(_selectedType);
+    }
+
+    private async Task LoadTemplateForType(TicketTemplateType type)
+    {
+        _selectedBlockIndex = -1;
+        _templateEntity = await DbContext.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == type && t.IsDefault);
+
+        string jsonStr = _templateEntity?.ContentJson ?? GetDefaultTemplateJson(type);
+
+        try
+        {
+            _templateJson = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
+        }
+        catch
+        {
+            _templateJson = new TicketTemplateJson();
+        }
+    }
+
+    private async Task OnTemplateTypeChanged(TicketTemplateType newType)
+    {
+        _selectedType = newType;
+        await LoadTemplateForType(newType);
+    }
+
+    private void OnSimulatedWidthChanged(int newWidth)
+    {
+        _simulatedWidth = newWidth;
+    }
+
+    private void SelectBlock(int index)
+    {
+        _selectedBlockIndex = index;
+    }
+
+    private void AddBlock(string type)
+    {
+        var block = new TicketBlock
+        {
+            Type = type,
+            Align = "Center",
+            FontSize = "Normal"
+        };
+
+        if (type.Equals("Separator", StringComparison.OrdinalIgnoreCase))
+        {
+            block.SeparatorChar = "-";
+        }
+        else if (type.Equals("ItemsTable", StringComparison.OrdinalIgnoreCase))
+        {
+            block.Columns = new List<TableColumnOption>
+            {
+                new() { Field = "Name", Title = "Producto", WidthPercentage = 50 },
+                new() { Field = "Quantity", Title = "Cant", WidthPercentage = 15 },
+                new() { Field = "Price", Title = "Precio", WidthPercentage = 15 },
+                new() { Field = "Total", Title = "Total", WidthPercentage = 20 }
+            };
+            block.WrapText = true;
+        }
+        else if (type.Equals("BarcodeOrQr", StringComparison.OrdinalIgnoreCase))
+        {
+            block.CodeType = "QR";
+            block.CodifiedValue = "{Folio}";
+        }
+
+        _templateJson.Blocks.Add(block);
+        _selectedBlockIndex = _templateJson.Blocks.Count - 1;
+        StateHasChanged();
+    }
+
+    private void DeleteBlock(int index)
+    {
+        if (index >= 0 && index < _templateJson.Blocks.Count)
+        {
+            _templateJson.Blocks.RemoveAt(index);
+            if (_selectedBlockIndex == index)
+            {
+                _selectedBlockIndex = -1;
+            }
+            else if (_selectedBlockIndex > index)
+            {
+                _selectedBlockIndex--;
+            }
+        }
+    }
+
+    private void MoveBlockUp(int index)
+    {
+        if (index > 0 && index < _templateJson.Blocks.Count)
+        {
+            var item = _templateJson.Blocks[index];
+            _templateJson.Blocks.RemoveAt(index);
+            _templateJson.Blocks.Insert(index - 1, item);
+            _selectedBlockIndex = index - 1;
+        }
+    }
+
+    private void MoveBlockDown(int index)
+    {
+        if (index >= 0 && index < _templateJson.Blocks.Count - 1)
+        {
+            var item = _templateJson.Blocks[index];
+            _templateJson.Blocks.RemoveAt(index);
+            _templateJson.Blocks.Insert(index + 1, item);
+            _selectedBlockIndex = index + 1;
+        }
+    }
+
+    private void AddColumn(TicketBlock block)
+    {
+        block.Columns ??= new();
+        block.Columns.Add(new TableColumnOption { Field = "Name", Title = "Columna", WidthPercentage = 10 });
+    }
+
+    private void RemoveColumn(TicketBlock block, TableColumnOption col)
+    {
+        block.Columns?.Remove(col);
+    }
+
+    private double GetColumnsTotalPercentage(TicketBlock block)
+    {
+        return block.Columns?.Sum(c => c.WidthPercentage) ?? 0;
+    }
+
+    private void InsertVariable(string variable)
+    {
+        if (_selectedBlockIndex >= 0 && _selectedBlockIndex < _templateJson.Blocks.Count)
+        {
+            var block = _templateJson.Blocks[_selectedBlockIndex];
+            if (block.Type.Equals("Text", StringComparison.OrdinalIgnoreCase) || block.Type.Equals("Footer", StringComparison.OrdinalIgnoreCase))
+            {
+                block.Content = (block.Content ?? "") + variable;
+            }
+            else if (block.Type.Equals("KeyValue", StringComparison.OrdinalIgnoreCase))
+            {
+                block.ValuePlaceholder = (block.ValuePlaceholder ?? "") + variable;
+            }
+            else if (block.Type.Equals("BarcodeOrQr", StringComparison.OrdinalIgnoreCase))
+            {
+                block.CodifiedValue = variable;
+            }
+        }
+    }
+
+    private async Task SaveTemplate()
+    {
+        // Validar porcentajes de tablas
+        foreach (var block in _templateJson.Blocks.Where(b => b.Type.Equals("ItemsTable", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (GetColumnsTotalPercentage(block) != 100)
+            {
+                Snackbar.Add("La tabla de artículos debe sumar exactamente 100% en el ancho de sus columnas.", Severity.Error);
+                return;
+            }
+        }
+
+        _isSaving = true;
+        try
+        {
+            string contentJson = JsonSerializer.Serialize(_templateJson);
+
+            if (_templateEntity != null)
+            {
+                _templateEntity.Update(_templateEntity.Name, contentJson, _templateEntity.IsDefault, _templateEntity.PrinterId);
+                DbContext.TicketTemplates.Update(_templateEntity);
+            }
+            else
+            {
+                _templateEntity = new TicketTemplate(
+                    $"Plantilla {_selectedType}",
+                    _selectedType,
+                    contentJson,
+                    true,
+                    null
+                );
+                DbContext.TicketTemplates.Add(_templateEntity);
+            }
+
+            await DbContext.SaveChangesAsync(CancellationToken.None);
+            Snackbar.Add("Plantilla de ticket guardada correctamente.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar la plantilla: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task PrintTestTicket()
+    {
+        if (!_selectedPrinterId.HasValue) return;
+
+        _isPrinting = true;
+        try
+        {
+            // Primero guardamos para asegurar que imprima la versión actual
+            await SaveTemplate();
+
+            var printer = await DbContext.Printers.FindAsync(_selectedPrinterId.Value);
+            if (printer == null)
+            {
+                Snackbar.Add("Impresora seleccionada no encontrada.", Severity.Error);
+                return;
+            }
+
+            // Conseguir un ejemplo real de la base de datos o simular uno
+            string ticketText = string.Empty;
+            switch (_selectedType)
+            {
+                case TicketTemplateType.Sale:
+                    var sale = await DbContext.Sales.OrderByDescending(s => s.Date).FirstOrDefaultAsync();
+                    if (sale != null)
+                        ticketText = await TicketGenerator.GenerateSaleTicketAsync(sale.Id);
+                    else
+                        Snackbar.Add("No hay ventas en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
+
+                case TicketTemplateType.Invoice:
+                    var invoice = await DbContext.Invoices.OrderByDescending(i => i.InvoiceDate).FirstOrDefaultAsync();
+                    if (invoice != null)
+                        ticketText = await TicketGenerator.GenerateInvoiceTicketAsync(invoice.Id);
+                    else
+                        Snackbar.Add("No hay facturas en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
+
+                case TicketTemplateType.Return:
+                    var ret = await DbContext.Returns.OrderByDescending(r => r.ReturnDate).FirstOrDefaultAsync();
+                    if (ret != null)
+                        ticketText = await TicketGenerator.GenerateReturnTicketAsync(ret.Id);
+                    else
+                        Snackbar.Add("No hay devoluciones en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
+
+                case TicketTemplateType.CashCollection:
+                    var col = await DbContext.CashCollections.OrderByDescending(c => c.CollectionDate).FirstOrDefaultAsync();
+                    if (col != null)
+                        ticketText = await TicketGenerator.GenerateCashCollectionTicketAsync(col.Id);
+                    else
+                        Snackbar.Add("No hay recolecciones en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
+
+                case TicketTemplateType.CashCut:
+                    var cut = await DbContext.CashCuts.OrderByDescending(c => c.CutDate).FirstOrDefaultAsync();
+                    if (cut != null)
+                        ticketText = await TicketGenerator.GenerateCashCutTicketAsync(cut.Id);
+                    else
+                        Snackbar.Add("No hay cortes en el sistema para usar como ejemplo.", Severity.Warning);
+                    break;
+            }
+
+            if (string.IsNullOrEmpty(ticketText))
+            {
+                Snackbar.Add("No se pudo generar el texto de prueba. Asegúrate de tener al menos un registro de este tipo.", Severity.Error);
+                return;
+            }
+
+            // Enviar impresión al HardwareAgent
+            string connectionUri = printer.ConnectionType switch
+            {
+                PrinterConnectionType.Network => printer.IpAddress ?? string.Empty,
+                PrinterConnectionType.Usb => $"usb://{printer.DevicePath}",
+                PrinterConnectionType.Serial => $"serial://{printer.DevicePath}?baud={printer.CodePage}",
+                _ => printer.IpAddress ?? string.Empty
+            };
+
+            await EscPosPrinter.PrintTextAsync(
+                connectionUri,
+                printer.Port ?? 9100,
+                ticketText,
+                encodingCodePage: printer.CodePage > 0 ? printer.CodePage : 28591,
+                cancellationToken: CancellationToken.None
+            );
+
+            Snackbar.Add("Impresión de prueba enviada con éxito.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Falla de impresión: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isPrinting = false;
+        }
+    }
+
+    private string GetMockColumnValue(string field)
+    {
+        return field.ToLowerInvariant() switch
+        {
+            "name" => "Artículo de Muestra Ex...",
+            "code" => "75010099",
+            "quantity" => "2.0",
+            "price" => "$43.10",
+            "total" => "$86.20",
+            _ => "-"
+        };
+    }
+
+    private List<string> GetAvailableVariables()
+    {
+        return _selectedType switch
+        {
+            TicketTemplateType.Sale => new() {
+                "{CompanyName}", "{TaxId}", "{BranchName}", "{BranchAddress}", "{BranchPhone}",
+                "{Folio}", "{Date}", "{CashRegisterName}", "{UserFullName}", "{ClientName}",
+                "{Subtotal}", "{Tax}", "{Total}", "{PaymentMethod}"
+            },
+            TicketTemplateType.Invoice => new() {
+                "{CompanyName}", "{TaxId}", "{FiscalRegime}", "{CsdSerialNumber}",
+                "{ReceiverName}", "{ReceiverTaxId}", "{CfdiUsage}", "{InvoiceNumber}",
+                "{InvoiceDate}", "{SaleNumber}", "{Subtotal}", "{Tax}", "{Total}",
+                "{Uuid}", "{NoCertificadoSAT}", "{StampedAt}", "{InvoiceType}"
+            },
+            TicketTemplateType.Return => new() {
+                "{CompanyName}", "{Folio}", "{Date}", "{SaleNumber}", "{UserFullName}",
+                "{Reason}", "{Subtotal}", "{Tax}", "{Total}", "{RefundMethod}"
+            },
+            TicketTemplateType.CashCollection => new() {
+                "{CompanyName}", "{TicketTitle}", "{Folio}", "{Date}", "{CashRegisterName}",
+                "{UserFullName}", "{Reason}", "{Total}"
+            },
+            TicketTemplateType.CashCut => new() {
+                "{CompanyName}", "{Folio}", "{Date}", "{CashRegisterName}", "{UserFullName}",
+                "{InitialCash}", "{CashSales}", "{Inflows}", "{Outflows}", "{Returns}",
+                "{ExpectedCash}", "{PhysicalCash}", "{DiffStatus}", "{Difference}"
+            },
+            _ => new()
+        };
+    }
+
+    private string ResolvePreviewVariables(string value)
+    {
+        return value
+            .Replace("{CompanyName}", "TIENDA S.A. DE C.V.")
+            .Replace("{TaxId}", "TIE123456AA1")
+            .Replace("{BranchName}", "Centro Historico")
+            .Replace("{BranchAddress}", "Av. Juárez 100, Col. Centro")
+            .Replace("{BranchPhone}", "555-123-4567")
+            .Replace("{Folio}", "V-000456")
+            .Replace("{Date}", DateTime.Now.ToString("dd/MM/yyyy HH:mm"))
+            .Replace("{CashRegisterName}", "Caja Principal 01")
+            .Replace("{UserFullName}", "Cajero Administrador")
+            .Replace("{ClientName}", "Juan Pérez Domínguez")
+            .Replace("{TicketTitle}", "RECOLECCIÓN DE EFECTIVO")
+            .Replace("{Reason}", "Corte parcial de caja")
+            .Replace("{Total}", "$100.00")
+            .Replace("{RefundMethod}", "Efectivo")
+            .Replace("{PaymentMethod}", "Efectivo");
+    }
+
+    private string GetAlignClass(string? align) => align?.ToLowerInvariant() switch
+    {
+        "center" => "text-center",
+        "right" => "text-right",
+        _ => "text-left"
+    };
+
+    private string GetFontClass(string? size) => size?.ToLowerInvariant() switch
+    {
+        "doubleheight" => "fs-doubleheight",
+        "doublewidth" => "fs-doublewidth",
+        "large" => "fs-large",
+        _ => ""
+    };
+
+    private void BackToSettings()
+    {
+        NavigationManager.NavigateTo("/admin/settings");
+    }
+
+    private void BackToPrinters()
+    {
+        NavigationManager.NavigateTo("/admin/printers");
+    }
+
+    private string GetDefaultTemplateJson(TicketTemplateType type)
+    {
+        switch (type)
+        {
+            case TicketTemplateType.Sale:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true, ""FontSize"": ""DoubleHeight"" },
+                        { ""Type"": ""Text"", ""Content"": ""RFC: {TaxId}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""SUCURSAL: {BranchName}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""{BranchAddress}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""TEL: {BranchPhone}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""TICKET DE VENTA"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cliente:"", ""ValuePlaceholder"": ""{ClientName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Footer"", ""Content"": ""¡GRACIAS POR SU COMPRA!\\nVuelva Pronto"" }
+                    ]
+                }";
+
+            case TicketTemplateType.Invoice:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""RFC: {TaxId}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""FACTURA ELECTRÓNICA"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{InvoiceType}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""DATOS DEL EMISOR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""Régimen Fiscal: {FiscalRegime}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""No. Certificado: {CsdSerialNumber}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""Text"", ""Content"": ""DATOS DEL RECEPTOR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""Nombre: {ReceiverName}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""RFC: {ReceiverTaxId}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Uso CFDI: {CfdiUsage}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Serie/Folio:"", ""ValuePlaceholder"": ""{InvoiceNumber}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha Emisión:"", ""ValuePlaceholder"": ""{InvoiceDate}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Nota de Origen:"", ""ValuePlaceholder"": ""{SaleNumber}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Concepto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""DATOS FISCALES DEL CFDI"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""UUID: {Uuid}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Certificado SAT: {NoCertificadoSAT}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Fecha Timbrado: {StampedAt}"", ""Align"": ""Left"" },
+                        { ""Type"": ""BarcodeOrQr"", ""CodeType"": ""QR"", ""CodifiedValue"": ""https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id={Uuid}"" },
+                        { ""Type"": ""Text"", ""Content"": ""Este documento es una representación impresa de un CFDI"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Footer"", ""Content"": ""¡GRACIAS POR SU PREFERENCIA!"" }
+                    ]
+                }";
+
+            case TicketTemplateType.Return:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""TICKET DE DEVOLUCIÓN"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio Dev:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Ticket Orig:"", ""ValuePlaceholder"": ""{SaleNumber}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Text"", ""Content"": ""Motivo: {Reason}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma de Conformidad Cliente"", ""Align"": ""Center"" },
+                        { ""Type"": ""Footer"", ""Content"": ""Vuelva Pronto"" }
+                    ]
+                }";
+
+            case TicketTemplateType.CashCollection:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{TicketTitle}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Text"", ""Content"": ""Concepto: {Reason}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""IMPORTE TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Supervisor"", ""Align"": ""Center"" }
+                    ]
+                }";
+
+            case TicketTemplateType.CashCut:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""CORTE DE CAJA (ARQUEO FISICO)"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio Corte:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha Corte:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""Text"", ""Content"": ""BALANCE GENERAL DE EFECTIVO"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fondo Inicial Caja:"", ""ValuePlaceholder"": ""{InitialCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Ventas Efectivo:"", ""ValuePlaceholder"": ""{CashSales}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Dotación Morralla:"", ""ValuePlaceholder"": ""{Inflows}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(-) Recolección Efect:"", ""ValuePlaceholder"": ""{Outflows}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(-) Devolución Efect:"", ""ValuePlaceholder"": ""{Returns}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Físico:"", ""ValuePlaceholder"": ""{PhysicalCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""DIFERENCIA ("", ""ValuePlaceholder"": ""{DiffStatus}) : {Difference}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Auditor"", ""Align"": ""Center"" }
+                    ]
+                }";
+
+            default:
+                return "{\"Blocks\":[]}";
+        }
+    }
+}

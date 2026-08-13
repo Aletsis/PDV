@@ -5,7 +5,13 @@ using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 using PDV.Domain.ValueObjects;
 using PDV.Infrastructure.Persistence;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PDV.Infrastructure.Printing;
 
@@ -18,9 +24,6 @@ public class TicketGenerator : ITicketGenerator
         _context = context;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 1. TICKET DE VENTA (Ventas sin factura / Público General)
-    // ──────────────────────────────────────────────────────────────────────────
     public async Task<string> GenerateSaleTicketAsync(Guid saleId, CancellationToken cancellationToken = default)
     {
         var sale = await _context.Sales
@@ -35,107 +38,49 @@ public class TicketGenerator : ITicketGenerator
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         var width = config?.TicketWidth ?? 48;
 
-        var sb = new StringBuilder();
+        var user = !string.IsNullOrEmpty(sale.UserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == sale.UserId, cancellationToken)
+            : null;
 
-        // 1. Encabezado configurable o default
-        AppendHeader(sb, config, sale.Branch, width);
-
-        // 2. Título de comprobante
-        sb.AppendLine(Center("TICKET DE VENTA", width));
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
-
-        // 3. Información de la Venta
-        sb.AppendLine($"Folio: {sale.SaleNumber}");
-        sb.AppendLine($"Fecha: {sale.Date.ToLocalTime():dd/MM/yyyy HH:mm}");
-        if (sale.CashRegister != null)
+        var variables = new Dictionary<string, string>
         {
-            sb.AppendLine($"Caja: {sale.CashRegister.Name}");
-        }
-        if (!string.IsNullOrEmpty(sale.UserId))
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{BranchName}", sale.Branch?.Name ?? string.Empty },
+            { "{BranchAddress}", sale.Branch?.Address != null ? $"{sale.Branch.Address.Street}, CP {sale.Branch.Address.ZipCode}" : string.Empty },
+            { "{BranchPhone}", sale.Branch?.Phone ?? string.Empty },
+            { "{Folio}", sale.SaleNumber.ToString() },
+            { "{Date}", sale.Date.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{CashRegisterName}", sale.CashRegister?.Name ?? string.Empty },
+            { "{UserFullName}", user?.FullName ?? sale.UserId },
+            { "{ClientName}", sale.Client?.Name ?? "Público General" },
+            { "{Subtotal}", sale.Subtotal.ToString("C2") },
+            { "{Tax}", sale.Taxes.Sum(t => t.TaxAmount).ToString("C2") },
+            { "{Total}", sale.TotalAmount.ToString("C2") },
+            { "{PaymentMethod}", GetPaymentMethodTranslation(sale.PaymentMethod) }
+        };
+
+        var tableItems = sale.Items.Select(item => new TicketTableItem
         {
-            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == sale.UserId, cancellationToken);
-            sb.AppendLine($"Cajero: {user?.FullName ?? sale.UserId}");
-        }
+            Name = item.ProductName,
+            Quantity = item.Quantity.ToString("0.##"),
+            Price = item.UnitPrice.ToString("C2"),
+            Total = item.TotalAmount.ToString("C2")
+        }).ToList();
 
-        // Cliente
-        if (sale.Client != null)
-        {
-            sb.AppendLine($"Cliente: {sale.Client.Name}");
-            if (!string.IsNullOrEmpty(sale.Client.TaxId))
-            {
-                sb.AppendLine($"RFC: {sale.Client.TaxId.ToUpperInvariant()}");
-            }
-        }
-        else
-        {
-            sb.AppendLine("Cliente: Público General");
-        }
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.Sale && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.Sale);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        if (sale.IsInvoiced)
-        {
-            sb.AppendLine("CFDI: Venta Facturada");
-            if (!string.IsNullOrEmpty(sale.InvoiceId))
-            {
-                sb.AppendLine($"ID Factura: {sale.InvoiceId.Substring(0, Math.Min(8, sale.InvoiceId.Length))}...");
-            }
-        }
+        var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        var sb = new StringBuilder(ticketText);
 
-        sb.AppendLine(DrawSeparator('-', width));
-
-        // 4. Tabla de Artículos
-        // Calcular anchos dinámicos de columna: Prod (45%), Cant (12%), Precio (21%), Total (remaining)
-        int nameW = (int)(width * 0.45);
-        int qtyW = (int)(width * 0.12);
-        int priceW = (int)(width * 0.21);
-        int totalW = width - nameW - qtyW - priceW;
-
-        sb.AppendLine(FormatTableRow(width,
-            ("PRODUCTO", nameW, false),
-            ("CANT", qtyW, true),
-            ("PRECIO", priceW, true),
-            ("TOTAL", totalW, true)
-        ));
-        sb.AppendLine(DrawSeparator('-', width));
-
-        foreach (var item in sale.Items)
-        {
-            sb.AppendLine(FormatTableRow(width,
-                (item.ProductName, nameW, false),
-                (item.Quantity.ToString("0.##"), qtyW, true),
-                (item.UnitPrice.ToString("C2"), priceW, true),
-                (item.TotalAmount.ToString("C2"), totalW, true)
-            ));
-        }
-
-        sb.AppendLine(DrawSeparator('=', width));
-
-        // 5. Bloque de Totales
-        sb.AppendLine(FormatTableRow(width, ("Subtotal:", width - totalW, true), (sale.Subtotal.ToString("C2"), totalW, true)));
-        
-        // Impuestos desglosados
-        foreach (var tax in sale.Taxes)
-        {
-            var rateText = tax.IsExempt ? "Exento" : $"{tax.Rate:0.##}%";
-            sb.AppendLine(FormatTableRow(width, ($"IVA {rateText}:", width - totalW, true), (tax.TaxAmount.ToString("C2"), totalW, true)));
-        }
-
-        sb.AppendLine(FormatTableRow(width, ("TOTAL:", width - totalW, true), (sale.TotalAmount.ToString("C2"), totalW, true)));
-        sb.AppendLine(FormatTableRow(width, ("Método de Pago:", width - totalW, true), (GetPaymentMethodTranslation(sale.PaymentMethod), totalW, true)));
-        sb.AppendLine();
-
-        // 6. Pie de Página configurable o default
-        AppendFooter(sb, config, width);
-
-        // Comando de corte de papel parcial ESC/POS
+        // Agregar comando de corte
         sb.Append("\x1B\x69");
-
         return sb.ToString();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 2. FACTURA ELECTRÓNICA (CFDI)
-    // ──────────────────────────────────────────────────────────────────────────
     public async Task<string> GenerateInvoiceTicketAsync(Guid invoiceId, CancellationToken cancellationToken = default)
     {
         var invoice = await _context.Invoices
@@ -154,142 +99,66 @@ public class TicketGenerator : ITicketGenerator
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         var width = config?.TicketWidth ?? 48;
 
-        var sb = new StringBuilder();
-
-        // 1. Encabezado
-        var branch = invoice.Branch ?? invoice.Sale?.Branch;
-        AppendHeader(sb, config, branch, width);
-
-        // 2. Título de comprobante fiscal
-        sb.AppendLine(Center("FACTURA ELECTRÓNICA", width));
-        var typeText = invoice.Type switch
+        var variables = new Dictionary<string, string>
         {
-            InvoiceType.Customer => "CFDI DE INGRESO (CLIENTE)",
-            InvoiceType.Global => "CFDI DE INGRESO (GLOBAL)",
-            InvoiceType.CreditNote => "CFDI DE EGRESO (NOTA DE CRÉDITO)",
-            _ => "CFDI"
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{FiscalRegime}", config?.FiscalRegime ?? string.Empty },
+            { "{CsdSerialNumber}", config?.CsdSerialNumber ?? string.Empty },
+            { "{ReceiverName}", invoice.ReceiverName.ToUpperInvariant() },
+            { "{ReceiverTaxId}", invoice.ReceiverTaxId.ToUpperInvariant() },
+            { "{CfdiUsage}", GetCfdiUsageDescription(invoice.CfdiUsage) },
+            { "{InvoiceNumber}", invoice.InvoiceNumber },
+            { "{InvoiceDate}", invoice.InvoiceDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{SaleNumber}", invoice.Sale?.SaleNumber.ToString() ?? string.Empty },
+            { "{Subtotal}", invoice.Subtotal.ToString("C2") },
+            { "{Tax}", invoice.Tax.ToString("C2") },
+            { "{Total}", invoice.Total.ToString("C2") },
+            { "{Uuid}", invoice.Uuid ?? string.Empty },
+            { "{NoCertificadoSAT}", invoice.NoCertificadoSAT ?? string.Empty },
+            { "{StampedAt}", invoice.StampedAt.HasValue ? invoice.StampedAt.Value.ToString("dd/MM/yyyy HH:mm:ss") : string.Empty },
+            { "{InvoiceType}", invoice.Type switch {
+                InvoiceType.Customer => "CFDI DE INGRESO (CLIENTE)",
+                InvoiceType.Global => "CFDI DE INGRESO (GLOBAL)",
+                InvoiceType.CreditNote => "CFDI DE EGRESO (NOTA DE CRÉDITO)",
+                _ => "CFDI"
+            }}
         };
-        sb.AppendLine(Center(typeText, width));
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
 
-        // 3. Datos del Emisor y Certificado
-        if (config != null)
-        {
-            sb.AppendLine("DATOS DEL EMISOR:");
-            sb.AppendLine($"Régimen Fiscal: {config.FiscalRegime}");
-            if (!string.IsNullOrEmpty(config.CsdSerialNumber))
-            {
-                sb.AppendLine($"No. Certificado: {config.CsdSerialNumber}");
-            }
-            sb.AppendLine(DrawSeparator('-', width));
-        }
-
-        // 4. Datos del Receptor
-        sb.AppendLine("DATOS DEL RECEPTOR:");
-        sb.AppendLine($"Nombre/Razón Social:");
-        sb.AppendLine(invoice.ReceiverName.ToUpperInvariant());
-        sb.AppendLine($"RFC: {invoice.ReceiverTaxId.ToUpperInvariant()}");
-        sb.AppendLine($"Uso CFDI: {GetCfdiUsageDescription(invoice.CfdiUsage)}");
-        sb.AppendLine(DrawSeparator('-', width));
-
-        // 5. Datos de Identificación del Comprobante
-        sb.AppendLine($"Serie/Folio: {invoice.InvoiceNumber}");
-        sb.AppendLine($"Fecha Emisión: {invoice.InvoiceDate.ToLocalTime():dd/MM/yyyy HH:mm}");
-        if (invoice.Sale != null)
-        {
-            sb.AppendLine($"Nota de Origen: {invoice.Sale.SaleNumber}");
-        }
-
-        // 6. Detalle de Conceptos / Artículos
-        int nameW = (int)(width * 0.45);
-        int qtyW = (int)(width * 0.12);
-        int priceW = (int)(width * 0.21);
-        int totalW = width - nameW - qtyW - priceW;
-
-        sb.AppendLine(FormatTableRow(width,
-            ("CONCEPTO/PROD", nameW, false),
-            ("CANT", qtyW, true),
-            ("PRECIO", priceW, true),
-            ("TOTAL", totalW, true)
-        ));
-        sb.AppendLine(DrawSeparator('-', width));
-
+        var tableItems = new List<TicketTableItem>();
         if (invoice.Sale != null && invoice.Sale.Items.Any())
         {
-            foreach (var item in invoice.Sale.Items)
+            tableItems = invoice.Sale.Items.Select(item => new TicketTableItem
             {
-                sb.AppendLine(FormatTableRow(width,
-                    (item.ProductName, nameW, false),
-                    (item.Quantity.ToString("0.##"), qtyW, true),
-                    (item.UnitPrice.ToString("C2"), priceW, true),
-                    (item.TotalAmount.ToString("C2"), totalW, true)
-                ));
-            }
+                Name = item.ProductName,
+                Quantity = item.Quantity.ToString("0.##"),
+                Price = item.UnitPrice.ToString("C2"),
+                Total = item.TotalAmount.ToString("C2")
+            }).ToList();
         }
         else
         {
-            // Facturas globales consolidadas o sin desglose manual
-            sb.AppendLine(FormatTableRow(width,
-                ("CONSOLIDADO GLOBAL DE VENTAS", nameW + qtyW, false),
-                ("", priceW, true),
-                (invoice.Subtotal.ToString("C2"), totalW, true)
-            ));
+            tableItems.Add(new TicketTableItem
+            {
+                Name = "CONSOLIDADO GLOBAL DE VENTAS",
+                Quantity = "1",
+                Price = invoice.Subtotal.ToString("C2"),
+                Total = invoice.Subtotal.ToString("C2")
+            });
         }
 
-        sb.AppendLine(DrawSeparator('=', width));
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.Invoice && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.Invoice);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        // 7. Totales
-        sb.AppendLine($"{"Subtotal:".PadLeft(30)} {invoice.Subtotal.ToString("C2").PadLeft(10)}");
-        sb.AppendLine($"{"IVA:".PadLeft(30)} {invoice.Tax.ToString("C2").PadLeft(10)}");
-        sb.AppendLine($"{"TOTAL:".PadLeft(30)} {invoice.Total.ToString("C2").PadLeft(10)}");
-        
-        // Si la factura está timbrada, imprimir datos fiscales
-        if (invoice.Status == InvoiceStatus.Stamped && !string.IsNullOrEmpty(invoice.Uuid))
-        {
-            sb.AppendLine();
-            sb.AppendLine("================================================");
-            sb.AppendLine(Center("DATOS FISCALES DEL CFDI", 48));
-            sb.AppendLine("================================================");
-            sb.AppendLine($"Folio Fiscal (UUID):");
-            sb.AppendLine($" {invoice.Uuid}");
-            sb.AppendLine($"No. Certificado SAT: {invoice.NoCertificadoSAT}");
-            sb.AppendLine($"No. Certificado Emisor: {invoice.NoCertificadoEmisor}");
-            sb.AppendLine($"Fecha Certificación: {invoice.StampedAt:dd/MM/yyyy HH:mm:ss}");
-            sb.AppendLine();
-            
-            sb.AppendLine("Sello Digital del Emisor:");
-            sb.AppendLine(WrapText(invoice.SelloDigitalEmisor ?? string.Empty, 48));
-            sb.AppendLine();
-            
-            sb.AppendLine("Sello Digital del SAT:");
-            sb.AppendLine(WrapText(invoice.SelloDigitalSAT ?? string.Empty, 48));
-            sb.AppendLine();
-            
-            sb.AppendLine("Cadena Original SAT:");
-            sb.AppendLine(WrapText(invoice.CadenaOriginal ?? string.Empty, 48));
-            sb.AppendLine();
-            sb.AppendLine("------------------------------------------------");
-            sb.AppendLine(Center("Este documento es una representación", 48));
-            sb.AppendLine(Center("impresa de un CFDI", 48));
-            sb.AppendLine("------------------------------------------------");
-        }
+        var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        var sb = new StringBuilder(ticketText);
 
-        sb.AppendLine();
-        sb.AppendLine(Center("¡GRACIAS POR SU COMPRA!", 48));
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine();
-
-        // Comando de corte de papel ESC/POS
-        sb.Append("\x1B\x69"); // Corte parcial
-
+        sb.Append("\x1B\x69");
         return sb.ToString();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 3. TICKET DE DEVOLUCIÓN
-    // ──────────────────────────────────────────────────────────────────────────
     public async Task<string> GenerateReturnTicketAsync(Guid returnId, CancellationToken cancellationToken = default)
     {
         var returnSale = await _context.Returns
@@ -305,104 +174,52 @@ public class TicketGenerator : ITicketGenerator
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         var width = config?.TicketWidth ?? 48;
 
-        var sb = new StringBuilder();
+        var user = !string.IsNullOrEmpty(returnSale.UserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == returnSale.UserId, cancellationToken)
+            : null;
 
-        // 1. Encabezado
-        AppendHeader(sb, config, returnSale.Branch, width);
-
-        // 2. Título de comprobante
-        sb.AppendLine(Center("TICKET DE DEVOLUCIÓN", width));
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
-
-        // 3. Detalles de la Devolución
         var folioText = string.IsNullOrEmpty(returnSale.Series) ? returnSale.Folio.ToString() : $"{returnSale.Series}{returnSale.Folio}";
-        sb.AppendLine($"Folio Devolución: {folioText}");
-        sb.AppendLine($"Fecha: {returnSale.ReturnDate.ToLocalTime():dd/MM/yyyy HH:mm}");
-        if (returnSale.Sale != null)
+
+        var variables = new Dictionary<string, string>
         {
-            sb.AppendLine($"Ticket Original: {returnSale.Sale.SaleNumber}");
-        }
-        if (returnSale.CashRegister != null)
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{BranchName}", returnSale.Branch?.Name ?? string.Empty },
+            { "{BranchAddress}", returnSale.Branch?.Address != null ? $"{returnSale.Branch.Address.Street}, CP {returnSale.Branch.Address.ZipCode}" : string.Empty },
+            { "{BranchPhone}", returnSale.Branch?.Phone ?? string.Empty },
+            { "{Folio}", folioText },
+            { "{Date}", returnSale.ReturnDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{SaleNumber}", returnSale.Sale?.SaleNumber.ToString() ?? string.Empty },
+            { "{CashRegisterName}", returnSale.CashRegister?.Name ?? string.Empty },
+            { "{UserFullName}", user?.FullName ?? returnSale.UserId },
+            { "{ClientName}", returnSale.Client?.Name ?? "Público General" },
+            { "{Reason}", returnSale.Reason },
+            { "{Subtotal}", returnSale.Subtotal.ToString("C2") },
+            { "{Tax}", returnSale.Taxes.Sum(t => t.TaxAmount).ToString("C2") },
+            { "{Total}", returnSale.TotalRefund.ToString("C2") },
+            { "{RefundMethod}", GetRefundMethodTranslation(returnSale.RefundMethod) }
+        };
+
+        var tableItems = returnSale.Items.Select(item => new TicketTableItem
         {
-            sb.AppendLine($"Caja: {returnSale.CashRegister.Name}");
-        }
-        if (!string.IsNullOrEmpty(returnSale.UserId))
-        {
-            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == returnSale.UserId, cancellationToken);
-            sb.AppendLine($"Cajero: {user?.FullName ?? returnSale.UserId}");
-        }
+            Name = item.ProductName,
+            Quantity = item.Quantity.ToString("0.##"),
+            Price = item.UnitPrice.ToString("C2"),
+            Total = item.TotalAmount.ToString("C2")
+        }).ToList();
 
-        // Cliente
-        if (returnSale.Client != null)
-        {
-            sb.AppendLine($"Cliente: {returnSale.Client.Name}");
-        }
-        else
-        {
-            sb.AppendLine("Cliente: Público General");
-        }
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.Return && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.Return);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        sb.AppendLine($"Motivo: {returnSale.Reason}");
-        sb.AppendLine(DrawSeparator('-', width));
+        var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
+        var sb = new StringBuilder(ticketText);
 
-        // 4. Tabla de Artículos Devueltos
-        int nameW = (int)(width * 0.45);
-        int qtyW = (int)(width * 0.12);
-        int priceW = (int)(width * 0.21);
-        int totalW = width - nameW - qtyW - priceW;
-
-        sb.AppendLine(FormatTableRow(width,
-            ("PRODUCTO", nameW, false),
-            ("CANT", qtyW, true),
-            ("PRECIO", priceW, true),
-            ("TOTAL", totalW, true)
-        ));
-        sb.AppendLine(DrawSeparator('-', width));
-
-        foreach (var item in returnSale.Items)
-        {
-            sb.AppendLine(FormatTableRow(width,
-                (item.ProductName, nameW, false),
-                (item.Quantity.ToString("0.##"), qtyW, true),
-                (item.UnitPrice.ToString("C2"), priceW, true),
-                (item.TotalAmount.ToString("C2"), totalW, true)
-            ));
-        }
-
-        sb.AppendLine(DrawSeparator('=', width));
-
-        // 5. Totales de Devolución
-        sb.AppendLine(FormatTableRow(width, ("Subtotal Devuelto:", width - totalW, true), (returnSale.Subtotal.ToString("C2"), totalW, true)));
-        
-        foreach (var tax in returnSale.Taxes)
-        {
-            var rateText = tax.IsExempt ? "Exento" : $"{tax.Rate:0.##}%";
-            sb.AppendLine(FormatTableRow(width, ($"IVA Devuelto {rateText}:", width - totalW, true), (tax.TaxAmount.ToString("C2"), totalW, true)));
-        }
-
-        sb.AppendLine(FormatTableRow(width, ("TOTAL REEMBOLSO:", width - totalW, true), (returnSale.TotalRefund.ToString("C2"), totalW, true)));
-        sb.AppendLine(FormatTableRow(width, ("Forma Reembolso:", width - totalW, true), (GetRefundMethodTranslation(returnSale.RefundMethod), totalW, true)));
-        sb.AppendLine();
-
-        // 6. Firmas
-        sb.AppendLine();
-        sb.AppendLine(Center("_________________________", width));
-        sb.AppendLine(Center("Firma de Conformidad Cliente", width));
-        sb.AppendLine();
-        sb.AppendLine();
-
-        AppendFooter(sb, config, width);
-
-        // Corte parcial
         sb.Append("\x1B\x69");
-
         return sb.ToString();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 4. RECOLECCIONES DE EFECTIVO / ENTREGAS DE MORRALLA
-    // ──────────────────────────────────────────────────────────────────────────
     public async Task<string> GenerateCashCollectionTicketAsync(Guid collectionId, CancellationToken cancellationToken = default)
     {
         var collection = await _context.CashCollections
@@ -415,12 +232,10 @@ public class TicketGenerator : ITicketGenerator
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         var width = config?.TicketWidth ?? 48;
 
-        var sb = new StringBuilder();
+        var user = !string.IsNullOrEmpty(collection.UserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == collection.UserId, cancellationToken)
+            : null;
 
-        // 1. Encabezado
-        AppendHeader(sb, config, collection.CashRegister?.Branch, width);
-
-        // 2. Determinar si es Morralla (Inflow) o Retiro (Outflow)
         bool isInflow = collection.Reason.StartsWith("[INFLOW]", StringComparison.OrdinalIgnoreCase);
         var ticketTitle = isInflow ? "DOTACIÓN DE MORRALLA" : "RECOLECCIÓN DE EFECTIVO";
         var cleanReason = collection.Reason
@@ -428,86 +243,33 @@ public class TicketGenerator : ITicketGenerator
             .Replace("[OUTFLOW]", "", StringComparison.OrdinalIgnoreCase)
             .Trim();
 
-        sb.AppendLine(Center(ticketTitle, width));
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
-
-        // 3. Detalles de la transacción
-        sb.AppendLine($"Folio: {collection.Id.ToString().Substring(0, 8).ToUpperInvariant()}");
-        sb.AppendLine($"Fecha: {collection.CollectionDate.ToLocalTime():dd/MM/yyyy HH:mm}");
-        if (collection.CashRegister != null)
+        var variables = new Dictionary<string, string>
         {
-            sb.AppendLine($"Caja: {collection.CashRegister.Name}");
-        }
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == collection.UserId, cancellationToken);
-        var cajeroName = user?.FullName ?? collection.UserId;
-        sb.AppendLine($"Cajero: {cajeroName}");
-        sb.AppendLine($"Concepto: {cleanReason}");
-        sb.AppendLine(DrawSeparator('-', width));
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{BranchName}", collection.CashRegister?.Branch?.Name ?? string.Empty },
+            { "{BranchAddress}", collection.CashRegister?.Branch?.Address != null ? $"{collection.CashRegister.Branch.Address.Street}, CP {collection.CashRegister.Branch.Address.ZipCode}" : string.Empty },
+            { "{TicketTitle}", ticketTitle },
+            { "{Folio}", collection.Id.ToString().Substring(0, 8).ToUpperInvariant() },
+            { "{Date}", collection.CollectionDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{CashRegisterName}", collection.CashRegister?.Name ?? string.Empty },
+            { "{UserFullName}", user?.FullName ?? collection.UserId },
+            { "{Reason}", cleanReason },
+            { "{Total}", collection.Amount.ToString("C2") }
+        };
 
-        // 4. Desglose de Denominaciones
-        sb.AppendLine(Center("DESGLOSE DE EFECTIVO", width));
-        sb.AppendLine(DrawSeparator('-', width));
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.CashCollection && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.CashCollection);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        int denomW = (int)(width * 0.45);
-        int qtyW = (int)(width * 0.20);
-        int totalW = width - denomW - qtyW;
+        var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        var sb = new StringBuilder(ticketText);
 
-        sb.AppendLine(FormatTableRow(width,
-            ("DENOMINACIÓN", denomW, false),
-            ("CANTIDAD", qtyW, true),
-            ("IMPORTE", totalW, true)
-        ));
-        sb.AppendLine(DrawSeparator('-', width));
-
-        if (collection.Denominations != null && collection.Denominations.Any())
-        {
-            foreach (var denom in collection.Denominations.OrderByDescending(d => d.Type.GetValue()))
-            {
-                sb.AppendLine(FormatTableRow(width,
-                    (FormatDenominationName(denom.Type), denomW, false),
-                    (denom.Quantity.ToString(), qtyW, true),
-                    (denom.TotalValue.ToString("C2"), totalW, true)
-                ));
-            }
-        }
-        else
-        {
-            sb.AppendLine(FormatTableRow(width,
-                ("Efectivo General", denomW, false),
-                ("1", qtyW, true),
-                (collection.Amount.ToString("C2"), totalW, true)
-            ));
-        }
-
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine(FormatTableRow(width, ("IMPORTE TOTAL:", width - totalW, true), (collection.Amount.ToString("C2"), totalW, true)));
-        sb.AppendLine();
-
-        // 5. Bloque de firmas formal
-        sb.AppendLine();
-        sb.AppendLine(FormatTableRow(width,
-            ("_____________________", width / 2, false),
-            ("_____________________", width - (width / 2), true)
-        ));
-        sb.AppendLine(FormatTableRow(width,
-            ("Firma de Cajero", width / 2, false),
-            ("Firma de Supervisor", width - (width / 2), true)
-        ));
-        sb.AppendLine();
-        sb.AppendLine();
-
-        AppendFooter(sb, config, width);
-
-        // Corte parcial
         sb.Append("\x1B\x69");
-
         return sb.ToString();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 5. CORTE DE CAJA (ARQUEOS Y CIERRES)
-    // ──────────────────────────────────────────────────────────────────────────
     public async Task<string> GenerateCashCutTicketAsync(Guid cutId, CancellationToken cancellationToken = default)
     {
         var cut = await _context.CashCuts
@@ -521,286 +283,211 @@ public class TicketGenerator : ITicketGenerator
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         var width = config?.TicketWidth ?? 48;
 
-        var sb = new StringBuilder();
-
-        // 1. Encabezado
-        AppendHeader(sb, config, cut.CashRegister?.Branch, width);
-
-        // 2. Título de comprobante
-        sb.AppendLine(Center("CORTE DE CAJA (ARQUEO FISICO)", width));
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
-
-        // 3. Detalles de Corte y Turno
-        sb.AppendLine($"Folio Corte: {cut.Id.ToString().Substring(0, 8).ToUpperInvariant()}");
-        sb.AppendLine($"Fecha Corte: {cut.CutDate.ToLocalTime():dd/MM/yyyy HH:mm}");
-        if (cut.CashRegister != null)
-        {
-            sb.AppendLine($"Caja: {cut.CashRegister.Name}");
-        }
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == cut.UserId, cancellationToken);
-        var cajeroName = user?.FullName ?? cut.UserId;
-        sb.AppendLine($"Cajero: {cajeroName}");
-
-        if (cut.Shift != null)
-        {
-            sb.AppendLine($"Turno ID: {cut.Shift.Id.ToString().Substring(0, 8).ToUpperInvariant()}");
-            sb.AppendLine($"Apertura: {cut.Shift.StartTime.ToLocalTime():dd/MM/yyyy HH:mm}");
-            if (cut.Shift.EndTime.HasValue)
-            {
-                sb.AppendLine($"Cierre: {cut.Shift.EndTime.Value.ToLocalTime():dd/MM/yyyy HH:mm}");
-            }
-        }
-        sb.AppendLine(DrawSeparator('-', width));
-
-        // 4. Estado de Efectivo en Gaveta (Balance de Caja)
-        sb.AppendLine(Center("BALANCE GENERAL DE EFECTIVO", width));
-        sb.AppendLine(DrawSeparator('-', width));
-
-        int labelW = width - 14;
-        int valueW = 14;
+        var user = !string.IsNullOrEmpty(cut.UserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == cut.UserId, cancellationToken)
+            : null;
 
         var initialCash = cut.Shift?.InitialCash ?? 0m;
-        
-        // Cargar entradas y salidas de este turno
         var cashCollections = await _context.CashCollections
             .Where(c => c.ShiftId == cut.ShiftId)
             .ToListAsync(cancellationToken);
         var totalInflows = cashCollections.Where(c => c.Reason.StartsWith("[INFLOW]", StringComparison.OrdinalIgnoreCase)).Sum(c => c.Amount);
         var totalOutflows = cashCollections.Where(c => c.Reason.StartsWith("[OUTFLOW]", StringComparison.OrdinalIgnoreCase)).Sum(c => c.Amount);
 
-        // Obtener ventas en efectivo
         var shiftCashSales = cut.Shift?.PaymentMethodTotals?
             .FirstOrDefault(p => p.PaymentMethod == PaymentMethodType.Cash)?.Amount ?? 0m;
 
         var cashReturns = cut.Shift?.TotalCashReturns ?? 0m;
 
-        sb.AppendLine(FormatTableRow(width, ("Fondo Inicial Caja:", labelW, false), (initialCash.ToString("C2"), valueW, true)));
-        sb.AppendLine(FormatTableRow(width, ("(+) Ventas Efectivo:", labelW, false), (shiftCashSales.ToString("C2"), valueW, true)));
-        sb.AppendLine(FormatTableRow(width, ("(+) Dotación Morralla:", labelW, false), (totalInflows.ToString("C2"), valueW, true)));
-        sb.AppendLine(FormatTableRow(width, ("(-) Recolección Efect.:", labelW, false), (totalOutflows.ToString("C2"), valueW, true)));
-        sb.AppendLine(FormatTableRow(width, ("(-) Devolución Efect.:", labelW, false), (cashReturns.ToString("C2"), valueW, true)));
-        sb.AppendLine(DrawSeparator('-', width));
-        sb.AppendLine(FormatTableRow(width, ("(=) Efectivo Esperado:", labelW, false), (cut.SystemExpectedCash.ToString("C2"), valueW, true)));
-        sb.AppendLine(FormatTableRow(width, ("(=) Efectivo Físico:", labelW, false), (cut.DeclaredPhysicalCash.ToString("C2"), valueW, true)));
-        sb.AppendLine(DrawSeparator('-', width));
-
-        // Calcular Diferencia
         string diffStatus = "CUADRADO";
-        if (cut.Difference < 0)
+        if (cut.Difference < 0) diffStatus = "FALTANTE";
+        else if (cut.Difference > 0) diffStatus = "SOBRANTE";
+
+        var variables = new Dictionary<string, string>
         {
-            diffStatus = "FALTANTE";
-        }
-        else if (cut.Difference > 0)
-        {
-            diffStatus = "SOBRANTE";
-        }
+            { "{CompanyName}", config?.CompanyName ?? string.Empty },
+            { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{BranchName}", cut.CashRegister?.Branch?.Name ?? string.Empty },
+            { "{BranchAddress}", cut.CashRegister?.Branch?.Address != null ? $"{cut.CashRegister.Branch.Address.Street}, CP {cut.CashRegister.Branch.Address.ZipCode}" : string.Empty },
+            { "{Folio}", cut.Id.ToString().Substring(0, 8).ToUpperInvariant() },
+            { "{Date}", cut.CutDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{CashRegisterName}", cut.CashRegister?.Name ?? string.Empty },
+            { "{UserFullName}", user?.FullName ?? cut.UserId },
+            { "{InitialCash}", initialCash.ToString("C2") },
+            { "{CashSales}", shiftCashSales.ToString("C2") },
+            { "{Inflows}", totalInflows.ToString("C2") },
+            { "{Outflows}", totalOutflows.ToString("C2") },
+            { "{Returns}", cashReturns.ToString("C2") },
+            { "{ExpectedCash}", cut.SystemExpectedCash.ToString("C2") },
+            { "{PhysicalCash}", cut.DeclaredPhysicalCash.ToString("C2") },
+            { "{DiffStatus}", diffStatus },
+            { "{Difference}", cut.Difference.ToString("C2") }
+        };
 
-        sb.AppendLine(FormatTableRow(width, ($"DIFERENCIA ({diffStatus}):", labelW, false), (cut.Difference.ToString("C2"), valueW, true)));
-        sb.AppendLine(DrawSeparator('-', width));
-        sb.AppendLine();
+        var templateJson = await _context.TicketTemplates
+            .FirstOrDefaultAsync(t => t.TemplateType == TicketTemplateType.CashCut && t.IsDefault, cancellationToken);
+        string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.CashCut);
+        var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        // 5. Desglose de Ventas por Métodos de Pago
-        if (cut.Shift?.PaymentMethodTotals != null && cut.Shift.PaymentMethodTotals.Any())
-        {
-            sb.AppendLine(Center("VENTAS TOTALES POR MÉTODO", width));
-            sb.AppendLine(DrawSeparator('-', width));
-            foreach (var breakdown in cut.Shift.PaymentMethodTotals)
-            {
-                sb.AppendLine(FormatTableRow(width,
-                    (GetPaymentMethodTranslation(breakdown.PaymentMethod), labelW, false),
-                    (breakdown.Amount.ToString("C2"), valueW, true)
-                ));
-            }
-            sb.AppendLine(DrawSeparator('-', width));
-            sb.AppendLine();
-        }
+        var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        var sb = new StringBuilder(ticketText);
 
-        // 6. Desglose de Efectivo Físico Declarado (Denominaciones)
-        if (cut.CashDenominations != null && cut.CashDenominations.Any())
-        {
-            sb.AppendLine(Center("DESGLOSE DE EFECTIVO FISICO", width));
-            sb.AppendLine(DrawSeparator('-', width));
-            int denomW = (int)(width * 0.45);
-            int qtyColW = (int)(width * 0.20);
-            int impColW = width - denomW - qtyColW;
-
-            sb.AppendLine(FormatTableRow(width,
-                ("DENOMINACIÓN", denomW, false),
-                ("CANTIDAD", qtyColW, true),
-                ("IMPORTE", impColW, true)
-            ));
-            sb.AppendLine(DrawSeparator('-', width));
-
-            foreach (var denom in cut.CashDenominations.OrderByDescending(d => d.Type.GetValue()))
-            {
-                sb.AppendLine(FormatTableRow(width,
-                    (FormatDenominationName(denom.Type), denomW, false),
-                    (denom.Quantity.ToString(), qtyColW, true),
-                    (denom.TotalValue.ToString("C2"), impColW, true)
-                ));
-            }
-            sb.AppendLine(DrawSeparator('-', width));
-            sb.AppendLine();
-        }
-
-        // 7. Bloque de firmas formal
-        sb.AppendLine();
-        sb.AppendLine(FormatTableRow(width,
-            ("_____________________", width / 2, false),
-            ("_____________________", width - (width / 2), true)
-        ));
-        sb.AppendLine(FormatTableRow(width,
-            ("Firma de Cajero", width / 2, false),
-            ("Firma de Auditor", width - (width / 2), true)
-        ));
-        sb.AppendLine();
-        sb.AppendLine();
-
-        AppendFooter(sb, config, width);
-
-        // Corte parcial
         sb.Append("\x1B\x69");
-
         return sb.ToString();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // HELPERS DE ESTRUCTURA Y FORMATEO DE TICKETS
-    // ──────────────────────────────────────────────────────────────────────────
-    private static void AppendHeader(StringBuilder sb, SystemConfiguration? config, Branch? branch, int width)
+    private string GetDefaultTemplateJson(TicketTemplateType type)
     {
-        // Si existe un encabezado personalizado configurado, lo imprimimos de forma primordial
-        if (!string.IsNullOrEmpty(config?.TicketHeader))
+        switch (type)
         {
-            var headerLines = config.TicketHeader.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            foreach (var line in headerLines)
-            {
-                sb.AppendLine(Center(line.Trim(), width));
-            }
-            sb.AppendLine(DrawSeparator('=', width));
-            sb.AppendLine();
-            return;
+            case TicketTemplateType.Sale:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true, ""FontSize"": ""DoubleHeight"" },
+                        { ""Type"": ""Text"", ""Content"": ""RFC: {TaxId}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""SUCURSAL: {BranchName}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""{BranchAddress}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""TEL: {BranchPhone}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""TICKET DE VENTA"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cliente:"", ""ValuePlaceholder"": ""{ClientName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 45 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 12 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 21 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 22 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Footer"", ""Content"": ""¡GRACIAS POR SU COMPRA!\\nVuelva Pronto"" }
+                    ]
+                }";
+
+            case TicketTemplateType.Invoice:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""RFC: {TaxId}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""FACTURA ELECTRÓNICA"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{InvoiceType}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""DATOS DEL EMISOR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""Régimen Fiscal: {FiscalRegime}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""No. Certificado: {CsdSerialNumber}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""Text"", ""Content"": ""DATOS DEL RECEPTOR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""Nombre: {ReceiverName}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""RFC: {ReceiverTaxId}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Uso CFDI: {CfdiUsage}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Serie/Folio:"", ""ValuePlaceholder"": ""{InvoiceNumber}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha Emisión:"", ""ValuePlaceholder"": ""{InvoiceDate}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Nota de Origen:"", ""ValuePlaceholder"": ""{SaleNumber}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Concepto"", ""WidthPercentage"": 45 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 12 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 21 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 22 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""DATOS FISCALES DEL CFDI"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""UUID: {Uuid}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Certificado SAT: {NoCertificadoSAT}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Fecha Timbrado: {StampedAt}"", ""Align"": ""Left"" },
+                        { ""Type"": ""BarcodeOrQr"", ""CodeType"": ""QR"", ""CodifiedValue"": ""https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id={Uuid}"" },
+                        { ""Type"": ""Text"", ""Content"": ""Este documento es una representación impresa de un CFDI"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Footer"", ""Content"": ""¡GRACIAS POR SU PREFERENCIA!"" }
+                    ]
+                }";
+
+            case TicketTemplateType.Return:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""TICKET DE DEVOLUCIÓN"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio Dev:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Ticket Orig:"", ""ValuePlaceholder"": ""{SaleNumber}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Text"", ""Content"": ""Motivo: {Reason}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""ItemsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Producto"", ""WidthPercentage"": 45 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 12 },
+                            { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 21 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 22 }
+                        ], ""WrapText"": true },
+                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma de Conformidad Cliente"", ""Align"": ""Center"" },
+                        { ""Type"": ""Footer"", ""Content"": ""Vuelva Pronto"" }
+                    ]
+                }";
+
+            case TicketTemplateType.CashCollection:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{TicketTitle}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Text"", ""Content"": ""Concepto: {Reason}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""IMPORTE TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Supervisor"", ""Align"": ""Center"" }
+                    ]
+                }";
+
+            case TicketTemplateType.CashCut:
+                return @"{
+                    ""Blocks"": [
+                        { ""Type"": ""Logo"" },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""CORTE DE CAJA (ARQUEO FISICO)"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Folio Corte:"", ""ValuePlaceholder"": ""{Folio}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fecha Corte:"", ""ValuePlaceholder"": ""{Date}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""Text"", ""Content"": ""BALANCE GENERAL DE EFECTIVO"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fondo Inicial Caja:"", ""ValuePlaceholder"": ""{InitialCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Ventas Efectivo:"", ""ValuePlaceholder"": ""{CashSales}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Dotación Morralla:"", ""ValuePlaceholder"": ""{Inflows}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(-) Recolección Efect:"", ""ValuePlaceholder"": ""{Outflows}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(-) Devolución Efect:"", ""ValuePlaceholder"": ""{Returns}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Físico:"", ""ValuePlaceholder"": ""{PhysicalCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""DIFERENCIA ("", ""ValuePlaceholder"": ""{DiffStatus}) : {Difference}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Auditor"", ""Align"": ""Center"" }
+                    ]
+                }";
+
+            default:
+                return "{\"Blocks\":[]}";
         }
-
-        // De lo contrario, usamos un formato fiscal / corporativo profesional por default
-        if (config != null)
-        {
-            sb.AppendLine(Center(config.CompanyName.ToUpperInvariant(), width));
-            if (!string.IsNullOrEmpty(config.TaxId))
-            {
-                sb.AppendLine(Center($"RFC EMISOR: {config.TaxId.ToUpperInvariant()}", width));
-            }
-        }
-
-        if (branch != null)
-        {
-            sb.AppendLine(Center($"SUCURSAL: {branch.Name.ToUpperInvariant()}", width));
-            if (branch.Address != null && !string.IsNullOrEmpty(branch.Address.Street))
-            {
-                sb.AppendLine(Center(branch.Address.Street, width));
-                sb.AppendLine(Center($"CP: {branch.Address.ZipCode}, {branch.Address.City}, {branch.Address.State}", width));
-            }
-            if (!string.IsNullOrEmpty(branch.Phone))
-            {
-                sb.AppendLine(Center($"TEL: {branch.Phone}", width));
-            }
-        }
-        else if (config?.FiscalAddress != null)
-        {
-            sb.AppendLine(Center(config.FiscalAddress.Street, width));
-            sb.AppendLine(Center($"CP: {config.FiscalAddress.ZipCode}, {config.FiscalAddress.City}, {config.FiscalAddress.State}", width));
-        }
-
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
-    }
-
-    private static void AppendFooter(StringBuilder sb, SystemConfiguration? config, int width)
-    {
-        sb.AppendLine(DrawSeparator('=', width));
-        sb.AppendLine();
-
-        if (!string.IsNullOrEmpty(config?.TicketFooter))
-        {
-            var footerLines = config.TicketFooter.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            foreach (var line in footerLines)
-            {
-                sb.AppendLine(Center(line.Trim(), width));
-            }
-        }
-        else
-        {
-            sb.AppendLine(Center("¡GRACIAS POR SU COMPRA!", width));
-            sb.AppendLine(Center("Vuelva Pronto", width));
-        }
-
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine();
-    }
-
-    private static string Center(string text, int width)
-    {
-        if (text.Length >= width) return text;
-        int padding = (width - text.Length) / 2;
-        return text.PadLeft(text.Length + padding).PadRight(width);
-    }
-
-    private static string WrapText(string text, int width)
-    {
-        if (string.IsNullOrEmpty(text)) return string.Empty;
-        var sb = new StringBuilder();
-        for (int i = 0; i < text.Length; i += width)
-        {
-            if (i + width < text.Length)
-                sb.AppendLine(text.Substring(i, width));
-            else
-                sb.AppendLine(text.Substring(i));
-        }
-        return sb.ToString().TrimEnd();
-    }
-
-    private static string DrawSeparator(char symbol, int width)
-    {
-        return new string(symbol, width);
-    }
-
-    private static string FormatTableRow(int width, params (string text, int colWidth, bool alignRight)[] columns)
-    {
-        var sb = new StringBuilder();
-        int currentPos = 0;
-
-        for (int i = 0; i < columns.Length; i++)
-        {
-            var col = columns[i];
-            string text = col.text ?? "";
-            int colWidth = col.colWidth;
-
-            if (text.Length > colWidth)
-            {
-                // Para la columna del producto o la primera columna, si excede, agregamos puntos suspensivos
-                if (i == 0 && colWidth > 3)
-                {
-                    text = text.Substring(0, colWidth - 3) + "...";
-                }
-                else
-                {
-                    text = text.Substring(0, colWidth);
-                }
-            }
-
-            string padded = col.alignRight ? text.PadLeft(colWidth) : text.PadRight(colWidth);
-            sb.Append(padded);
-            currentPos += colWidth;
-        }
-
-        if (currentPos < width)
-        {
-            sb.Append(new string(' ', width - currentPos));
-        }
-
-        return sb.ToString();
     }
 
     private static string GetPaymentMethodTranslation(PaymentMethodType method)
@@ -825,13 +512,6 @@ public class TicketGenerator : ITicketGenerator
             RefundMethod.StoreCredit => "Crédito Tienda",
             _ => method.ToString()
         };
-    }
-
-    private static string FormatDenominationName(DenominationType denomination)
-    {
-        var val = denomination.GetValue();
-        bool isBill = denomination.ToString().StartsWith("Bill", StringComparison.OrdinalIgnoreCase);
-        return $"{(isBill ? "Billete" : "Moneda")} {val:C2}";
     }
 
     private static string GetCfdiUsageDescription(CfdiUsage usage)

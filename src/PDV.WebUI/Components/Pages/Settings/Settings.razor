@@ -120,6 +120,11 @@ else
                         <MudTextField @bind-Value="config.TicketFooter" Label="Texto de Pie de Página del Ticket" Variant="Variant.Outlined" Lines="3" Placeholder="Ej. No se aceptan devoluciones después de 7 días.&#10;Visite nuestro sitio web." HelperText="Este texto saldrá al final de cada ticket" />
                     </MudItem>
                 </MudGrid>
+                <div class="mt-4 d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.DesignServices" href="/admin/settings/tickets">
+                        Diseñador Visual de Tickets
+                    </MudButton>
+                </div>
             </div>
         </MudTabPanel>
 
