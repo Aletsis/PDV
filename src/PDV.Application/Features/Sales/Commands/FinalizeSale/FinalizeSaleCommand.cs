@@ -11,6 +11,8 @@ public record FinalizeSaleCommand : IRequest<Guid>
     public string PaymentMethod { get; set; } = "Cash";
     public Guid? ClientId { get; set; }
     public bool RequiresInvoice { get; set; } = false;
+    public decimal ReceivedAmount { get; set; }
+    public decimal Change { get; set; }
 }
 
 public class FinalizeSaleCommandHandler : IRequestHandler<FinalizeSaleCommand, Guid>
@@ -67,7 +69,7 @@ public class FinalizeSaleCommandHandler : IRequestHandler<FinalizeSaleCommand, G
                 sale.SetPaymentMethod(paymentMethod);
 
                 // Marcar la venta como pagada (esto dispara el evento SalePaymentMadeEvent)
-                sale.MarkAsPaid();
+                sale.MarkAsPaid(request.ReceivedAmount, request.Change);
 
                 // Validar requerimiento de factura
                 if (request.RequiresInvoice)

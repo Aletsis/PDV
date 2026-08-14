@@ -30,6 +30,7 @@ public class TicketGenerator : ITicketGenerator
     {
         var sale = await _context.Sales
             .Include(s => s.Items)
+                .ThenInclude(i => i.Product)
             .Include(s => s.Client)
             .Include(s => s.Branch)
                 .ThenInclude(b => b!.Address)
@@ -44,6 +45,8 @@ public class TicketGenerator : ITicketGenerator
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == sale.UserId, cancellationToken)
             : null;
 
+        var folioText = string.IsNullOrEmpty(sale.Series) ? sale.Folio.ToString() : $"{sale.Series}{sale.Folio}";
+
         var variables = new Dictionary<string, string>
         {
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
@@ -51,22 +54,31 @@ public class TicketGenerator : ITicketGenerator
             { "{BranchName}", sale.Branch?.Name ?? string.Empty },
             { "{BranchAddress}", sale.Branch?.Address != null ? $"{sale.Branch.Address.Street}, CP {sale.Branch.Address.ZipCode}" : string.Empty },
             { "{BranchPhone}", sale.Branch?.Phone ?? string.Empty },
-            { "{Folio}", sale.SaleNumber.ToString() },
+            { "{Folio}", folioText },
+            { "{Id}", sale.SaleNumber },
             { "{Date}", sale.Date.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
             { "{CashRegisterName}", sale.CashRegister?.Name ?? string.Empty },
             { "{UserFullName}", user?.FullName ?? sale.UserId ?? string.Empty },
             { "{ClientName}", sale.Client?.Name ?? "Público General" },
+            { "{ClientAddress}", sale.Client?.Address != null ? $"{sale.Client.Address.Street}, CP {sale.Client.Address.ZipCode}" : string.Empty },
+            { "{ClientPhone}", sale.Client?.Phone ?? string.Empty },
             { "{Subtotal}", sale.Subtotal.ToString("C2") },
             { "{Tax}", sale.Taxes.Sum(t => t.TaxAmount).ToString("C2") },
             { "{Total}", sale.TotalAmount.ToString("C2") },
-            { "{PaymentMethod}", GetPaymentMethodTranslation(sale.PaymentMethod) }
+            { "{PaymentMethod}", GetPaymentMethodTranslation(sale.PaymentMethod) },
+            { "{Change}", sale.Change.ToString("C2") }
         };
 
         var tableItems = sale.Items.Select(item => new TicketTableItem
         {
             Name = item.ProductName,
+            Code = item.Product?.Code ?? string.Empty,
             Quantity = item.Quantity.ToString("0.##"),
             Price = item.UnitPrice.ToString("C2"),
+            PriceSinIva = item.UnitPrice.ToString("C2"),
+            PriceConIva = (item.UnitPrice * (1 + (item.IsTaxExempt ? 0m : item.TaxRate / 100m))).ToString("C2"),
+            Subtotal = item.Subtotal.ToString("C2"),
+            Iva = item.TotalTax.ToString("C2"),
             Total = item.TotalAmount.ToString("C2")
         }).ToList();
 
@@ -88,6 +100,7 @@ public class TicketGenerator : ITicketGenerator
             .Include(i => i.Client)
             .Include(i => i.Sale)
                 .ThenInclude(s => s!.Items)
+                    .ThenInclude(i => i.Product)
             .Include(i => i.Sale)
                 .ThenInclude(s => s!.Branch)
             .Include(i => i.Sale)
@@ -130,8 +143,13 @@ public class TicketGenerator : ITicketGenerator
             tableItems = invoice.Sale.Items.Select(item => new TicketTableItem
             {
                 Name = item.ProductName,
+                Code = item.Product?.Code ?? string.Empty,
                 Quantity = item.Quantity.ToString("0.##"),
                 Price = item.UnitPrice.ToString("C2"),
+                PriceSinIva = item.UnitPrice.ToString("C2"),
+                PriceConIva = (item.UnitPrice * (1 + (item.IsTaxExempt ? 0m : item.TaxRate / 100m))).ToString("C2"),
+                Subtotal = item.Subtotal.ToString("C2"),
+                Iva = item.TotalTax.ToString("C2"),
                 Total = item.TotalAmount.ToString("C2")
             }).ToList();
         }
@@ -140,9 +158,14 @@ public class TicketGenerator : ITicketGenerator
             tableItems.Add(new TicketTableItem
             {
                 Name = "CONSOLIDADO GLOBAL DE VENTAS",
+                Code = string.Empty,
                 Quantity = "1",
                 Price = invoice.Subtotal.ToString("C2"),
-                Total = invoice.Subtotal.ToString("C2")
+                PriceSinIva = invoice.Subtotal.ToString("C2"),
+                PriceConIva = invoice.Total.ToString("C2"),
+                Subtotal = invoice.Subtotal.ToString("C2"),
+                Iva = invoice.Tax.ToString("C2"),
+                Total = invoice.Total.ToString("C2")
             });
         }
 
@@ -160,6 +183,7 @@ public class TicketGenerator : ITicketGenerator
     {
         var returnSale = await _context.Returns
             .Include(r => r.Items)
+                .ThenInclude(i => i.Product)
             .Include(r => r.Client)
             .Include(r => r.Branch)
                 .ThenInclude(b => b!.Address)
@@ -200,8 +224,13 @@ public class TicketGenerator : ITicketGenerator
         var tableItems = returnSale.Items.Select(item => new TicketTableItem
         {
             Name = item.ProductName,
+            Code = item.Product?.Code ?? string.Empty,
             Quantity = item.Quantity.ToString("0.##"),
             Price = item.UnitPrice.ToString("C2"),
+            PriceSinIva = item.UnitPrice.ToString("C2"),
+            PriceConIva = (item.UnitPrice * (1 + (item.IsTaxExempt ? 0m : item.TaxRate / 100m))).ToString("C2"),
+            Subtotal = item.Subtotal.ToString("C2"),
+            Iva = item.TotalTax.ToString("C2"),
             Total = item.TotalAmount.ToString("C2")
         }).ToList();
 
@@ -331,6 +360,7 @@ public class TicketGenerator : ITicketGenerator
     {
         var order = await _context.Orders
             .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
             .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Pedido {orderId} no encontrado");
 
@@ -363,8 +393,13 @@ public class TicketGenerator : ITicketGenerator
         var tableItems = order.Items.Select(item => new TicketTableItem
         {
             Name = item.ProductName,
+            Code = item.Product?.Code ?? string.Empty,
             Quantity = item.Quantity.ToString("0.##"),
             Price = item.UnitPrice.ToString("C2"),
+            PriceSinIva = item.UnitPrice.ToString("C2"),
+            PriceConIva = (item.UnitPrice * (1 + (item.IsTaxExempt ? 0m : item.TaxRate / 100m))).ToString("C2"),
+            Subtotal = item.Subtotal.ToString("C2"),
+            Iva = item.TotalTax.ToString("C2"),
             Total = item.TotalAmount.ToString("C2")
         }).ToList();
 
@@ -467,7 +502,7 @@ public class TicketGenerator : ITicketGenerator
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Footer"", ""Content"": ""¡GRACIAS POR SU COMPRA!\\nVuelva Pronto"" }
                     ]
@@ -501,7 +536,7 @@ public class TicketGenerator : ITicketGenerator
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""DATOS FISCALES DEL CFDI"", ""Align"": ""Center"", ""Bold"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
@@ -534,7 +569,7 @@ public class TicketGenerator : ITicketGenerator
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma de Conformidad Cliente"", ""Align"": ""Center"" },
                         { ""Type"": ""Footer"", ""Content"": ""Vuelva Pronto"" }
@@ -608,7 +643,7 @@ public class TicketGenerator : ITicketGenerator
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Footer"", ""Content"": ""¡Gracias por su compra!"" }
                     ]

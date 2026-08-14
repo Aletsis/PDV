@@ -22,6 +22,8 @@ public class Sale : BaseEntity, IAggregateRoot
     public string? Series { get; private set; }
     public int Folio { get; private set; }
     public Guid ShiftId { get; private set; }
+    public decimal ReceivedAmount { get; private set; }
+    public decimal Change { get; private set; }
 
     public DateTime Date { get; private set; } = DateTime.UtcNow;
     
@@ -118,10 +120,17 @@ public class Sale : BaseEntity, IAggregateRoot
 
     public void MarkAsPaid()
     {
+        MarkAsPaid(TotalAmount, 0m);
+    }
+
+    public void MarkAsPaid(decimal receivedAmount, decimal change)
+    {
         if (IsCancelled) throw new DomainException("No se puede marcar como pagada una venta cancelada.");
         if (IsPaid) throw new DomainException("La venta ya está marcada como pagada.");
         if (_items.Count == 0) throw new DomainException("No se puede marcar como pagada una venta sin artículos.");
 
+        ReceivedAmount = receivedAmount;
+        Change = change;
         IsPaid = true;
         AddDomainEvent(new SalePaymentMadeEvent(Id, TotalAmount, PaymentMethod));
     }

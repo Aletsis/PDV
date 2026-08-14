@@ -129,7 +129,7 @@ else
                                             break;
 
                                         case "text":
-                                            <div class="@GetAlignClass(block.Align) @GetFontClass(block.FontSize) @(block.Bold ? "font-weight-bold" : "") @(block.Italic ? "font-italic" : "")">
+                                            <div class="@GetAlignClass(block.Align) @GetFontClass(block.FontSize) @(block.Bold ? "font-weight-bold" : "") @(block.Italic ? "font-italic" : "")" style="white-space: pre-wrap;">
                                                 @(string.IsNullOrEmpty(block.Content) ? "Texto de ejemplo..." : ResolvePreviewVariables(block.Content))
                                             </div>
                                             break;
@@ -174,18 +174,43 @@ else
 
                                         case "totals":
                                             <div class="d-flex flex-column align-end w-100 mt-2 text-monospace" style="font-size: 0.85rem;">
-                                                <div class="d-flex justify-content-between w-100">
-                                                    <span>Subtotal:</span>
-                                                    <span class="ml-auto">$86.20</span>
-                                                </div>
-                                                <div class="d-flex justify-content-between w-100">
-                                                    <span>IVA 16%:</span>
-                                                    <span class="ml-auto">$13.80</span>
-                                                </div>
-                                                <div class="d-flex justify-content-between w-100 font-weight-bold" style="border-top: 1px double #000; padding-top: 2px;">
-                                                    <span>TOTAL:</span>
-                                                    <span class="ml-auto">$100.00</span>
-                                                </div>
+                                                @foreach (var field in block.TotalsFields ?? new List<string> { "Subtotal", "Iva", "Total", "PaymentMethod", "Change" })
+                                                {
+                                                    switch (field.ToLowerInvariant())
+                                                    {
+                                                        case "subtotal":
+                                                            <div class="d-flex justify-content-between w-100">
+                                                                <span>Subtotal:</span>
+                                                                <span class="ml-auto">$86.20</span>
+                                                            </div>
+                                                            break;
+                                                        case "iva":
+                                                        case "tax":
+                                                            <div class="d-flex justify-content-between w-100">
+                                                                <span>IVA 16%:</span>
+                                                                <span class="ml-auto">$13.80</span>
+                                                            </div>
+                                                            break;
+                                                        case "total":
+                                                            <div class="d-flex justify-content-between w-100 font-weight-bold" style="border-top: 1px double #000; padding-top: 2px;">
+                                                                <span>TOTAL:</span>
+                                                                <span class="ml-auto">$100.00</span>
+                                                            </div>
+                                                            break;
+                                                        case "paymentmethod":
+                                                            <div class="d-flex justify-content-between w-100">
+                                                                <span>Forma Pago:</span>
+                                                                <span class="ml-auto">Efectivo</span>
+                                                            </div>
+                                                            break;
+                                                        case "change":
+                                                            <div class="d-flex justify-content-between w-100">
+                                                                <span>Cambio:</span>
+                                                                <span class="ml-auto">$0.00</span>
+                                                            </div>
+                                                            break;
+                                                    }
+                                                }
                                             </div>
                                             break;
 
@@ -197,8 +222,8 @@ else
                                             break;
 
                                         case "footer":
-                                            <div class="text-center font-italic text-wrap" style="font-size: 0.85rem;">
-                                                @((block.Content ?? "Pie de página de ejemplo").Replace("\n", "<br/>"))
+                                            <div class="text-center font-italic text-wrap" style="font-size: 0.85rem; white-space: pre-wrap;">
+                                                @ResolvePreviewVariables(block.Content ?? "Pie de página de ejemplo")
                                             </div>
                                             break;
                                     }
@@ -284,6 +309,7 @@ else
                             <MudSelectItem Value='("=")'>Línea Doble (=)</MudSelectItem>
                             <MudSelectItem Value='("*")'>Línea de Asteriscos (*)</MudSelectItem>
                             <MudSelectItem Value='(".")'>Línea Punteada (.)</MudSelectItem>
+                            <MudSelectItem Value='(" ")'>Espacio en Blanco ( )</MudSelectItem>
                         </MudSelect>
                         break;
 
@@ -298,8 +324,13 @@ else
                                 <div class="d-flex align-center gap-2 mb-2" style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
                                     <MudSelect @bind-Value="col.Field" Label="Campo" Variant="Variant.Outlined" Margin="Margin.Dense" Style="width:120px;">
                                         <MudSelectItem Value='("Name")'>Producto</MudSelectItem>
+                                        <MudSelectItem Value='("Code")'>Código</MudSelectItem>
                                         <MudSelectItem Value='("Quantity")'>Cant</MudSelectItem>
-                                        <MudSelectItem Value='("Price")'>Precio</MudSelectItem>
+                                        <MudSelectItem Value='("Price")'>Precio (C/IVA)</MudSelectItem>
+                                        <MudSelectItem Value='("PriceSinIva")'>Precio S/IVA</MudSelectItem>
+                                        <MudSelectItem Value='("PriceConIva")'>Precio C/IVA</MudSelectItem>
+                                        <MudSelectItem Value='("Subtotal")'>Subtotal</MudSelectItem>
+                                        <MudSelectItem Value='("Iva")'>IVA del Prod</MudSelectItem>
                                         <MudSelectItem Value='("Total")'>Total</MudSelectItem>
                                     </MudSelect>
                                     <MudTextField @bind-Value="col.Title" Label="Título" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -314,6 +345,48 @@ else
                         </div>
                         break;
 
+                    case "totals":
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Variables de Totales</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3 d-block">Selecciona qué variables mostrar y reordénalas:</MudText>
+
+                        @if (block.TotalsFields == null || !block.TotalsFields.Any())
+                        {
+                            block.TotalsFields = new List<string> { "Subtotal", "Iva", "Total", "PaymentMethod", "Change" };
+                        }
+
+                        @for (int fIdx = 0; fIdx < block.TotalsFields.Count; fIdx++)
+                        {
+                            var index = fIdx;
+                            var field = block.TotalsFields[index];
+                            string displayName = _availableTotals.TryGetValue(field, out var dName) ? dName : field;
+
+                            <div class="d-flex align-center justify-between mb-2 pa-2" style="background: rgba(0,0,0,0.05); border-radius: 4px;">
+                                <div class="d-flex align-center">
+                                    <MudCheckBox T="bool" Value="true" ValueChanged="@((val) => ToggleTotalsField(block, field, val))" Color="Color.Primary" Label="@displayName" Dense="true" />
+                                </div>
+                                <div class="d-flex align-center">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" OnClick="() => MoveTotalsFieldUp(block, index)" Disabled="@(index == 0)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" OnClick="() => MoveTotalsFieldDown(block, index)" Disabled="@(index == block.TotalsFields.Count - 1)" />
+                                </div>
+                            </div>
+                        }
+
+                        @if (block.TotalsFields.Count < _availableTotals.Count)
+                        {
+                            var missingFields = _availableTotals.Keys.Where(k => !block.TotalsFields.Contains(k)).ToList();
+                            if (missingFields.Any())
+                            {
+                                <MudSelect T="string" Label="Añadir Variable de Totales" Variant="Variant.Outlined" Dense="true" Class="mt-3" ValueChanged="@((val) => AddTotalsField(block, val))">
+                                    <MudSelectItem Value='("")'>-- Selecciona --</MudSelectItem>
+                                    @foreach (var mField in missingFields)
+                                    {
+                                        <MudSelectItem Value='mField'>@_availableTotals[mField]</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                        }
+                        break;
+
                     case "barcodeorqr":
                         <MudSelect @bind-Value="block.CodeType" Label="Tipo de Código" Variant="Variant.Outlined" Class="mb-3">
                             <MudSelectItem Value='("QR")'>Código QR</MudSelectItem>
@@ -323,6 +396,14 @@ else
                         <MudNumericField @bind-Value="block.ModuleSize" Label="Tamaño de Módulo" Variant="Variant.Outlined" Min="1" Max="10" />
                         break;
                 }
+
+                <div class="d-flex gap-2 mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowUpward" FullWidth="true" OnClick="() => MoveBlockUp(_selectedBlockIndex)" Disabled="@(_selectedBlockIndex == 0)">Subir Bloque</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" StartIcon="@Icons.Material.Filled.ArrowDownward" FullWidth="true" OnClick="() => MoveBlockDown(_selectedBlockIndex)" Disabled="@(_selectedBlockIndex == _templateJson.Blocks.Count - 1)">Bajar Bloque</MudButton>
+                </div>
+                <div class="mt-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" FullWidth="true" OnClick="() => DeleteBlock(_selectedBlockIndex)">Eliminar Bloque</MudButton>
+                </div>
 
                 <MudDivider Class="my-4" />
 
@@ -422,6 +503,15 @@ else
 }
 
 @code {
+    private readonly Dictionary<string, string> _availableTotals = new()
+    {
+        { "Subtotal", "Subtotal" },
+        { "Iva", "IVA" },
+        { "Total", "Total" },
+        { "PaymentMethod", "Forma de pago" },
+        { "Change", "Cambio" }
+    };
+
     private bool isLocalMode = false;
     private TicketTemplateType _selectedType = TicketTemplateType.Sale;
     private TicketTemplateJson _templateJson = new();
@@ -517,6 +607,10 @@ else
             block.CodeType = "QR";
             block.CodifiedValue = "{Folio}";
         }
+        else if (type.Equals("Totals", StringComparison.OrdinalIgnoreCase))
+        {
+            block.TotalsFields = new List<string> { "Subtotal", "Iva", "Total", "PaymentMethod", "Change" };
+        }
 
         _templateJson.Blocks.Add(block);
         _selectedBlockIndex = _templateJson.Blocks.Count - 1;
@@ -575,6 +669,53 @@ else
     private double GetColumnsTotalPercentage(TicketBlock block)
     {
         return block.Columns?.Sum(c => c.WidthPercentage) ?? 0;
+    }
+
+    private void ToggleTotalsField(TicketBlock block, string field, bool show)
+    {
+        block.TotalsFields ??= new List<string> { "Subtotal", "Iva", "Total", "PaymentMethod", "Change" };
+        if (!show)
+        {
+            block.TotalsFields.Remove(field);
+        }
+        else if (!block.TotalsFields.Contains(field))
+        {
+            block.TotalsFields.Add(field);
+        }
+        StateHasChanged();
+    }
+
+    private void AddTotalsField(TicketBlock block, string field)
+    {
+        if (string.IsNullOrEmpty(field)) return;
+        block.TotalsFields ??= new List<string>();
+        if (!block.TotalsFields.Contains(field))
+        {
+            block.TotalsFields.Add(field);
+        }
+        StateHasChanged();
+    }
+
+    private void MoveTotalsFieldUp(TicketBlock block, int index)
+    {
+        if (block.TotalsFields != null && index > 0 && index < block.TotalsFields.Count)
+        {
+            var temp = block.TotalsFields[index];
+            block.TotalsFields[index] = block.TotalsFields[index - 1];
+            block.TotalsFields[index - 1] = temp;
+            StateHasChanged();
+        }
+    }
+
+    private void MoveTotalsFieldDown(TicketBlock block, int index)
+    {
+        if (block.TotalsFields != null && index >= 0 && index < block.TotalsFields.Count - 1)
+        {
+            var temp = block.TotalsFields[index];
+            block.TotalsFields[index] = block.TotalsFields[index + 1];
+            block.TotalsFields[index + 1] = temp;
+            StateHasChanged();
+        }
     }
 
     private void InsertVariable(string variable)
@@ -765,6 +906,10 @@ else
             "code" => "75010099",
             "quantity" => "2.0",
             "price" => "$43.10",
+            "pricesiniva" => "$37.16",
+            "priceconiva" => "$43.10",
+            "subtotal" => "$74.31",
+            "iva" => "$11.89",
             "total" => "$86.20",
             _ => "-"
         };
@@ -776,8 +921,8 @@ else
         {
             TicketTemplateType.Sale => new() {
                 "{CompanyName}", "{TaxId}", "{BranchName}", "{BranchAddress}", "{BranchPhone}",
-                "{Folio}", "{Date}", "{CashRegisterName}", "{UserFullName}", "{ClientName}",
-                "{Subtotal}", "{Tax}", "{Total}", "{PaymentMethod}"
+                "{Folio}", "{Id}", "{Date}", "{CashRegisterName}", "{UserFullName}", "{ClientName}",
+                "{ClientAddress}", "{ClientPhone}", "{Subtotal}", "{Tax}", "{Total}", "{PaymentMethod}", "{Change}"
             },
             TicketTemplateType.Invoice => new() {
                 "{CompanyName}", "{TaxId}", "{FiscalRegime}", "{CsdSerialNumber}",
@@ -820,6 +965,7 @@ else
             .Replace("{BranchAddress}", "Av. Juárez 100, Col. Centro")
             .Replace("{BranchPhone}", "555-123-4567")
             .Replace("{Folio}", "V-000456")
+            .Replace("{Id}", "000456")
             .Replace("{Date}", DateTime.Now.ToString("dd/MM/yyyy HH:mm"))
             .Replace("{CashRegisterName}", "Caja Principal 01")
             .Replace("{UserFullName}", "Cajero Administrador")
@@ -836,7 +982,8 @@ else
             .Replace("{Reason}", "Corte parcial de caja")
             .Replace("{Total}", "$350.00")
             .Replace("{RefundMethod}", "Efectivo")
-            .Replace("{PaymentMethod}", "Efectivo");
+            .Replace("{PaymentMethod}", "Efectivo")
+            .Replace("{Change}", "$0.00");
     }
 
     private string GetAlignClass(string? align) => align?.ToLowerInvariant() switch
@@ -892,7 +1039,7 @@ else
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Footer"", ""Content"": ""¡GRACIAS POR SU COMPRA!\\nVuelva Pronto"" }
                     ]
@@ -926,7 +1073,7 @@ else
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""DATOS FISCALES DEL CFDI"", ""Align"": ""Center"", ""Bold"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
@@ -959,7 +1106,7 @@ else
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma de Conformidad Cliente"", ""Align"": ""Center"" },
                         { ""Type"": ""Footer"", ""Content"": ""Vuelva Pronto"" }
@@ -1033,7 +1180,7 @@ else
                             { ""Field"": ""Price"", ""Title"": ""Precio"", ""WidthPercentage"": 15 },
                             { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 20 }
                         ], ""WrapText"": true },
-                        { ""Type"": ""Totals"" },
+                        { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Footer"", ""Content"": ""¡Gracias por su compra!"" }
                     ]

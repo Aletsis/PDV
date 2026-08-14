@@ -79,6 +79,10 @@ public class DynamicTicketRenderer
                                     "code" => item.Code,
                                     "quantity" => item.Quantity,
                                     "price" => item.Price,
+                                    "pricesiniva" => item.PriceSinIva,
+                                    "priceconiva" => item.PriceConIva,
+                                    "subtotal" => item.Subtotal,
+                                    "iva" => item.Iva,
                                     "total" => item.Total,
                                     _ => string.Empty
                                 };
@@ -92,7 +96,7 @@ public class DynamicTicketRenderer
                     break;
 
                 case "totals":
-                    RenderTotals(sb, variables, widthCharacters);
+                    RenderTotals(sb, block, variables, widthCharacters);
                     break;
 
                 case "barcodeorqr":
@@ -243,29 +247,47 @@ public class DynamicTicketRenderer
         return sb.ToString();
     }
 
-    private static void RenderTotals(StringBuilder sb, Dictionary<string, string> variables, int width)
+    private static void RenderTotals(StringBuilder sb, TicketBlock block, Dictionary<string, string> variables, int width)
     {
-        variables.TryGetValue("{Subtotal}", out var subtotal);
-        variables.TryGetValue("{Tax}", out var tax);
-        variables.TryGetValue("{Total}", out var total);
-        variables.TryGetValue("{PaymentMethod}", out var payMethod);
+        var fields = block.TotalsFields ?? new List<string> { "Subtotal", "Iva", "Total", "PaymentMethod", "Change" };
 
-        if (!string.IsNullOrEmpty(subtotal))
+        foreach (var field in fields)
         {
-            sb.AppendLine(FormatKeyValue("Subtotal:", subtotal, false, width));
-        }
-        if (!string.IsNullOrEmpty(tax))
-        {
-            sb.AppendLine(FormatKeyValue("Impuestos:", tax, false, width));
-        }
-        if (!string.IsNullOrEmpty(total))
-        {
-            sb.AppendLine(new string('=', width));
-            sb.AppendLine(FormatKeyValue("TOTAL:", total, true, width));
-        }
-        if (!string.IsNullOrEmpty(payMethod))
-        {
-            sb.AppendLine(FormatKeyValue("Método Pago:", payMethod, false, width));
+            switch (field.ToLowerInvariant())
+            {
+                case "subtotal":
+                    if (variables.TryGetValue("{Subtotal}", out var subtotal) && !string.IsNullOrEmpty(subtotal))
+                    {
+                        sb.AppendLine(FormatKeyValue("Subtotal:", subtotal, false, width));
+                    }
+                    break;
+                case "iva":
+                case "tax":
+                    if (variables.TryGetValue("{Tax}", out var tax) && !string.IsNullOrEmpty(tax))
+                    {
+                        sb.AppendLine(FormatKeyValue("IVA:", tax, false, width));
+                    }
+                    break;
+                case "total":
+                    if (variables.TryGetValue("{Total}", out var total) && !string.IsNullOrEmpty(total))
+                    {
+                        sb.AppendLine(new string('=', width));
+                        sb.AppendLine(FormatKeyValue("TOTAL:", total, true, width));
+                    }
+                    break;
+                case "paymentmethod":
+                    if (variables.TryGetValue("{PaymentMethod}", out var payMethod) && !string.IsNullOrEmpty(payMethod))
+                    {
+                        sb.AppendLine(FormatKeyValue("Forma Pago:", payMethod, false, width));
+                    }
+                    break;
+                case "change":
+                    if (variables.TryGetValue("{Change}", out var change) && !string.IsNullOrEmpty(change))
+                    {
+                        sb.AppendLine(FormatKeyValue("Cambio:", change, false, width));
+                    }
+                    break;
+            }
         }
     }
 
@@ -283,5 +305,9 @@ public class TicketTableItem
     public string Code { get; set; } = string.Empty;
     public string Quantity { get; set; } = string.Empty;
     public string Price { get; set; } = string.Empty;
+    public string PriceSinIva { get; set; } = string.Empty;
+    public string PriceConIva { get; set; } = string.Empty;
+    public string Subtotal { get; set; } = string.Empty;
+    public string Iva { get; set; } = string.Empty;
     public string Total { get; set; } = string.Empty;
 }

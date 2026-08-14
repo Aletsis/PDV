@@ -36,6 +36,9 @@ public class TicketBlock
     public string? CodeType { get; set; } // "QR", "Barcode"
     public string? CodifiedValue { get; set; } // placeholder (e.g. "{SaleNumber}")
     public int ModuleSize { get; set; } = 4;
+
+    // Propiedades para Totals
+    public List<string>? TotalsFields { get; set; } = new();
 }
 
 public class TableColumnOption

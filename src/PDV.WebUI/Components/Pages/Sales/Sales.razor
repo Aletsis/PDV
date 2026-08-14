@@ -827,7 +827,9 @@ else
                     SaleId = activeSaleId.Value,
                     PaymentMethod = paymentMethod,
                     ClientId = clientIdForInvoice ?? selectedClientId,
-                    RequiresInvoice = requiresInvoice == true
+                    RequiresInvoice = requiresInvoice == true,
+                    ReceivedAmount = receivedAmount,
+                    Change = isSplitPayment && splitResult != null ? splitResult.Change : (paymentMethod == "Cash" ? Math.Max(0m, receivedAmount - totalAmount) : 0m)
                 };
                 saleId = await Mediator.Send(command);
             }
@@ -841,7 +843,9 @@ else
                     ClientId = clientIdForInvoice ?? selectedClientId,
                     CashRegisterId = ShiftSession.ActiveCashRegisterId,
                     IsPaid = true,
-                    RequiresInvoice = requiresInvoice == true
+                    RequiresInvoice = requiresInvoice == true,
+                    ReceivedAmount = receivedAmount,
+                    Change = isSplitPayment && splitResult != null ? splitResult.Change : (paymentMethod == "Cash" ? Math.Max(0m, receivedAmount - totalAmount) : 0m)
                 };
                 saleId = await Mediator.Send(command);
             }

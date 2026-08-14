@@ -10,6 +10,8 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
     public void Configure(EntityTypeBuilder<Sale> entity)
     {
         entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
+        entity.Property(e => e.ReceivedAmount).HasPrecision(18, 2);
+        entity.Property(e => e.Change).HasPrecision(18, 2);
         entity.Property(e => e.SaleNumber).HasMaxLength(50);
 
         entity.OwnsMany(e => e.Taxes, a =>

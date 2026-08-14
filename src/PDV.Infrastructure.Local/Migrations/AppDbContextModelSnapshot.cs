@@ -2471,6 +2471,10 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.Property<string>("CashRegisterId")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("Change")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ClientId")
                         .HasColumnType("TEXT");
 
@@ -2521,6 +2525,10 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("ReceivedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SaleNumber")
                         .IsRequired()

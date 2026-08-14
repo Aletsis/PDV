@@ -19,6 +19,8 @@ public record CreateSaleCommand : IRequest<Guid>
     public Guid? CashRegisterId { get; set; }
     public bool IsPaid { get; set; }
     public bool RequiresInvoice { get; set; } = false;
+    public decimal ReceivedAmount { get; set; }
+    public decimal Change { get; set; }
 }
 
 public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
@@ -193,7 +195,7 @@ public class CreateSaleCommandHandler : IRequestHandler<CreateSaleCommand, Guid>
                 // Marcar como pagada si es necesario
                 if (request.IsPaid)
                 {
-                    sale.MarkAsPaid();
+                    sale.MarkAsPaid(request.ReceivedAmount, request.Change);
                 }
 
                 // Agregar la venta al repositorio
