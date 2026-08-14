@@ -62,8 +62,8 @@ public class CashCutCommandHandler : IRequestHandler<CashCutCommand, Guid>
             .Where(c => c.ShiftId == activeShift.Id)
             .ToListAsync(cancellationToken);
 
-        var totalInflows = cashCollections.Where(c => c.Reason.StartsWith("[INFLOW]")).Sum(c => c.Amount);
-        var totalOutflows = cashCollections.Where(c => c.Reason.StartsWith("[OUTFLOW]")).Sum(c => c.Amount);
+        var totalInflows = cashCollections.Where(c => c.Type == CashCollectionType.Morralla).Sum(c => c.Amount);
+        var totalOutflows = cashCollections.Where(c => c.Type == CashCollectionType.Recoleccion).Sum(c => c.Amount);
 
         var totalCashReturns = await _context.Returns
             .Where(r => r.ShiftId == activeShift.Id && r.IsCompleted)

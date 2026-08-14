@@ -65,23 +65,23 @@ public class GetShiftReconciliationDetailQueryHandler : IRequestHandler<GetShift
             .ToListAsync(cancellationToken);
 
         var inflowMovements = cashCollections
-            .Where(c => c.Reason.StartsWith("[INFLOW]"))
+            .Where(c => c.Type == CashCollectionType.Morralla)
             .Select(c => new ShiftMovementDetailDto
             {
                 Date = c.CollectionDate,
                 Type = "Entrada de Morralla",
-                Reason = c.Reason.Replace("[INFLOW]", "").Trim(),
+                Reason = c.Reason,
                 Amount = c.Amount
             })
             .ToList();
 
         var outflowMovements = cashCollections
-            .Where(c => c.Reason.StartsWith("[OUTFLOW]"))
+            .Where(c => c.Type == CashCollectionType.Recoleccion)
             .Select(c => new ShiftMovementDetailDto
             {
                 Date = c.CollectionDate,
                 Type = "Recolección / Retiro",
-                Reason = c.Reason.Replace("[OUTFLOW]", "").Trim(),
+                Reason = c.Reason,
                 Amount = c.Amount
             })
             .ToList();

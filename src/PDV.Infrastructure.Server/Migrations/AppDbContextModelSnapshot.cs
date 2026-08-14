@@ -356,6 +356,9 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<Guid>("ShiftId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");

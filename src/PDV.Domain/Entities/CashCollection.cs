@@ -17,6 +17,7 @@ public class CashCollection : BaseEntity, IAggregateRoot
     
     public decimal Amount { get; private set; }
     public string Reason { get; private set; }
+    public CashCollectionType Type { get; private set; }
 
     public Guid ShiftId { get; private set; }
     public Shift? Shift { get; private set; }
@@ -39,7 +40,8 @@ public class CashCollection : BaseEntity, IAggregateRoot
         Guid cashRegisterId,
         string userId,
         IEnumerable<CashDenomination> denominations,
-        string reason)
+        string reason,
+        CashCollectionType type)
     {
         if (shiftId == Guid.Empty) throw new DomainException("El ID del turno es requerido.");
         if (cashRegisterId == Guid.Empty) throw new DomainException("El ID de caja es requerido.");
@@ -53,6 +55,7 @@ public class CashCollection : BaseEntity, IAggregateRoot
         CashRegisterId = cashRegisterId;
         UserId = userId;
         Reason = reason.Trim();
+        Type = type;
         CollectionDate = DateTime.UtcNow;
 
         _denominations.AddRange(denominationsList);

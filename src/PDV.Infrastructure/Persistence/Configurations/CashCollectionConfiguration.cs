@@ -9,6 +9,7 @@ public class CashCollectionConfiguration : IEntityTypeConfiguration<CashCollecti
     public void Configure(EntityTypeBuilder<CashCollection> entity)
     {
         entity.Property(e => e.Amount).HasPrecision(18, 2);
+        entity.Property(e => e.Type).HasConversion<int>();
 
         entity.HasOne(e => e.CashRegister)
               .WithMany()

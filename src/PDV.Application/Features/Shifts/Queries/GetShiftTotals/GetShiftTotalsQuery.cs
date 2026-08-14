@@ -52,8 +52,8 @@ public class GetShiftTotalsQueryHandler : IRequestHandler<GetShiftTotalsQuery, S
             .Where(c => c.ShiftId == request.ShiftId)
             .ToListAsync(cancellationToken);
 
-        var inflowsTotal = cashCollections.Where(c => c.Reason.StartsWith("[INFLOW]")).Sum(c => c.Amount);
-        var outflowsTotal = cashCollections.Where(c => c.Reason.StartsWith("[OUTFLOW]")).Sum(c => c.Amount);
+        var inflowsTotal = cashCollections.Where(c => c.Type == CashCollectionType.Morralla).Sum(c => c.Amount);
+        var outflowsTotal = cashCollections.Where(c => c.Type == CashCollectionType.Recoleccion).Sum(c => c.Amount);
 
         // Sumar devoluciones
         var returnsTotal = await _context.Returns

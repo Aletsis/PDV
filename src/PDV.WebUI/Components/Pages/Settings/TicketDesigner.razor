@@ -75,6 +75,10 @@ else
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ListAlt" OnClick='() => AddBlock("ManifestOrders")'>Pedidos en Ruta</MudButton>
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Calculate" OnClick='() => AddBlock("ManifestTotals")'>Totales del Manifiesto</MudButton>
                 }
+                else if (_selectedType == TicketTemplateType.CashCollection)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TableRows" OnClick='() => AddBlock("DenominationsTable")'>Desglose de Morralla</MudButton>
+                }
                 else
                 {
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TableRows" OnClick='() => AddBlock("ItemsTable")'>Tabla de Artículos</MudButton>
@@ -173,6 +177,39 @@ else
                                                         {
                                                             <td class="@(col.Field.ToLowerInvariant() == "name" ? "text-left" : "text-right")">
                                                                 @GetMockColumnValue(col.Field)
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                            break;
+
+                                        case "denominationstable":
+                                            <table class="w-100 table-borderless text-monospace" style="font-size: 0.85rem; border-collapse: collapse;">
+                                                <thead>
+                                                    <tr style="border-bottom: 1px solid #000;">
+                                                        @foreach (var col in block.Columns ?? new())
+                                                        {
+                                                            <th class="@(col.Field.ToLowerInvariant() == "name" ? "text-left" : "text-right")" style="width: @(col.WidthPercentage)%;">
+                                                                @col.Title.ToUpperInvariant()
+                                                            </th>
+                                                        }
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        @foreach (var col in block.Columns ?? new())
+                                                        {
+                                                            <td class="@(col.Field.ToLowerInvariant() == "name" ? "text-left" : "text-right")">
+                                                                @GetMockDenominationColumnValue(col.Field, 0)
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                    <tr>
+                                                        @foreach (var col in block.Columns ?? new())
+                                                        {
+                                                            <td class="@(col.Field.ToLowerInvariant() == "name" ? "text-left" : "text-right")">
+                                                                @GetMockDenominationColumnValue(col.Field, 1)
                                                             </td>
                                                         }
                                                     </tr>
@@ -406,6 +443,32 @@ else
                                         <MudSelectItem Value='("PriceConIva")'>Precio C/IVA</MudSelectItem>
                                         <MudSelectItem Value='("Subtotal")'>Subtotal</MudSelectItem>
                                         <MudSelectItem Value='("Iva")'>IVA del Prod</MudSelectItem>
+                                        <MudSelectItem Value='("Total")'>Total</MudSelectItem>
+                                    </MudSelect>
+                                    <MudTextField @bind-Value="col.Title" Label="Título" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    <MudNumericField @bind-Value="col.WidthPercentage" Label="Ancho %" Variant="Variant.Outlined" Margin="Margin.Dense" Min="5" Max="90" Style="width:80px;" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.RemoveCircle" Color="Color.Error" OnClick="() => RemoveColumn(block, col)" Size="Size.Small" />
+                                </div>
+                            }
+                        }
+                        <div class="d-flex justify-space-between mt-3">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="() => AddColumn(block)">Añadir Columna</MudButton>
+                            <MudText Typo="Typo.caption" Color="@(GetColumnsTotalPercentage(block) == 100 ? Color.Success : Color.Error)">Total: @(GetColumnsTotalPercentage(block))%</MudText>
+                        </div>
+                        break;
+
+                    case "denominationstable":
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Columnas del Desglose</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3 d-block">Distribuye los anchos cuidando que el total sume el 100%.</MudText>
+                        @if (block.Columns != null)
+                        {
+                            @for (int cIdx = 0; cIdx < block.Columns.Count; cIdx++)
+                            {
+                                var col = block.Columns[cIdx];
+                                <div class="d-flex align-center gap-2 mb-2" style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
+                                    <MudSelect @bind-Value="col.Field" Label="Campo" Variant="Variant.Outlined" Margin="Margin.Dense" Style="width:120px;">
+                                        <MudSelectItem Value='("Name")'>Denominación</MudSelectItem>
+                                        <MudSelectItem Value='("Quantity")'>Cant</MudSelectItem>
                                         <MudSelectItem Value='("Total")'>Total</MudSelectItem>
                                     </MudSelect>
                                     <MudTextField @bind-Value="col.Title" Label="Título" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -778,6 +841,16 @@ else
             };
             block.WrapText = true;
         }
+        else if (type.Equals("DenominationsTable", StringComparison.OrdinalIgnoreCase))
+        {
+            block.Columns = new List<TableColumnOption>
+            {
+                new() { Field = "Name", Title = "Denominación", WidthPercentage = 50 },
+                new() { Field = "Quantity", Title = "Cant", WidthPercentage = 20 },
+                new() { Field = "Total", Title = "Total", WidthPercentage = 30 }
+            };
+            block.WrapText = true;
+        }
         else if (type.Equals("BarcodeOrQr", StringComparison.OrdinalIgnoreCase))
         {
             block.CodeType = "QR";
@@ -1029,6 +1102,14 @@ else
                 return;
             }
         }
+        foreach (var block in _templateJson.Blocks.Where(b => b.Type.Equals("DenominationsTable", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (GetColumnsTotalPercentage(block) != 100)
+            {
+                Snackbar.Add("La tabla de desglose de morralla debe sumar exactamente 100% en el ancho de sus columnas.", Severity.Error);
+                return;
+            }
+        }
 
         _isSaving = true;
         try
@@ -1193,6 +1274,30 @@ else
             "total" => "$86.20",
             _ => "-"
         };
+    }
+
+    private string GetMockDenominationColumnValue(string field, int index)
+    {
+        if (index == 0)
+        {
+            return field.ToLowerInvariant() switch
+            {
+                "name" => "Billetes de $500",
+                "quantity" => "1",
+                "total" => "$500.00",
+                _ => "-"
+            };
+        }
+        else
+        {
+            return field.ToLowerInvariant() switch
+            {
+                "name" => "Billetes de $200",
+                "quantity" => "2",
+                "total" => "$400.00",
+                _ => "-"
+            };
+        }
     }
 
     private List<string> GetAvailableVariables()
@@ -1407,6 +1512,12 @@ else
                         { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
                         { ""Type"": ""Text"", ""Content"": ""Concepto: {Reason}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""DenominationsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Denominación"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 20 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 30 }
+                        ], ""WrapText"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""IMPORTE TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },

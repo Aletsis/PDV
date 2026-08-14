@@ -14,6 +14,7 @@ public record CashCollectionCommand(
     string UserId, 
     decimal Amount, 
     string Reason,
+    CashCollectionType Type,
     string? SupervisorUsername = null,
     string? SupervisorPassword = null
 ) : IRequest<Guid>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
@@ -48,7 +49,8 @@ public class CashCollectionCommandHandler : IRequestHandler<CashCollectionComman
             cashRegisterId: request.CashRegisterId,
             userId: request.AuthorizedByUserId ?? (!string.IsNullOrEmpty(request.UserId) ? request.UserId : activeShift.UserId),
             denominations: denominations,
-            reason: request.Reason);
+            reason: request.Reason,
+            type: request.Type);
 
         _context.CashCollections.Add(col);
         await _context.SaveChangesAsync(cancellationToken);

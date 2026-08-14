@@ -260,12 +260,9 @@ public class TicketGenerator : ITicketGenerator
             ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == collection.UserId, cancellationToken)
             : null;
 
-        bool isInflow = collection.Reason.StartsWith("[INFLOW]", StringComparison.OrdinalIgnoreCase);
+        bool isInflow = collection.Type == CashCollectionType.Morralla;
         var ticketTitle = isInflow ? "DOTACIÓN DE MORRALLA" : "RECOLECCIÓN DE EFECTIVO";
-        var cleanReason = collection.Reason
-            .Replace("[INFLOW]", "", StringComparison.OrdinalIgnoreCase)
-            .Replace("[OUTFLOW]", "", StringComparison.OrdinalIgnoreCase)
-            .Trim();
+        var cleanReason = collection.Reason;
 
         var variables = new Dictionary<string, string>
         {
@@ -287,7 +284,19 @@ public class TicketGenerator : ITicketGenerator
         string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.CashCollection);
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        var tableItems = collection.Denominations
+            .Select(d => {
+                bool isBill = d.Type.ToString().StartsWith("Bill", StringComparison.OrdinalIgnoreCase);
+                return new TicketTableItem
+                {
+                    Name = isBill ? $"Billete ${d.Type.GetValue():0}" : $"Moneda ${d.Type.GetValue():0.00}",
+                    Quantity = d.Quantity.ToString(),
+                    Total = d.TotalValue.ToString("C2")
+                };
+            })
+            .ToList();
+
+        var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         return ticketText;
     }
@@ -313,8 +322,8 @@ public class TicketGenerator : ITicketGenerator
         var cashCollections = await _context.CashCollections
             .Where(c => c.ShiftId == cut.ShiftId)
             .ToListAsync(cancellationToken);
-        var totalInflows = cashCollections.Where(c => c.Reason.StartsWith("[INFLOW]", StringComparison.OrdinalIgnoreCase)).Sum(c => c.Amount);
-        var totalOutflows = cashCollections.Where(c => c.Reason.StartsWith("[OUTFLOW]", StringComparison.OrdinalIgnoreCase)).Sum(c => c.Amount);
+        var totalInflows = cashCollections.Where(c => c.Type == CashCollectionType.Morralla).Sum(c => c.Amount);
+        var totalOutflows = cashCollections.Where(c => c.Type == CashCollectionType.Recoleccion).Sum(c => c.Amount);
 
         var shiftCashSales = cut.Shift?.PaymentMethodTotals?
             .FirstOrDefault(p => p.PaymentMethod == PaymentMethodType.Cash)?.Amount ?? 0m;
@@ -617,6 +626,12 @@ public class TicketGenerator : ITicketGenerator
                         { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
                         { ""Type"": ""Text"", ""Content"": ""Concepto: {Reason}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""DenominationsTable"", ""Columns"": [
+                            { ""Field"": ""Name"", ""Title"": ""Denominación"", ""WidthPercentage"": 50 },
+                            { ""Field"": ""Quantity"", ""Title"": ""Cant"", ""WidthPercentage"": 20 },
+                            { ""Field"": ""Total"", ""Title"": ""Total"", ""WidthPercentage"": 30 }
+                        ], ""WrapText"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""IMPORTE TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },

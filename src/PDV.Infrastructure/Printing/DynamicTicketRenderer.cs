@@ -104,6 +104,46 @@ public class DynamicTicketRenderer
                     RenderTotals(sb, block, variables, widthCharacters);
                     break;
 
+                case "denominationstable":
+                    if (tableItems != null && tableItems.Count > 0 && block.Columns != null && block.Columns.Count > 0)
+                    {
+                        // Imprimir Encabezado de Tabla de Desglose
+                        var headerCols = new List<(string text, int width, bool alignRight)>();
+                        foreach (var col in block.Columns)
+                        {
+                            int colW = (int)Math.Max(1, Math.Floor(widthCharacters * (col.WidthPercentage / 100.0)));
+                            bool alignRight = col.Field.ToLowerInvariant() != "name" && col.Field.ToLowerInvariant() != "code";
+                            headerCols.Add((col.Title.ToUpperInvariant(), colW, alignRight));
+                        }
+                        AdjustLastColumnWidth(headerCols, widthCharacters);
+                        sb.AppendLine(FormatTableRow(widthCharacters, headerCols));
+                        sb.AppendLine(new string('-', widthCharacters));
+
+                        // Imprimir Filas de la Tabla de Desglose
+                        foreach (var item in tableItems)
+                        {
+                            var rowCols = new List<(string text, int width, bool alignRight)>();
+                            foreach (var col in block.Columns)
+                            {
+                                int colW = (int)Math.Max(1, Math.Floor(widthCharacters * (col.WidthPercentage / 100.0)));
+                                bool alignRight = col.Field.ToLowerInvariant() != "name" && col.Field.ToLowerInvariant() != "code";
+                                
+                                string textVal = col.Field.ToLowerInvariant() switch
+                                {
+                                    "name" => item.Name,
+                                    "quantity" => item.Quantity,
+                                    "total" => item.Total,
+                                    _ => string.Empty
+                                };
+
+                                rowCols.Add((textVal, colW, alignRight));
+                            }
+                            AdjustLastColumnWidth(rowCols, widthCharacters);
+                            sb.AppendLine(FormatTableRow(widthCharacters, rowCols));
+                        }
+                    }
+                    break;
+
                 case "manifestorders":
                     if (manifestOrders != null && manifestOrders.Count > 0)
                     {

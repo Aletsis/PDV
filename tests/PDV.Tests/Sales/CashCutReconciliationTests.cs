@@ -81,12 +81,12 @@ public class CashCutReconciliationTests
 
         // Morralla de $100
         var inflowDenoms = new List<CashDenomination> { new(DenominationType.Bill_100, 1) };
-        var inflow = new CashCollection(shift.Id, cashRegister.Id, "cajero-01", inflowDenoms, "[INFLOW] Morralla cambio");
+        var inflow = new CashCollection(shift.Id, cashRegister.Id, "cajero-01", inflowDenoms, "Morralla cambio", CashCollectionType.Morralla);
         context.CashCollections.Add(inflow);
 
         // Recolección de $150
         var outflowDenoms = new List<CashDenomination> { new(DenominationType.Bill_100, 1), new(DenominationType.Bill_50, 1) };
-        var outflow = new CashCollection(shift.Id, cashRegister.Id, "cajero-01", outflowDenoms, "[OUTFLOW] Retiro parcial");
+        var outflow = new CashCollection(shift.Id, cashRegister.Id, "cajero-01", outflowDenoms, "Retiro parcial", CashCollectionType.Recoleccion);
         context.CashCollections.Add(outflow);
 
         // Cerrar turno formalmente

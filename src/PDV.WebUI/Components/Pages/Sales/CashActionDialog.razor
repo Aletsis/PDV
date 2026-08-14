@@ -2,6 +2,7 @@
 @using PDV.Application.Features.Sales.Commands.CashCollection
 @using PDV.Application.Features.CashRegisters.Commands.OpenCashDrawer
 @using MudBlazor
+@using PDV.Domain.Enums
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 
@@ -181,31 +182,12 @@
         isProcessing = true;
         try
         {
-            var prefix = IsInflow ? "[INFLOW] Morralla: " : "[OUTFLOW] Recolección: ";
-            
-            // Construir desglose detallado
-            var list = new List<string>();
-            if (bills1000 > 0) list.Add($"$1000x{bills1000}");
-            if (bills500 > 0) list.Add($"$500x{bills500}");
-            if (bills200 > 0) list.Add($"$200x{bills200}");
-            if (bills100 > 0) list.Add($"$100x{bills100}");
-            if (bills50 > 0) list.Add($"$50x{bills50}");
-            if (bills20 > 0) list.Add($"$20x{bills20}");
-            if (coins20 > 0) list.Add($"Moneda$20x{coins20}");
-            if (coins10 > 0) list.Add($"$10x{coins10}");
-            if (coins5 > 0) list.Add($"$5x{coins5}");
-            if (coins2 > 0) list.Add($"$2x{coins2}");
-            if (coins1 > 0) list.Add($"$1x{coins1}");
-            if (coins50c > 0) list.Add($"$0.50x{coins50c}");
-            
-            var breakdown = string.Join(", ", list);
-            var fullReason = $"{prefix}{reason.Trim()} (Desglose: {breakdown})";
-
             var command = new CashCollectionCommand(
                 CashRegisterId: CashRegisterId,
                 UserId: UserId,
                 Amount: CalculatedAmount,
-                Reason: fullReason,
+                Reason: reason.Trim(),
+                Type: IsInflow ? CashCollectionType.Morralla : CashCollectionType.Recoleccion,
                 SupervisorUsername: SupervisorUsername,
                 SupervisorPassword: SupervisorPassword
             );
