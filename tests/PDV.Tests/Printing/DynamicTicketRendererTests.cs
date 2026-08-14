@@ -69,4 +69,62 @@ public class DynamicTicketRendererTests
         Assert.Contains("TOTAL", result);
         Assert.Contains("Coca Cola 600ml", result);
     }
+
+    [Fact]
+    public void Render_ShouldFormatManifestOrdersAndTotalsConfigurableFields()
+    {
+        // Arrange
+        var template = new TicketTemplateJson
+        {
+            Blocks = new List<TicketBlock>
+            {
+                new() 
+                { 
+                    Type = "ManifestOrders", 
+                    ManifestOrderFields = new List<string> { "Folio", "Client", "Total" } 
+                },
+                new() 
+                { 
+                    Type = "ManifestTotals", 
+                    ManifestTotalsFields = new List<string> { "CashTotal", "OrderCount", "CombinedTotal" } 
+                }
+            }
+        };
+
+        var variables = new Dictionary<string, string>
+        {
+            { "{ExpectedCash}", "$150.00" },
+            { "{OrderCount}", "2" },
+            { "{Total}", "$350.00" }
+        };
+
+        var manifestOrders = new List<ManifestOrderInfo>
+        {
+            new()
+            {
+                Folio = "SER-00123",
+                Client = "Test Client",
+                Address = "Test Address",
+                Phone = "1234567890",
+                Total = 150.00m,
+                PaymentMethod = "Efectivo"
+            }
+        };
+
+        // Act
+        var result = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), 40, manifestOrders);
+
+        // Assert
+        Assert.Contains("Pedido: SER-00123", result);
+        Assert.Contains("Cliente: Test Client", result);
+        Assert.Contains("Total:   $150.00 (Efectivo)", result);
+        Assert.DoesNotContain("Test Address", result); // Configured fields omitted it
+
+        Assert.Contains("Total Efectivo:", result);
+        Assert.Contains("$150.00", result);
+        Assert.Contains("Num. Pedidos:", result);
+        Assert.Contains("TOTAL:", result);
+        Assert.Contains("$350.00", result);
+        Assert.DoesNotContain("Total Tarjeta", result); // Omitted
+    }
 }

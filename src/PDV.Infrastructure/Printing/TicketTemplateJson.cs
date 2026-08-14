@@ -39,6 +39,10 @@ public class TicketBlock
 
     // Propiedades para Totals
     public List<string>? TotalsFields { get; set; } = new();
+
+    // Propiedades para ManifestOrders y ManifestTotals
+    public List<string>? ManifestOrderFields { get; set; } = new();
+    public List<string>? ManifestTotalsFields { get; set; } = new();
 }
 
 public class TableColumnOption

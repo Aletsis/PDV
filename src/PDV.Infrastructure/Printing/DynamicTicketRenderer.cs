@@ -7,7 +7,12 @@ namespace PDV.Infrastructure.Printing;
 
 public class DynamicTicketRenderer
 {
-    public static string Render(TicketTemplateJson template, Dictionary<string, string> variables, List<TicketTableItem> tableItems, int widthCharacters)
+    public static string Render(
+        TicketTemplateJson template, 
+        Dictionary<string, string> variables, 
+        List<TicketTableItem> tableItems, 
+        int widthCharacters,
+        List<ManifestOrderInfo>? manifestOrders = null)
     {
         var sb = new StringBuilder();
 
@@ -97,6 +102,17 @@ public class DynamicTicketRenderer
 
                 case "totals":
                     RenderTotals(sb, block, variables, widthCharacters);
+                    break;
+
+                case "manifestorders":
+                    if (manifestOrders != null && manifestOrders.Count > 0)
+                    {
+                        RenderManifestOrders(sb, block, manifestOrders, widthCharacters);
+                    }
+                    break;
+
+                case "manifesttotals":
+                    RenderManifestTotals(sb, block, variables, widthCharacters);
                     break;
 
                 case "barcodeorqr":
@@ -291,6 +307,79 @@ public class DynamicTicketRenderer
         }
     }
 
+    private static void RenderManifestOrders(StringBuilder sb, TicketBlock block, List<ManifestOrderInfo> orders, int width)
+    {
+        var fields = block.ManifestOrderFields ?? new List<string> { "Folio", "Client", "Address", "Phone", "Total" };
+        int orderCount = 0;
+
+        foreach (var order in orders)
+        {
+            orderCount++;
+            foreach (var field in fields)
+            {
+                switch (field.ToLowerInvariant())
+                {
+                    case "folio":
+                        sb.AppendLine($"#{orderCount} Pedido: {order.Folio}");
+                        break;
+                    case "client":
+                        sb.AppendLine($"Cliente: {order.Client}");
+                        break;
+                    case "address":
+                        sb.AppendLine($"Direcc:  {order.Address}");
+                        break;
+                    case "phone":
+                        if (!string.IsNullOrWhiteSpace(order.Phone))
+                        {
+                            sb.AppendLine($"Tel:     {order.Phone}");
+                        }
+                        break;
+                    case "total":
+                        sb.AppendLine($"Total:   {order.Total:C2} ({order.PaymentMethod})");
+                        break;
+                }
+            }
+            sb.AppendLine(new string('-', width));
+        }
+    }
+
+    private static void RenderManifestTotals(StringBuilder sb, TicketBlock block, Dictionary<string, string> variables, int width)
+    {
+        var fields = block.ManifestTotalsFields ?? new List<string> { "CashTotal", "OrderCount", "CardTotal", "CombinedTotal" };
+
+        foreach (var field in fields)
+        {
+            switch (field.ToLowerInvariant())
+            {
+                case "cashtotal":
+                    if (variables.TryGetValue("{ExpectedCash}", out var cashTotal) && !string.IsNullOrEmpty(cashTotal))
+                    {
+                        sb.AppendLine(FormatKeyValue("Total Efectivo:", cashTotal, false, width));
+                    }
+                    break;
+                case "ordercount":
+                    if (variables.TryGetValue("{OrderCount}", out var orderCount) && !string.IsNullOrEmpty(orderCount))
+                    {
+                        sb.AppendLine(FormatKeyValue("Num. Pedidos:", orderCount, false, width));
+                    }
+                    break;
+                case "cardtotal":
+                    if (variables.TryGetValue("{ExpectedCard}", out var cardTotal) && !string.IsNullOrEmpty(cardTotal))
+                    {
+                        sb.AppendLine(FormatKeyValue("Total Tarjeta:", cardTotal, false, width));
+                    }
+                    break;
+                case "combinedtotal":
+                    if (variables.TryGetValue("{Total}", out var total) && !string.IsNullOrEmpty(total))
+                    {
+                        sb.AppendLine(new string('=', width));
+                        sb.AppendLine(FormatKeyValue("TOTAL:", total, true, width));
+                    }
+                    break;
+            }
+        }
+    }
+
     private static string Center(string text, int width)
     {
         if (text.Length >= width) return text;
@@ -310,4 +399,14 @@ public class TicketTableItem
     public string Subtotal { get; set; } = string.Empty;
     public string Iva { get; set; } = string.Empty;
     public string Total { get; set; } = string.Empty;
+}
+
+public class ManifestOrderInfo
+{
+    public string Folio { get; set; } = string.Empty;
+    public string Client { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+    public string PaymentMethod { get; set; } = string.Empty;
 }

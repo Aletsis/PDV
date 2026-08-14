@@ -70,8 +70,16 @@ else
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Image" OnClick='() => AddBlock("Logo")'>Logotipo</MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TextFields" OnClick='() => AddBlock("Text")'>Línea de Texto</MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Label" OnClick='() => AddBlock("KeyValue")'>Clave - Valor</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TableRows" OnClick='() => AddBlock("ItemsTable")'>Tabla de Artículos</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachMoney" OnClick='() => AddBlock("Totals")'>Bloque de Totales</MudButton>
+                @if (_selectedType == TicketTemplateType.RouteManifest)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ListAlt" OnClick='() => AddBlock("ManifestOrders")'>Pedidos en Ruta</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Calculate" OnClick='() => AddBlock("ManifestTotals")'>Totales del Manifiesto</MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.TableRows" OnClick='() => AddBlock("ItemsTable")'>Tabla de Artículos</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachMoney" OnClick='() => AddBlock("Totals")'>Bloque de Totales</MudButton>
+                }
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.QrCode" OnClick='() => AddBlock("BarcodeOrQr")'>Código QR / Barra</MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.HorizontalRule" OnClick='() => AddBlock("Separator")'>Separador</MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Notes" OnClick='() => AddBlock("Footer")'>Pie de Página</MudButton>
@@ -213,6 +221,73 @@ else
                                                 }
                                             </div>
                                             break;
+
+                                         case "manifestorders":
+                                             <div class="d-flex flex-column w-100 mt-2 text-monospace" style="font-size: 0.85rem;">
+                                                 <div class="font-weight-bold mb-1">PEDIDOS EN RUTA:</div>
+                                                 @for (int oIdx = 1; oIdx <= 2; oIdx++)
+                                                 {
+                                                     var fields = block.ManifestOrderFields ?? new List<string> { "Folio", "Client", "Address", "Phone", "Total" };
+                                                     foreach (var field in fields)
+                                                     {
+                                                         switch (field)
+                                                         {
+                                                             case "Folio":
+                                                                 <div>#@oIdx Pedido: @(oIdx == 1 ? "R-000456-1" : "R-000456-2")</div>
+                                                                 break;
+                                                             case "Client":
+                                                                 <div>Cliente: @(oIdx == 1 ? "Juan Pérez" : "María Gómez")</div>
+                                                                 break;
+                                                             case "Address":
+                                                                 <div>Direcc: @(oIdx == 1 ? "Av. Juárez 100, Col. Centro" : "Calle Hidalgo 45")</div>
+                                                                 break;
+                                                             case "Phone":
+                                                                 <div>Tel: @(oIdx == 1 ? "555-123-4567" : "555-987-6543")</div>
+                                                                 break;
+                                                             case "Total":
+                                                                 <div>Total: @(oIdx == 1 ? "$150.00" : "$200.00") (@(oIdx == 1 ? "Efectivo" : "Tarjeta"))</div>
+                                                                 break;
+                                                         }
+                                                     }
+                                                     <div class="text-center text-monospace py-1" style="letter-spacing: 2px;">------------------------</div>
+                                                 }
+                                             </div>
+                                             break;
+
+                                         case "manifesttotals":
+                                             <div class="d-flex flex-column align-end w-100 mt-2 text-monospace" style="font-size: 0.85rem;">
+                                                 @foreach (var field in block.ManifestTotalsFields ?? new List<string> { "CashTotal", "OrderCount", "CardTotal", "CombinedTotal" })
+                                                 {
+                                                     switch (field)
+                                                     {
+                                                         case "CashTotal":
+                                                             <div class="d-flex justify-content-between w-100">
+                                                                 <span>Total Efectivo:</span>
+                                                                 <span class="ml-auto">$150.00</span>
+                                                             </div>
+                                                             break;
+                                                         case "OrderCount":
+                                                             <div class="d-flex justify-content-between w-100">
+                                                                 <span>Número de Pedidos:</span>
+                                                                 <span class="ml-auto">2</span>
+                                                             </div>
+                                                             break;
+                                                         case "CardTotal":
+                                                             <div class="d-flex justify-content-between w-100">
+                                                                 <span>Total Tarjeta:</span>
+                                                                 <span class="ml-auto">$200.00</span>
+                                                             </div>
+                                                             break;
+                                                         case "CombinedTotal":
+                                                             <div class="d-flex justify-content-between w-100 font-weight-bold" style="border-top: 1px double #000; padding-top: 2px;">
+                                                                 <span>TOTAL (EFECT. Y TARJ.):</span>
+                                                                 <span class="ml-auto">$350.00</span>
+                                                             </div>
+                                                             break;
+                                                     }
+                                                 }
+                                             </div>
+                                             break;
 
                                         case "barcodeorqr":
                                             <div class="d-flex flex-column align-center py-2" style="border: 1px dashed #ccc;">
@@ -387,6 +462,90 @@ else
                         }
                         break;
 
+                    case "manifestorders":
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Campos de Pedidos</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3 d-block">Selecciona qué campos mostrar en cada pedido y el orden:</MudText>
+
+                        @if (block.ManifestOrderFields == null || !block.ManifestOrderFields.Any())
+                        {
+                            block.ManifestOrderFields = new List<string> { "Folio", "Client", "Address", "Phone", "Total" };
+                        }
+
+                        @for (int fIdx = 0; fIdx < block.ManifestOrderFields.Count; fIdx++)
+                        {
+                            var index = fIdx;
+                            var field = block.ManifestOrderFields[index];
+                            string displayName = _availableManifestOrderFields.TryGetValue(field, out var dName) ? dName : field;
+
+                            <div class="d-flex align-center justify-between mb-2 pa-2" style="background: rgba(0,0,0,0.05); border-radius: 4px;">
+                                <div class="d-flex align-center">
+                                    <MudCheckBox T="bool" Value="true" ValueChanged="@((val) => ToggleManifestOrderField(block, field, val))" Color="Color.Primary" Label="@displayName" Dense="true" />
+                                </div>
+                                <div class="d-flex align-center">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" OnClick="() => MoveManifestOrderFieldUp(block, index)" Disabled="@(index == 0)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" OnClick="() => MoveManifestOrderFieldDown(block, index)" Disabled="@(index == block.ManifestOrderFields.Count - 1)" />
+                                </div>
+                            </div>
+                        }
+
+                        @if (block.ManifestOrderFields.Count < _availableManifestOrderFields.Count)
+                        {
+                            var missingFields = _availableManifestOrderFields.Keys.Where(k => !block.ManifestOrderFields.Contains(k)).ToList();
+                            if (missingFields.Any())
+                            {
+                                <MudSelect T="string" Label="Añadir Campo de Pedido" Variant="Variant.Outlined" Dense="true" Class="mt-3" ValueChanged="@((val) => AddManifestOrderField(block, val))">
+                                    <MudSelectItem Value='("")'>-- Selecciona --</MudSelectItem>
+                                    @foreach (var mField in missingFields)
+                                    {
+                                        <MudSelectItem Value='mField'>@_availableManifestOrderFields[mField]</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                        }
+                        break;
+
+                    case "manifesttotals":
+                        <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Variables de Totales de Manifiesto</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-3 d-block">Selecciona qué variables mostrar y reordénalas:</MudText>
+
+                        @if (block.ManifestTotalsFields == null || !block.ManifestTotalsFields.Any())
+                        {
+                            block.ManifestTotalsFields = new List<string> { "CashTotal", "OrderCount", "CardTotal", "CombinedTotal" };
+                        }
+
+                        @for (int fIdx = 0; fIdx < block.ManifestTotalsFields.Count; fIdx++)
+                        {
+                            var index = fIdx;
+                            var field = block.ManifestTotalsFields[index];
+                            string displayName = _availableManifestTotalsFields.TryGetValue(field, out var dName) ? dName : field;
+
+                            <div class="d-flex align-center justify-between mb-2 pa-2" style="background: rgba(0,0,0,0.05); border-radius: 4px;">
+                                <div class="d-flex align-center">
+                                    <MudCheckBox T="bool" Value="true" ValueChanged="@((val) => ToggleManifestTotalsField(block, field, val))" Color="Color.Primary" Label="@displayName" Dense="true" />
+                                </div>
+                                <div class="d-flex align-center">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" OnClick="() => MoveManifestTotalsFieldUp(block, index)" Disabled="@(index == 0)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" OnClick="() => MoveManifestTotalsFieldDown(block, index)" Disabled="@(index == block.ManifestTotalsFields.Count - 1)" />
+                                </div>
+                            </div>
+                        }
+
+                        @if (block.ManifestTotalsFields.Count < _availableManifestTotalsFields.Count)
+                        {
+                            var missingFields = _availableManifestTotalsFields.Keys.Where(k => !block.ManifestTotalsFields.Contains(k)).ToList();
+                            if (missingFields.Any())
+                            {
+                                <MudSelect T="string" Label="Añadir Variable de Totales" Variant="Variant.Outlined" Dense="true" Class="mt-3" ValueChanged="@((val) => AddManifestTotalsField(block, val))">
+                                    <MudSelectItem Value='("")'>-- Selecciona --</MudSelectItem>
+                                    @foreach (var mField in missingFields)
+                                    {
+                                        <MudSelectItem Value='mField'>@_availableManifestTotalsFields[mField]</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                        }
+                        break;
+
                     case "barcodeorqr":
                         <MudSelect @bind-Value="block.CodeType" Label="Tipo de Código" Variant="Variant.Outlined" Class="mb-3">
                             <MudSelectItem Value='("QR")'>Código QR</MudSelectItem>
@@ -512,6 +671,23 @@ else
         { "Change", "Cambio" }
     };
 
+    private readonly Dictionary<string, string> _availableManifestOrderFields = new()
+    {
+        { "Folio", "Folio (Serie-Folio)" },
+        { "Client", "Cliente" },
+        { "Address", "Dirección" },
+        { "Phone", "Teléfono" },
+        { "Total", "Total" }
+    };
+
+    private readonly Dictionary<string, string> _availableManifestTotalsFields = new()
+    {
+        { "CashTotal", "Total Efectivo" },
+        { "OrderCount", "Número de Pedidos" },
+        { "CardTotal", "Total Tarjeta" },
+        { "CombinedTotal", "Total (Efectivo y Tarjeta)" }
+    };
+
     private bool isLocalMode = false;
     private TicketTemplateType _selectedType = TicketTemplateType.Sale;
     private TicketTemplateJson _templateJson = new();
@@ -610,6 +786,16 @@ else
         else if (type.Equals("Totals", StringComparison.OrdinalIgnoreCase))
         {
             block.TotalsFields = new List<string> { "Subtotal", "Iva", "Total", "PaymentMethod", "Change" };
+        }
+        else if (type.Equals("ManifestOrders", StringComparison.OrdinalIgnoreCase))
+        {
+            block.Type = "ManifestOrders";
+            block.ManifestOrderFields = new List<string> { "Folio", "Client", "Address", "Phone", "Total" };
+        }
+        else if (type.Equals("ManifestTotals", StringComparison.OrdinalIgnoreCase))
+        {
+            block.Type = "ManifestTotals";
+            block.ManifestTotalsFields = new List<string> { "CashTotal", "OrderCount", "CardTotal", "CombinedTotal" };
         }
 
         _templateJson.Blocks.Add(block);
@@ -714,6 +900,100 @@ else
             var temp = block.TotalsFields[index];
             block.TotalsFields[index] = block.TotalsFields[index + 1];
             block.TotalsFields[index + 1] = temp;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleManifestOrderField(TicketBlock block, string field, bool show)
+    {
+        block.ManifestOrderFields ??= new List<string> { "Folio", "Client", "Address", "Phone", "Total" };
+        if (!show)
+        {
+            block.ManifestOrderFields.Remove(field);
+        }
+        else if (!block.ManifestOrderFields.Contains(field))
+        {
+            block.ManifestOrderFields.Add(field);
+        }
+        StateHasChanged();
+    }
+
+    private void AddManifestOrderField(TicketBlock block, string field)
+    {
+        if (string.IsNullOrEmpty(field)) return;
+        block.ManifestOrderFields ??= new List<string>();
+        if (!block.ManifestOrderFields.Contains(field))
+        {
+            block.ManifestOrderFields.Add(field);
+        }
+        StateHasChanged();
+    }
+
+    private void MoveManifestOrderFieldUp(TicketBlock block, int index)
+    {
+        if (block.ManifestOrderFields != null && index > 0 && index < block.ManifestOrderFields.Count)
+        {
+            var temp = block.ManifestOrderFields[index];
+            block.ManifestOrderFields[index] = block.ManifestOrderFields[index - 1];
+            block.ManifestOrderFields[index - 1] = temp;
+            StateHasChanged();
+        }
+    }
+
+    private void MoveManifestOrderFieldDown(TicketBlock block, int index)
+    {
+        if (block.ManifestOrderFields != null && index >= 0 && index < block.ManifestOrderFields.Count - 1)
+        {
+            var temp = block.ManifestOrderFields[index];
+            block.ManifestOrderFields[index] = block.ManifestOrderFields[index + 1];
+            block.ManifestOrderFields[index + 1] = temp;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleManifestTotalsField(TicketBlock block, string field, bool show)
+    {
+        block.ManifestTotalsFields ??= new List<string> { "CashTotal", "OrderCount", "CardTotal", "CombinedTotal" };
+        if (!show)
+        {
+            block.ManifestTotalsFields.Remove(field);
+        }
+        else if (!block.ManifestTotalsFields.Contains(field))
+        {
+            block.ManifestTotalsFields.Add(field);
+        }
+        StateHasChanged();
+    }
+
+    private void AddManifestTotalsField(TicketBlock block, string field)
+    {
+        if (string.IsNullOrEmpty(field)) return;
+        block.ManifestTotalsFields ??= new List<string>();
+        if (!block.ManifestTotalsFields.Contains(field))
+        {
+            block.ManifestTotalsFields.Add(field);
+        }
+        StateHasChanged();
+    }
+
+    private void MoveManifestTotalsFieldUp(TicketBlock block, int index)
+    {
+        if (block.ManifestTotalsFields != null && index > 0 && index < block.ManifestTotalsFields.Count)
+        {
+            var temp = block.ManifestTotalsFields[index];
+            block.ManifestTotalsFields[index] = block.ManifestTotalsFields[index - 1];
+            block.ManifestTotalsFields[index - 1] = temp;
+            StateHasChanged();
+        }
+    }
+
+    private void MoveManifestTotalsFieldDown(TicketBlock block, int index)
+    {
+        if (block.ManifestTotalsFields != null && index >= 0 && index < block.ManifestTotalsFields.Count - 1)
+        {
+            var temp = block.ManifestTotalsFields[index];
+            block.ManifestTotalsFields[index] = block.ManifestTotalsFields[index + 1];
+            block.ManifestTotalsFields[index + 1] = temp;
             StateHasChanged();
         }
     }
@@ -950,8 +1230,8 @@ else
                 "{PaymentMethod}", "{Subtotal}", "{Tax}", "{Total}"
             },
             TicketTemplateType.RouteManifest => new() {
-                "{CompanyName}", "{TaxId}", "{Folio}", "{Date}", "{DeliveryManName}",
-                "{OrdersList}", "{ExpectedCash}", "{ExpectedCard}", "{Total}"
+                "{CompanyName}", "{TaxId}", "{BranchName}", "{BranchAddress}", "{BranchPhone}", "{Folio}", "{Date}", "{DeliveryManName}",
+                "{OrdersList}", "{ExpectedCash}", "{ExpectedCard}", "{OrderCount}", "{Total}"
             },
             _ => new()
         };
@@ -979,6 +1259,7 @@ else
             .Replace("{OrdersList}", "#1 Pedido: P-000101\nCliente: Juan Pérez\nDirecc: Calle Falsa 123\nCobro: $150.00 (Efectivo)\n------------------------\n#2 Pedido: P-000102\nCliente: Maria G.\nDirecc: Av. Patria 450\nCobro: $200.00 (Tarjeta)\n------------------------")
             .Replace("{ExpectedCash}", "$150.00")
             .Replace("{ExpectedCard}", "$200.00")
+            .Replace("{OrderCount}", "2")
             .Replace("{TicketTitle}", "RECOLECCIÓN DE EFECTIVO")
             .Replace("{Reason}", "Corte parcial de caja")
             .Replace("{Total}", "$350.00")
@@ -1199,18 +1480,17 @@ else
                 return @"{
                     ""Blocks"": [
                         { ""Type"": ""Text"", ""Content"": ""=== MANIFIESTO DE REPARTO ==="", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Sucursal:"", ""ValuePlaceholder"": ""{BranchName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Dirección:"", ""ValuePlaceholder"": ""{BranchAddress}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Teléfono:"", ""ValuePlaceholder"": ""{BranchPhone}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Ruta Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Repartidor:"", ""ValuePlaceholder"": ""{DeliveryManName}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
-                        { ""Type"": ""Text"", ""Content"": ""PEDIDOS EN RUTA:"", ""Align"": ""Left"", ""Bold"": true },
-                        { ""Type"": ""Text"", ""Content"": ""{OrdersList}"", ""Align"": ""Left"" },
-                        { ""Type"": ""Text"", ""Content"": ""RESUMEN DE ARQUEO A ENTREGAR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""ManifestOrders"", ""ManifestOrderFields"": [""Folio"", ""Client"", ""Address"", ""Phone"", ""Total""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""Vouchers Esperados:"", ""ValuePlaceholder"": ""{ExpectedCard}"" },
-                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""MONTO TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
+                        { ""Type"": ""ManifestTotals"", ""ManifestTotalsFields"": [""CashTotal"", ""OrderCount"", ""CardTotal"", ""CombinedTotal""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma Repartidor"", ""Align"": ""Center"" }
                     ]

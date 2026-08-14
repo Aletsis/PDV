@@ -429,6 +429,7 @@ public class TicketGenerator : ITicketGenerator
     public async Task<string> GenerateRouteManifestTicketAsync(Guid routeId, CancellationToken cancellationToken = default, int? widthCharacters = null)
     {
         var route = await _context.DeliveryRoutes
+            .Include(r => r.Branch)
             .Include(r => r.Orders)
             .FirstOrDefaultAsync(r => r.Id == routeId, cancellationToken)
             ?? throw new KeyNotFoundException($"Ruta {routeId} no encontrada");
@@ -442,6 +443,7 @@ public class TicketGenerator : ITicketGenerator
         decimal totalCard = 0;
         var ordersSb = new StringBuilder();
         int orderCount = 0;
+        var manifestOrders = new List<ManifestOrderInfo>();
 
         foreach (var order in route.Orders)
         {
@@ -450,11 +452,21 @@ public class TicketGenerator : ITicketGenerator
                 ? await _context.Clients.FindAsync(new object[] { order.ClientId.Value }, cancellationToken)
                 : null;
 
+            string payMethodStr = order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta";
+
+            manifestOrders.Add(new ManifestOrderInfo
+            {
+                Folio = $"{order.Series}-{order.Folio}",
+                Client = client?.Name ?? "Público General",
+                Address = client?.Address != null ? FormatAddress(client.Address) : "Sin dirección",
+                Phone = client?.Phone ?? string.Empty,
+                Total = order.TotalAmount,
+                PaymentMethod = payMethodStr
+            });
+
             ordersSb.AppendLine($"#{orderCount} Pedido: {order.Series}-{order.Folio}");
             ordersSb.AppendLine($"Cliente: {client?.Name ?? "Público General"}");
             ordersSb.AppendLine($"Direcc:  {(client?.Address != null ? FormatAddress(client.Address) : "Sin dirección")}");
-            
-            string payMethodStr = order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta";
             ordersSb.AppendLine($"Cobro:   {order.TotalAmount:C2} ({payMethodStr})");
             ordersSb.AppendLine(new string('-', width));
 
@@ -468,12 +480,16 @@ public class TicketGenerator : ITicketGenerator
         {
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
             { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{BranchName}", route.Branch?.Name ?? string.Empty },
+            { "{BranchAddress}", FormatAddress(route.Branch?.Address) },
+            { "{BranchPhone}", route.Branch?.Phone ?? string.Empty },
             { "{Folio}", route.Folio.ToString() },
             { "{Date}", route.CreatedDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
             { "{DeliveryManName}", deliveryMan?.FullName ?? route.DeliveryManId },
             { "{OrdersList}", ordersSb.ToString() },
             { "{ExpectedCash}", totalCash.ToString("C2") },
             { "{ExpectedCard}", totalCard.ToString("C2") },
+            { "{OrderCount}", orderCount.ToString() },
             { "{Total}", (totalCash + totalCard).ToString("C2") }
         };
 
@@ -482,7 +498,7 @@ public class TicketGenerator : ITicketGenerator
         string jsonStr = templateJson?.ContentJson ?? GetDefaultTemplateJson(TicketTemplateType.RouteManifest);
         var template = JsonSerializer.Deserialize<TicketTemplateJson>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new TicketTemplateJson();
 
-        var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
+        var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width, manifestOrders);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
         return ticketText;
     }
@@ -667,31 +683,30 @@ public class TicketGenerator : ITicketGenerator
                         { ""Type"": ""Totals"", ""TotalsFields"": [""Subtotal"", ""Iva"", ""Total"", ""PaymentMethod"", ""Change""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Footer"", ""Content"": ""¡Gracias por su compra!"" }
-                    ]
-                }";
+                     ]
+                 }";
 
             case TicketTemplateType.RouteManifest:
                 return @"{
                     ""Blocks"": [
                         { ""Type"": ""Text"", ""Content"": ""=== MANIFIESTO DE REPARTO ==="", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Sucursal:"", ""ValuePlaceholder"": ""{BranchName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Dirección:"", ""ValuePlaceholder"": ""{BranchAddress}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Teléfono:"", ""ValuePlaceholder"": ""{BranchPhone}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Ruta Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Repartidor:"", ""ValuePlaceholder"": ""{DeliveryManName}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
-                        { ""Type"": ""Text"", ""Content"": ""PEDIDOS EN RUTA:"", ""Align"": ""Left"", ""Bold"": true },
-                        { ""Type"": ""Text"", ""Content"": ""{OrdersList}"", ""Align"": ""Left"" },
-                        { ""Type"": ""Text"", ""Content"": ""RESUMEN DE ARQUEO A ENTREGAR:"", ""Align"": ""Left"", ""Bold"": true },
+                        { ""Type"": ""ManifestOrders"", ""ManifestOrderFields"": [""Folio"", ""Client"", ""Address"", ""Phone"", ""Total""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""Vouchers Esperados:"", ""ValuePlaceholder"": ""{ExpectedCard}"" },
-                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""MONTO TOTAL:"", ""ValuePlaceholder"": ""{Total}"", ""Bold"": true },
+                        { ""Type"": ""ManifestTotals"", ""ManifestTotalsFields"": [""CashTotal"", ""OrderCount"", ""CardTotal"", ""CombinedTotal""] },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_________________________\nFirma Repartidor"", ""Align"": ""Center"" }
                     ]
                 }";
 
-            default:
+             default:
                 return "{\"Blocks\":[]}";
         }
     }
