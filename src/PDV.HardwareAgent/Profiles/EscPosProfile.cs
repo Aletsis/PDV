@@ -25,7 +25,7 @@ public class EscPosProfile : IPrinterProfile
     {
         var list = new List<byte>
         {
-            0x1B, 0x64, 0x07, // ESC d 7 (Feed 7 lines)
+            0x1B, 0x64, 0x04, // ESC d 4 (Feed 4 lines)
             0x1D, 0x56, (byte)(partialCut ? 0x01 : 0x00) // GS V 1/0
         };
         return list.ToArray();

@@ -77,10 +77,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     public async Task<string> GenerateInvoiceTicketAsync(Guid invoiceId, CancellationToken cancellationToken = default, int? widthCharacters = null)
@@ -156,10 +153,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     public async Task<string> GenerateReturnTicketAsync(Guid returnId, CancellationToken cancellationToken = default, int? widthCharacters = null)
@@ -218,10 +212,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     public async Task<string> GenerateCashCollectionTicketAsync(Guid collectionId, CancellationToken cancellationToken = default, int? widthCharacters = null)
@@ -269,10 +260,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     public async Task<string> GenerateCashCutTicketAsync(Guid cutId, CancellationToken cancellationToken = default, int? widthCharacters = null)
@@ -336,10 +324,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     public async Task<string> GenerateOrderTicketAsync(Guid orderId, CancellationToken cancellationToken = default, int? widthCharacters = null)
@@ -390,10 +375,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, tableItems, width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     public async Task<string> GenerateRouteManifestTicketAsync(Guid routeId, CancellationToken cancellationToken = default, int? widthCharacters = null)
@@ -454,10 +436,7 @@ public class TicketGenerator : ITicketGenerator
 
         var ticketText = DynamicTicketRenderer.Render(template, variables, new List<TicketTableItem>(), width);
         ticketText = await ProcessLogoPlaceholderAsync(ticketText, cancellationToken);
-        var sb = new StringBuilder(ticketText);
-
-        sb.Append("\x1B\x69");
-        return sb.ToString();
+        return ticketText;
     }
 
     private string GetDefaultTemplateJson(TicketTemplateType type)

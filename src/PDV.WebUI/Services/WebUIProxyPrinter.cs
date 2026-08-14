@@ -164,7 +164,7 @@ public class WebUIProxyPrinter : IEscPosPrinter
             sb.AddRange(new byte[] { 0x1B, 0x40 }); // Init
             sb.AddRange(textBytes);
             sb.AddRange(new byte[] { 0x0A }); // LF
-            sb.AddRange(new byte[] { 0x1B, 0x64, 0x07 }); // Feed 7 lines
+            sb.AddRange(new byte[] { 0x1B, 0x64, 0x04 }); // Feed 4 lines
             sb.AddRange(new byte[] { 0x1D, 0x56, 0x00 }); // Full cut
 
             await PrintRawAsync(ipAddress, port, sb.ToArray(), cancellationToken);

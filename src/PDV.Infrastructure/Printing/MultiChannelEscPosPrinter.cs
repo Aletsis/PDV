@@ -143,7 +143,7 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
 
             if (autoCut)
             {
-                buffer.AddRange(new byte[] { 0x1B, 0x64, 0x07 }); // Feed 7 lines
+                buffer.AddRange(new byte[] { 0x1B, 0x64, 0x04 }); // Feed 4 lines
                 buffer.AddRange(new byte[] { 0x1D, 0x56, (byte)(partialCut ? 0x01 : 0x00) }); // Cut
             }
         }
@@ -192,7 +192,7 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         sb.AddRange(textBytes);
         sb.AddRange(new byte[] { 0x0A }); // LF
 
-        sb.AddRange(new byte[] { 0x1B, 0x64, 0x07 }); // Feed 7 lines
+        sb.AddRange(new byte[] { 0x1B, 0x64, 0x04 }); // Feed 4 lines
         sb.AddRange(new byte[] { 0x1D, 0x56, 0x00 }); // Full cut
 
         await PrintRawAsync(ipAddress, port, sb.ToArray(), cancellationToken);
@@ -225,7 +225,7 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
 
         header.AddRange(new byte[] { 0x1D, 0x76, 0x30, 0x00, (byte)xL, (byte)xH, (byte)yL, (byte)yH });
         header.AddRange(imgBytes);
-        header.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x00 }); // Cut
+        header.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x04, 0x1D, 0x56, 0x00 }); // Cut
 
         await PrintRawAsync(ipAddress, port, header.ToArray(), cancellationToken);
     }
@@ -262,7 +262,7 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         cmd.AddRange(new byte[] { 0x1D, 0x6B, (byte)barcodeType });
         cmd.AddRange(Encoding.ASCII.GetBytes(data));
         cmd.Add(0x00);
-        cmd.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x00 }); // Cut
+        cmd.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x04, 0x1D, 0x56, 0x00 }); // Cut
 
         await PrintRawAsync(ipAddress, port, cmd.ToArray(), cancellationToken);
     }
@@ -281,7 +281,7 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         list.AddRange(new byte[] { 0x1D, 0x28, 0x6B, (byte)pL, (byte)pH, 0x31, 0x50, 0x30 });
         list.AddRange(bytes);
         list.AddRange(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30 }); // Print QR
-        list.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x00 }); // Cut
+        list.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x04, 0x1D, 0x56, 0x00 }); // Cut
 
         await PrintRawAsync(ipAddress, port, list.ToArray(), cancellationToken);
     }
