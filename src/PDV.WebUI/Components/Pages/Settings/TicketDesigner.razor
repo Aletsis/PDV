@@ -1326,7 +1326,10 @@ else
             TicketTemplateType.CashCut => new() {
                 "{CompanyName}", "{Folio}", "{Date}", "{CashRegisterName}", "{UserFullName}",
                 "{InitialCash}", "{CashSales}", "{Inflows}", "{Outflows}", "{Returns}",
-                "{ExpectedCash}", "{PhysicalCash}", "{DiffStatus}", "{Difference}"
+                "{ExpectedCash}", "{PhysicalCash}", "{DiffStatus}", "{Difference}",
+                "{Fondo}", "{Morralla}", "{Recolecciones}", "{VentaTotal}", "{VentaEfectivo}",
+                "{VentaTarjeta}", "{Venta16}", "{Venta8}", "{Venta0}", "{VentaExento}", "{VentaExcento}",
+                "{Iva16}", "{Iva8}", "{Iva0}", "{Total16}", "{Total8}", "{Total0}", "{EfectivoEsperado}"
             },
             TicketTemplateType.Order => new() {
                 "{CompanyName}", "{TaxId}", "{BranchName}", "{BranchAddress}", "{BranchPhone}",
@@ -1370,7 +1373,33 @@ else
             .Replace("{Total}", "$350.00")
             .Replace("{RefundMethod}", "Efectivo")
             .Replace("{PaymentMethod}", "Efectivo")
-            .Replace("{Change}", "$0.00");
+            .Replace("{Change}", "$0.00")
+            .Replace("{InitialCash}", "$1,000.00")
+            .Replace("{CashSales}", "$1,800.00")
+            .Replace("{Inflows}", "$500.00")
+            .Replace("{Outflows}", "$200.00")
+            .Replace("{Returns}", "$0.00")
+            .Replace("{PhysicalCash}", "$3,100.00")
+            .Replace("{DiffStatus}", "CUADRADO")
+            .Replace("{Difference}", "$0.00")
+            .Replace("{Fondo}", "$1,000.00")
+            .Replace("{Morralla}", "$500.00")
+            .Replace("{Recolecciones}", "$200.00")
+            .Replace("{VentaTotal}", "$3,500.00")
+            .Replace("{VentaEfectivo}", "$1,800.00")
+            .Replace("{VentaTarjeta}", "$1,700.00")
+            .Replace("{Venta16}", "$2,000.00")
+            .Replace("{Venta8}", "$1,000.00")
+            .Replace("{Venta0}", "$300.00")
+            .Replace("{VentaExento}", "$200.00")
+            .Replace("{VentaExcento}", "$200.00")
+            .Replace("{Iva16}", "$320.00")
+            .Replace("{Iva8}", "$80.00")
+            .Replace("{Iva0}", "$0.00")
+            .Replace("{Total16}", "$2,320.00")
+            .Replace("{Total8}", "$1,080.00")
+            .Replace("{Total0}", "$300.00")
+            .Replace("{EfectivoEsperado}", "$3,100.00");
     }
 
     private string GetAlignClass(string? align) => align?.ToLowerInvariant() switch
@@ -1530,24 +1559,46 @@ else
                     ""Blocks"": [
                         { ""Type"": ""Logo"" },
                         { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
-                        { ""Type"": ""Text"", ""Content"": ""CORTE DE CAJA (ARQUEO FISICO)"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""CORTE DE CAJA"", ""Align"": ""Center"", ""Bold"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Folio Corte:"", ""ValuePlaceholder"": ""{Folio}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Fecha Corte:"", ""ValuePlaceholder"": ""{Date}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
-                        { ""Type"": ""Text"", ""Content"": ""BALANCE GENERAL DE EFECTIVO"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""RESUMEN DE EFECTIVO"", ""Align"": ""Center"", ""Bold"": true },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""Fondo Inicial Caja:"", ""ValuePlaceholder"": ""{InitialCash}"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Ventas Efectivo:"", ""ValuePlaceholder"": ""{CashSales}"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Dotación Morralla:"", ""ValuePlaceholder"": ""{Inflows}"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""(-) Recolección Efect:"", ""ValuePlaceholder"": ""{Outflows}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Fondo Inicial:"", ""ValuePlaceholder"": ""{Fondo}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Ventas Efectivo:"", ""ValuePlaceholder"": ""{VentaEfectivo}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(+) Dotación Morralla:"", ""ValuePlaceholder"": ""{Morralla}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(-) Recolecciones:"", ""ValuePlaceholder"": ""{Recolecciones}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""(-) Devolución Efect:"", ""ValuePlaceholder"": ""{Returns}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Esperado:"", ""ValuePlaceholder"": ""{ExpectedCash}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Esperado:"", ""ValuePlaceholder"": ""{EfectivoEsperado}"", ""Bold"": true },
                         { ""Type"": ""KeyValue"", ""Key"": ""(=) Efectivo Físico:"", ""ValuePlaceholder"": ""{PhysicalCash}"" },
-                        { ""Type"": ""KeyValue"", ""Key"": ""DIFERENCIA ("", ""ValuePlaceholder"": ""{DiffStatus}) : {Difference}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Diferencia:"", ""ValuePlaceholder"": ""({DiffStatus}) {Difference}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""Text"", ""Content"": ""VENTAS POR METODO DE PAGO"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta Efectivo:"", ""ValuePlaceholder"": ""{VentaEfectivo}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta Tarjeta:"", ""ValuePlaceholder"": ""{VentaTarjeta}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta Total:"", ""ValuePlaceholder"": ""{VentaTotal}"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""Text"", ""Content"": ""DESGLOSE DE IMPUESTOS"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta 16%:"", ""ValuePlaceholder"": ""{Venta16}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Iva 16%:"", ""ValuePlaceholder"": ""{Iva16}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Total 16%:"", ""ValuePlaceholder"": ""{Total16}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""."" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta 8%:"", ""ValuePlaceholder"": ""{Venta8}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Iva 8%:"", ""ValuePlaceholder"": ""{Iva8}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Total 8%:"", ""ValuePlaceholder"": ""{Total8}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""."" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta 0%:"", ""ValuePlaceholder"": ""{Venta0}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Iva 0%:"", ""ValuePlaceholder"": ""{Iva0}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Total 0%:"", ""ValuePlaceholder"": ""{Total0}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""."" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Venta Exenta:"", ""ValuePlaceholder"": ""{VentaExento}"" },
                         { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""Text"", ""Content"": ""_____________________     _____________________\nFirma de Cajero          Firma de Auditor"", ""Align"": ""Center"" }
                     ]
