@@ -944,7 +944,8 @@ else
                 "{ExpectedCash}", "{PhysicalCash}", "{DiffStatus}", "{Difference}"
             },
             TicketTemplateType.Order => new() {
-                "{CompanyName}", "{TaxId}", "{Folio}", "{Date}", "{ClientName}",
+                "{CompanyName}", "{TaxId}", "{BranchName}", "{BranchAddress}", "{BranchPhone}",
+                "{Folio}", "{Date}", "{CashRegisterName}", "{UserFullName}", "{ClientName}",
                 "{ClientPhone}", "{ClientAddress}", "{DeliveryZoneName}", "{DeliveryCost}",
                 "{PaymentMethod}", "{Subtotal}", "{Tax}", "{Total}"
             },
@@ -1164,10 +1165,18 @@ else
                 return @"{
                     ""Blocks"": [
                         { ""Type"": ""Logo"" },
-                        { ""Type"": ""Text"", ""Content"": ""--- COMPROBANTE DE PEDIDO ---"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""SUCURSAL: {BranchName}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""{BranchAddress}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""TEL: {BranchPhone}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""COMPROBANTE DE PEDIDO"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
-                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""Text"", ""Content"": ""CLIENTE Y ENTREGA:"", ""Align"": ""Left"", ""Bold"": true },
                         { ""Type"": ""Text"", ""Content"": ""Nombre: {ClientName}\nTel: {ClientPhone}\nDirecc: {ClientAddress}"", ""Align"": ""Left"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Zona:"", ""ValuePlaceholder"": ""{DeliveryZoneName}"" },

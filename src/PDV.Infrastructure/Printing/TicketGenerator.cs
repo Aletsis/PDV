@@ -52,7 +52,7 @@ public class TicketGenerator : ITicketGenerator
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
             { "{TaxId}", config?.TaxId ?? string.Empty },
             { "{BranchName}", sale.Branch?.Name ?? string.Empty },
-            { "{BranchAddress}", sale.Branch?.Address != null ? $"{sale.Branch.Address.Street}, CP {sale.Branch.Address.ZipCode}" : string.Empty },
+            { "{BranchAddress}", FormatAddress(sale.Branch?.Address) },
             { "{BranchPhone}", sale.Branch?.Phone ?? string.Empty },
             { "{Folio}", folioText },
             { "{Id}", sale.SaleNumber },
@@ -60,7 +60,7 @@ public class TicketGenerator : ITicketGenerator
             { "{CashRegisterName}", sale.CashRegister?.Name ?? string.Empty },
             { "{UserFullName}", user?.FullName ?? sale.UserId ?? string.Empty },
             { "{ClientName}", sale.Client?.Name ?? "Público General" },
-            { "{ClientAddress}", sale.Client?.Address != null ? $"{sale.Client.Address.Street}, CP {sale.Client.Address.ZipCode}" : string.Empty },
+            { "{ClientAddress}", FormatAddress(sale.Client?.Address) },
             { "{ClientPhone}", sale.Client?.Phone ?? string.Empty },
             { "{Subtotal}", sale.Subtotal.ToString("C2") },
             { "{Tax}", sale.Taxes.Sum(t => t.TaxAmount).ToString("C2") },
@@ -206,7 +206,7 @@ public class TicketGenerator : ITicketGenerator
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
             { "{TaxId}", config?.TaxId ?? string.Empty },
             { "{BranchName}", returnSale.Branch?.Name ?? string.Empty },
-            { "{BranchAddress}", returnSale.Branch?.Address != null ? $"{returnSale.Branch.Address.Street}, CP {returnSale.Branch.Address.ZipCode}" : string.Empty },
+            { "{BranchAddress}", FormatAddress(returnSale.Branch?.Address) },
             { "{BranchPhone}", returnSale.Branch?.Phone ?? string.Empty },
             { "{Folio}", folioText },
             { "{Date}", returnSale.ReturnDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
@@ -272,7 +272,7 @@ public class TicketGenerator : ITicketGenerator
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
             { "{TaxId}", config?.TaxId ?? string.Empty },
             { "{BranchName}", collection.CashRegister?.Branch?.Name ?? string.Empty },
-            { "{BranchAddress}", collection.CashRegister?.Branch?.Address != null ? $"{collection.CashRegister.Branch.Address.Street}, CP {collection.CashRegister.Branch.Address.ZipCode}" : string.Empty },
+            { "{BranchAddress}", FormatAddress(collection.CashRegister?.Branch?.Address) },
             { "{TicketTitle}", ticketTitle },
             { "{Folio}", collection.Id.ToString().Substring(0, 8).ToUpperInvariant() },
             { "{Date}", collection.CollectionDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
@@ -330,7 +330,7 @@ public class TicketGenerator : ITicketGenerator
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
             { "{TaxId}", config?.TaxId ?? string.Empty },
             { "{BranchName}", cut.CashRegister?.Branch?.Name ?? string.Empty },
-            { "{BranchAddress}", cut.CashRegister?.Branch?.Address != null ? $"{cut.CashRegister.Branch.Address.Street}, CP {cut.CashRegister.Branch.Address.ZipCode}" : string.Empty },
+            { "{BranchAddress}", FormatAddress(cut.CashRegister?.Branch?.Address) },
             { "{Folio}", cut.Id.ToString().Substring(0, 8).ToUpperInvariant() },
             { "{Date}", cut.CutDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
             { "{CashRegisterName}", cut.CashRegister?.Name ?? string.Empty },
@@ -361,6 +361,9 @@ public class TicketGenerator : ITicketGenerator
         var order = await _context.Orders
             .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
+            .Include(o => o.Branch)
+                .ThenInclude(b => b!.Address)
+            .Include(o => o.CashRegister)
             .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
             ?? throw new KeyNotFoundException($"Pedido {orderId} no encontrado");
 
@@ -371,17 +374,27 @@ public class TicketGenerator : ITicketGenerator
         var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
         var width = widthCharacters ?? 42;
 
+        var cashierUserId = !string.IsNullOrEmpty(order.CapturedById) ? order.CapturedById : order.TakenById;
+        var user = !string.IsNullOrEmpty(cashierUserId)
+            ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == cashierUserId, cancellationToken)
+            : null;
+
         decimal deliveryCost = client?.DeliveryZone?.DeliveryCost ?? 0m;
 
         var variables = new Dictionary<string, string>
         {
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
             { "{TaxId}", config?.TaxId ?? string.Empty },
+            { "{BranchName}", order.Branch?.Name ?? string.Empty },
+            { "{BranchAddress}", FormatAddress(order.Branch?.Address) },
+            { "{BranchPhone}", order.Branch?.Phone ?? string.Empty },
             { "{Folio}", $"{order.Series}-{order.Folio}" },
             { "{Date}", order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
+            { "{CashRegisterName}", order.CashRegister?.Name ?? string.Empty },
+            { "{UserFullName}", user?.FullName ?? cashierUserId ?? string.Empty },
             { "{ClientName}", client?.Name ?? "Público General" },
             { "{ClientPhone}", client?.Phone ?? string.Empty },
-            { "{ClientAddress}", client?.Address?.Street ?? "Sin dirección" },
+            { "{ClientAddress}", client?.Address != null ? FormatAddress(client.Address) : "Sin dirección" },
             { "{DeliveryZoneName}", client?.DeliveryZone?.Name ?? "N/A" },
             { "{DeliveryCost}", deliveryCost.ToString("C2") },
             { "{PaymentMethod}", order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta" },
@@ -439,7 +452,7 @@ public class TicketGenerator : ITicketGenerator
 
             ordersSb.AppendLine($"#{orderCount} Pedido: {order.Series}-{order.Folio}");
             ordersSb.AppendLine($"Cliente: {client?.Name ?? "Público General"}");
-            ordersSb.AppendLine($"Direcc:  {client?.Address?.Street ?? "Sin dirección"}");
+            ordersSb.AppendLine($"Direcc:  {(client?.Address != null ? FormatAddress(client.Address) : "Sin dirección")}");
             
             string payMethodStr = order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta";
             ordersSb.AppendLine($"Cobro:   {order.TotalAmount:C2} ({payMethodStr})");
@@ -627,12 +640,20 @@ public class TicketGenerator : ITicketGenerator
                 return @"{
                     ""Blocks"": [
                         { ""Type"": ""Logo"" },
-                        { ""Type"": ""Text"", ""Content"": ""--- COMPROBANTE DE PEDIDO ---"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""{CompanyName}"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Text"", ""Content"": ""SUCURSAL: {BranchName}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""{BranchAddress}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Text"", ""Content"": ""TEL: {BranchPhone}"", ""Align"": ""Center"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""Text"", ""Content"": ""COMPROBANTE DE PEDIDO"", ""Align"": ""Center"", ""Bold"": true },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Folio:"", ""ValuePlaceholder"": ""{Folio}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Fecha:"", ""ValuePlaceholder"": ""{Date}"" },
-                        { ""Type"": ""Separator"", ""SeparatorChar"": ""="" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Caja:"", ""ValuePlaceholder"": ""{CashRegisterName}"" },
+                        { ""Type"": ""KeyValue"", ""Key"": ""Cajero:"", ""ValuePlaceholder"": ""{UserFullName}"" },
+                        { ""Type"": ""Separator"", ""SeparatorChar"": ""-"" },
                         { ""Type"": ""Text"", ""Content"": ""CLIENTE Y ENTREGA:"", ""Align"": ""Left"", ""Bold"": true },
-                        { ""Type"": ""Text"", ""Content"": ""Nombre: {ClientName}\\nTel: {ClientPhone}\\nDirecc: {ClientAddress}"", ""Align"": ""Left"" },
+                        { ""Type"": ""Text"", ""Content"": ""Nombre: {ClientName}\nTel: {ClientPhone}\nDirecc: {ClientAddress}"", ""Align"": ""Left"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Zona:"", ""ValuePlaceholder"": ""{DeliveryZoneName}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Envio:"", ""ValuePlaceholder"": ""{DeliveryCost}"" },
                         { ""Type"": ""KeyValue"", ""Key"": ""Método Pago:"", ""ValuePlaceholder"": ""{PaymentMethod}"" },
@@ -708,6 +729,29 @@ public class TicketGenerator : ITicketGenerator
             CfdiUsage.ToDefine => "S01 - Sin efectos fiscales",
             _ => usage.ToString()
         };
+    }
+
+    private string FormatAddress(Address? address)
+    {
+        if (address == null) return string.Empty;
+        var parts = new List<string>();
+
+        var streetPart = address.Street?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(address.ExteriorNumber))
+            streetPart += $" #{address.ExteriorNumber.Trim()}";
+        if (!string.IsNullOrWhiteSpace(address.InteriorNumber))
+            streetPart += $" Int. {address.InteriorNumber.Trim()}";
+
+        if (!string.IsNullOrWhiteSpace(streetPart))
+            parts.Add(streetPart);
+
+        if (!string.IsNullOrWhiteSpace(address.Colony))
+            parts.Add($"Col. {address.Colony.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(address.ZipCode) && address.ZipCode != "00000")
+            parts.Add($"C.P. {address.ZipCode.Trim()}");
+
+        return string.Join(", ", parts);
     }
 
     private async Task<string> ProcessLogoPlaceholderAsync(string ticketText, CancellationToken cancellationToken)
