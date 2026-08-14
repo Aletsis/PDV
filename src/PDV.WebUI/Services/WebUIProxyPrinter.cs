@@ -158,8 +158,16 @@ public class WebUIProxyPrinter : IEscPosPrinter
                 .FirstOrDefaultAsync(p => p.IpAddress == searchVal || p.DevicePath == searchVal, cancellationToken);
             int width = printer != null && printer.MaxWidth > 0 ? printer.MaxWidth / 12 : 42;
             var encoding = encodingCodePage.HasValue ? Encoding.GetEncoding(encodingCodePage.Value) : Encoding.GetEncoding(1252);
-            var bytes = EscPosParser.Parse(text, width, encoding);
-            await PrintRawAsync(ipAddress, port, bytes, cancellationToken);
+            var textBytes = EscPosParser.Parse(text, width, encoding);
+
+            var sb = new List<byte>();
+            sb.AddRange(new byte[] { 0x1B, 0x40 }); // Init
+            sb.AddRange(textBytes);
+            sb.AddRange(new byte[] { 0x0A }); // LF
+            sb.AddRange(new byte[] { 0x1B, 0x64, 0x07 }); // Feed 7 lines
+            sb.AddRange(new byte[] { 0x1D, 0x56, 0x00 }); // Full cut
+
+            await PrintRawAsync(ipAddress, port, sb.ToArray(), cancellationToken);
         }
         catch
         {
