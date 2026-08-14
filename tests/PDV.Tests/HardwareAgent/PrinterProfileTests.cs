@@ -27,9 +27,9 @@ public class PrinterProfileTests
         var init = profile.Initialize();
         Assert.Equal(new byte[] { 0x1B, 0x40 }, init);
 
-        // 2. Cut: ESC d 3 + GS V 1 (partial)
+        // 2. Cut: ESC d 7 + GS V 1 (partial)
         var cut = profile.CutPaper(partialCut: true);
-        Assert.Equal(new byte[] { 0x1B, 0x64, 0x03, 0x1D, 0x56, 0x01 }, cut);
+        Assert.Equal(new byte[] { 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x01 }, cut);
 
         // 3. Open Drawer pin 0: ESC p 0 25 250
         var drawer = profile.OpenCashDrawer(pin: 0);
@@ -64,6 +64,6 @@ public class PrinterProfileTests
         var profile = new GenericThermalProfile();
 
         var cut = profile.CutPaper(partialCut: true);
-        Assert.Equal(new byte[] { 0x1B, 0x64, 0x02, 0x1B, 0x69 }, cut);
+        Assert.Equal(new byte[] { 0x1B, 0x64, 0x07, 0x1B, 0x69 }, cut);
     }
 }

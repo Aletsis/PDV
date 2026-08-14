@@ -59,7 +59,7 @@ public class TcpEscPosPrinter : IEscPosPrinter
         header.AddRange(imgBytes);
 
         // feed and cut
-        header.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x02, 0x1D, 0x56, 0x00 });
+        header.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x00 });
 
         await PrintRawAsync(ipAddress, port, header.ToArray(), cancellationToken);
     }
@@ -102,7 +102,7 @@ public class TcpEscPosPrinter : IEscPosPrinter
         cmd.AddRange(new byte[] { 0x1D, 0x6B, (byte)barcodeType });
         cmd.AddRange(Encoding.ASCII.GetBytes(data));
         cmd.Add(0x00);
-        cmd.AddRange(new byte[] { 0x0A, 0x1D, 0x56, 0x00 });
+        cmd.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x00 });
 
         await PrintRawAsync(ipAddress, port, cmd.ToArray(), cancellationToken);
     }
@@ -131,7 +131,7 @@ public class TcpEscPosPrinter : IEscPosPrinter
         list.AddRange(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30 });
 
         // feed and cut
-        list.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x02, 0x1D, 0x56, 0x00 });
+        list.AddRange(new byte[] { 0x0A, 0x1B, 0x64, 0x07, 0x1D, 0x56, 0x00 });
 
         await PrintRawAsync(ipAddress, port, list.ToArray(), cancellationToken);
     }
@@ -149,7 +149,7 @@ public class TcpEscPosPrinter : IEscPosPrinter
         sb.AddRange(new byte[] { 0x0A }); // LF
 
         // Feed and cut
-        sb.AddRange(new byte[] { 0x1B, 0x64, 0x03 }); // Feed n lines
+        sb.AddRange(new byte[] { 0x1B, 0x64, 0x07 }); // Feed n lines
         sb.AddRange(new byte[] { 0x1D, 0x56, 0x00 }); // Full cut
 
         await PrintRawAsync(ipAddress, port, sb.ToArray(), cancellationToken);
@@ -215,7 +215,7 @@ public class TcpEscPosPrinter : IEscPosPrinter
 
             if (autoCut)
             {
-                buffer.AddRange(new byte[] { 0x1B, 0x64, 0x03 });
+                buffer.AddRange(new byte[] { 0x1B, 0x64, 0x07 });
                 buffer.AddRange(new byte[] { 0x1D, 0x56, (byte)(partialCut ? 0x01 : 0x00) });
             }
         }
