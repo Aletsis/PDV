@@ -39,9 +39,7 @@ public class GetSystemConfigurationQueryHandler : IRequestHandler<GetSystemConfi
             return new SystemConfigurationDto
             {
                  CompanyName = "Mi Empresa",
-                 TicketWidth = 42,
-                 PrintLogoOnTicket = true,
-                 AutoPrintTicket = true,
+
                  LogoImage = ticketLogo?.Data,
                  LogoCfdiImage = cfdiLogo?.Data,
                  LogoAppImage = appLogo?.Data
@@ -64,12 +62,7 @@ public class GetSystemConfigurationQueryHandler : IRequestHandler<GetSystemConfi
             Email = config.Email,
             Currency = config.Currency,
             
-            // Ticket
-            TicketWidth = config.TicketWidth,
-            PrintLogoOnTicket = config.PrintLogoOnTicket,
-            AutoPrintTicket = config.AutoPrintTicket,
-            TicketHeader = config.TicketHeader,
-            TicketFooter = config.TicketFooter,
+
             
             // Logos
             LogoImage = ticketLogo?.Data,

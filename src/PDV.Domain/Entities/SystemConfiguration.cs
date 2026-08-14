@@ -49,16 +49,8 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
     // ──────────────────────────────────────────────
     // Configuración de Tickets
     // ──────────────────────────────────────────────
-    /// <summary>Ancho del ticket en caracteres (32–80). 42 = papel 80mm estándar (180 DPI).</summary>
-    public int TicketWidth { get; private set; }
-    public bool PrintLogoOnTicket { get; private set; }
-    public bool AutoPrintTicket { get; private set; }
     /// <summary>Número de copias a imprimir por ticket.</summary>
     public int TicketCopies { get; private set; }
-    /// <summary>Texto o leyenda al pie del ticket (ej. "Gracias por su compra").</summary>
-    public string? TicketFooter { get; private set; }
-    /// <summary>Texto de encabezado del ticket.</summary>
-    public string? TicketHeader { get; private set; }
 
     // ──────────────────────────────────────────────
     // Configuración de Correo / SMTP
@@ -122,9 +114,6 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         Email = email?.Trim();
 
         // Defaults para tickets
-        TicketWidth = 42;
-        PrintLogoOnTicket = true;
-        AutoPrintTicket = true;
         TicketCopies = 1;
 
         AddDomainEvent(new SystemConfigurationUpdatedEvent(Id, CompanyName, TaxId));
@@ -200,27 +189,14 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
     // Configuración de Tickets
     // ──────────────────────────────────────────────
 
-    public void UpdateTicketSettings(
-        int ticketWidth,
-        bool printLogo,
-        bool autoPrint,
-        int ticketCopies = 1,
-        string? header = null,
-        string? footer = null)
+    public void UpdateTicketSettings(int ticketCopies = 1)
     {
-        if (ticketWidth < 32 || ticketWidth > 80)
-            throw new DomainException("El ancho del ticket debe estar entre 32 y 80 caracteres.");
         if (ticketCopies < 1 || ticketCopies > 5)
             throw new DomainException("El número de copias debe estar entre 1 y 5.");
 
-        TicketWidth = ticketWidth;
-        PrintLogoOnTicket = printLogo;
-        AutoPrintTicket = autoPrint;
         TicketCopies = ticketCopies;
-        TicketHeader = header?.Trim();
-        TicketFooter = footer?.Trim();
 
-        AddDomainEvent(new TicketSettingsUpdatedEvent(Id, TicketWidth, AutoPrintTicket));
+        AddDomainEvent(new TicketSettingsUpdatedEvent(Id, TicketCopies));
     }
 
     // ──────────────────────────────────────────────

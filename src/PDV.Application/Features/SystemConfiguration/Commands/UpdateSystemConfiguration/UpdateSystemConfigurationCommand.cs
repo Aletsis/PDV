@@ -16,12 +16,7 @@ public record UpdateSystemConfigurationCommand(
     string Phone,
     string? Email,
     
-    // Ticket
-    int TicketWidth,
-    bool PrintLogoOnTicket,
-    bool AutoPrintTicket,
-    string? TicketHeader,
-    string? TicketFooter,
+
 
     // SMTP / Correo
     string? SmtpServer,
@@ -86,7 +81,7 @@ public class UpdateSystemConfigurationCommandHandler : IRequestHandler<UpdateSys
                 config.SetFiscalAddress(Address.Create(request.Address, "N/A", "N/A", "00000", "México"));
             }
 
-            config.UpdateTicketSettings(request.TicketWidth, request.PrintLogoOnTicket, request.AutoPrintTicket, 1, request.TicketHeader, request.TicketFooter);
+            config.UpdateTicketSettings(1);
             config.UpdateSmtpSettings(request.SmtpServer, request.SmtpPort, request.SmtpUser, request.SmtpPassword);
             config.UpdateAlertSettings(request.AlertCashLimit, request.AlertLateOpening, request.AlertSystemFailure, request.AlertLateOrder);
             config.UpdateBackupSettings(request.BackupDirectory);
@@ -109,7 +104,7 @@ public class UpdateSystemConfigurationCommandHandler : IRequestHandler<UpdateSys
                 config.SetFiscalAddress(Address.Create(request.Address, "N/A", "N/A", "00000", "México"));
             }
             
-            config.UpdateTicketSettings(request.TicketWidth, request.PrintLogoOnTicket, request.AutoPrintTicket, 1, request.TicketHeader, request.TicketFooter);
+            config.UpdateTicketSettings(1);
             config.UpdateSmtpSettings(request.SmtpServer, request.SmtpPort, request.SmtpUser, request.SmtpPassword);
             config.UpdateAlertSettings(request.AlertCashLimit, request.AlertLateOpening, request.AlertSystemFailure, request.AlertLateOrder);
             config.UpdateBackupSettings(request.BackupDirectory);

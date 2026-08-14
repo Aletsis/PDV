@@ -111,8 +111,26 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         int width = 42;
         if (_context != null)
         {
-            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-            width = config?.TicketWidth ?? 42;
+            string searchVal = ipAddress;
+            if (ipAddress.StartsWith("usb://", StringComparison.OrdinalIgnoreCase))
+            {
+                searchVal = ipAddress.Substring(6);
+            }
+            else if (ipAddress.StartsWith("serial://", StringComparison.OrdinalIgnoreCase))
+            {
+                int questionMarkIdx = ipAddress.IndexOf('?');
+                searchVal = questionMarkIdx > 0 
+                    ? ipAddress.Substring(9, questionMarkIdx - 9) 
+                    : ipAddress.Substring(9);
+            }
+
+            var printer = await _context.Printers
+                .FirstOrDefaultAsync(p => p.IpAddress == searchVal || p.DevicePath == searchVal, cancellationToken);
+            if (printer != null)
+            {
+                width = printer.MaxWidth / 12;
+                if (width <= 0) width = 42;
+            }
         }
         var encoding = ChooseEncoding(text, encodingCodePage);
         var textBytes = EscPosParser.Parse(text, width, encoding);
@@ -147,8 +165,26 @@ public class MultiChannelEscPosPrinter : IEscPosPrinter
         int width = 42;
         if (_context != null)
         {
-            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-            width = config?.TicketWidth ?? 42;
+            string searchVal = ipAddress;
+            if (ipAddress.StartsWith("usb://", StringComparison.OrdinalIgnoreCase))
+            {
+                searchVal = ipAddress.Substring(6);
+            }
+            else if (ipAddress.StartsWith("serial://", StringComparison.OrdinalIgnoreCase))
+            {
+                int questionMarkIdx = ipAddress.IndexOf('?');
+                searchVal = questionMarkIdx > 0 
+                    ? ipAddress.Substring(9, questionMarkIdx - 9) 
+                    : ipAddress.Substring(9);
+            }
+
+            var printer = await _context.Printers
+                .FirstOrDefaultAsync(p => p.IpAddress == searchVal || p.DevicePath == searchVal, cancellationToken);
+            if (printer != null)
+            {
+                width = printer.MaxWidth / 12;
+                if (width <= 0) width = 42;
+            }
         }
         var encoding = ChooseEncoding(text, encodingCodePage);
         var textBytes = EscPosParser.Parse(text, width, encoding);

@@ -101,25 +101,11 @@ else
             <div class="settings-card">
                 <div class="settings-section-title">
                     <MudIcon Icon="@Icons.Material.Filled.Receipt" />
-                    Configuración de Tickets de Venta
+                    Diseño de Tickets de Venta
                 </div>
-                <MudGrid>
-                    <MudItem xs="12" md="4">
-                        <MudNumericField @bind-Value="config.TicketWidth" Label="Ancho del Ticket (caracteres)" Variant="Variant.Outlined" Min="32" Max="80" HelperText="42 = Papel estándar de 80mm" />
-                    </MudItem>
-                    <MudItem xs="6" md="4">
-                        <MudSwitch @bind-Value="config.PrintLogoOnTicket" Color="Color.Primary" Label="Imprimir Logo en Ticket" Style="margin-top: 12px;" />
-                    </MudItem>
-                    <MudItem xs="6" md="4">
-                        <MudSwitch @bind-Value="config.AutoPrintTicket" Color="Color.Primary" Label="Impresión Automática" Style="margin-top: 12px;" />
-                    </MudItem>
-                    <MudItem xs="12">
-                        <MudTextField @bind-Value="config.TicketHeader" Label="Texto de Encabezado del Ticket" Variant="Variant.Outlined" Lines="3" Placeholder="Ej. ¡BIENVENIDOS!&#10;GRACIAS POR SU PREFERENCIA" HelperText="Este texto saldrá al inicio de cada ticket" />
-                    </MudItem>
-                    <MudItem xs="12">
-                        <MudTextField @bind-Value="config.TicketFooter" Label="Texto de Pie de Página del Ticket" Variant="Variant.Outlined" Lines="3" Placeholder="Ej. No se aceptan devoluciones después de 7 días.&#10;Visite nuestro sitio web." HelperText="Este texto saldrá al final de cada ticket" />
-                    </MudItem>
-                </MudGrid>
+                <MudText Typo="Typo.body2" Class="mb-4" Style="color: rgba(255,255,255,0.7);">
+                    La configuración visual, logotipos y textos del ticket se gestionan directamente a través del Diseñador Visual. El ancho del ticket se determina automáticamente por la configuración de la impresora asignada.
+                </MudText>
                 <div class="mt-4 d-flex justify-end">
                     <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.DesignServices" href="/admin/settings/tickets">
                         Diseñador Visual de Tickets
@@ -813,12 +799,6 @@ else
                 config.Address,
                 config.Phone,
                 config.Email,
-                
-                config.TicketWidth,
-                config.PrintLogoOnTicket,
-                config.AutoPrintTicket,
-                config.TicketHeader,
-                config.TicketFooter,
 
                 config.SmtpServer,
                 config.SmtpPort,

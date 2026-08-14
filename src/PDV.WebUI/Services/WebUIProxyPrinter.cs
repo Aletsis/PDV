@@ -58,8 +58,22 @@ public class WebUIProxyPrinter : IEscPosPrinter
         string base64Data = string.Empty;
         try
         {
-            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-            int width = config?.TicketWidth ?? 48;
+            string searchVal = ipAddress;
+            if (ipAddress.StartsWith("usb://", StringComparison.OrdinalIgnoreCase))
+            {
+                searchVal = ipAddress.Substring(6);
+            }
+            else if (ipAddress.StartsWith("serial://", StringComparison.OrdinalIgnoreCase))
+            {
+                int questionMarkIdx = ipAddress.IndexOf('?');
+                searchVal = questionMarkIdx > 0 
+                    ? ipAddress.Substring(9, questionMarkIdx - 9) 
+                    : ipAddress.Substring(9);
+            }
+
+            var printer = await _context.Printers
+                .FirstOrDefaultAsync(p => p.IpAddress == searchVal || p.DevicePath == searchVal, cancellationToken);
+            int width = printer != null && printer.MaxWidth > 0 ? printer.MaxWidth / 12 : 42;
             var encoding = encodingCodePage.HasValue ? Encoding.GetEncoding(encodingCodePage.Value) : Encoding.GetEncoding(1252);
             var bytes = EscPosParser.Parse(text, width, encoding);
             base64Data = Convert.ToBase64String(bytes);
@@ -127,8 +141,22 @@ public class WebUIProxyPrinter : IEscPosPrinter
     {
         try
         {
-            var config = await _context.SystemConfigurations.FirstOrDefaultAsync(cancellationToken);
-            int width = config?.TicketWidth ?? 48;
+            string searchVal = ipAddress;
+            if (ipAddress.StartsWith("usb://", StringComparison.OrdinalIgnoreCase))
+            {
+                searchVal = ipAddress.Substring(6);
+            }
+            else if (ipAddress.StartsWith("serial://", StringComparison.OrdinalIgnoreCase))
+            {
+                int questionMarkIdx = ipAddress.IndexOf('?');
+                searchVal = questionMarkIdx > 0 
+                    ? ipAddress.Substring(9, questionMarkIdx - 9) 
+                    : ipAddress.Substring(9);
+            }
+
+            var printer = await _context.Printers
+                .FirstOrDefaultAsync(p => p.IpAddress == searchVal || p.DevicePath == searchVal, cancellationToken);
+            int width = printer != null && printer.MaxWidth > 0 ? printer.MaxWidth / 12 : 42;
             var encoding = encodingCodePage.HasValue ? Encoding.GetEncoding(encodingCodePage.Value) : Encoding.GetEncoding(1252);
             var bytes = EscPosParser.Parse(text, width, encoding);
             await PrintRawAsync(ipAddress, port, bytes, cancellationToken);

@@ -50,7 +50,7 @@ public class PrintCommandsTests
         register.AssignPrinter(printer.Id);
 
         var config = new SystemConfiguration("Mi Empresa", "XAXX010101000", "601");
-        config.UpdateTicketSettings(48, true, true, 2, "Header", "Footer");
+        config.UpdateTicketSettings(2);
 
         context.Invoices.Add(invoice);
         context.Printers.Add(printer);
@@ -104,7 +104,7 @@ public class PrintCommandsTests
         register.AssignPrinter(printer.Id);
 
         var config = new SystemConfiguration("Mi Empresa", "XAXX010101000", "601");
-        config.UpdateTicketSettings(48, true, true, 2, "Header", "Footer");
+        config.UpdateTicketSettings(2);
 
         context.Returns.Add(returnEntity);
         context.Printers.Add(printer);

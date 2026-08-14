@@ -31,9 +31,7 @@ public class ConfigurationDomainTests
         Assert.Equal("MXN", config.Currency);
         Assert.Equal("5551234567", config.Phone);
         Assert.Equal("contacto@empresa.com", config.Email);
-        Assert.Equal(48, config.TicketWidth);
-        Assert.True(config.PrintLogoOnTicket);
-        Assert.True(config.AutoPrintTicket);
+
 
         Assert.Single(config.DomainEvents.OfType<SystemConfigurationUpdatedEvent>());
     }
@@ -55,12 +53,8 @@ public class ConfigurationDomainTests
         // Arrange
         var config = new SystemConfiguration("Empresa", "AAA010101AAA", "601");
 
-        // Act & Assert - Ancho muy pequeño
-        var ex1 = Assert.Throws<DomainException>(() => config.UpdateTicketSettings(30, true, true));
-        Assert.Equal("El ancho del ticket debe estar entre 32 y 80 caracteres.", ex1.Message);
-
         // Act & Assert - Copias invalidas
-        var ex2 = Assert.Throws<DomainException>(() => config.UpdateTicketSettings(48, true, true, ticketCopies: 6));
+        var ex2 = Assert.Throws<DomainException>(() => config.UpdateTicketSettings(ticketCopies: 6));
         Assert.Equal("El número de copias debe estar entre 1 y 5.", ex2.Message);
     }
 

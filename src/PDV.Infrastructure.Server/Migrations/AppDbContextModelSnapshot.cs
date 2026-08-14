@@ -2846,9 +2846,6 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Property<TimeSpan?>("AutoBackupTime")
                         .HasColumnType("interval");
 
-                    b.Property<bool>("AutoPrintTicket")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("AutoReportEnabled")
                         .HasColumnType("boolean");
 
@@ -2940,9 +2937,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<bool>("PrintLogoOnTicket")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("SmtpPassword")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -2964,16 +2958,6 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasColumnType("character varying(50)");
 
                     b.Property<int>("TicketCopies")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TicketFooter")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TicketHeader")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("TicketWidth")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");

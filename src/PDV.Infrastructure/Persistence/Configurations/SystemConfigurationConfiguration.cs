@@ -37,8 +37,7 @@ public class SystemConfigurationConfiguration : IEntityTypeConfiguration<SystemC
         builder.Property(c => c.Currency)
             .HasMaxLength(10);
 
-        builder.Property(c => c.TicketHeader)
-            .HasMaxLength(500);
+
 
         builder.Property(c => c.SmtpServer)
             .HasMaxLength(200);

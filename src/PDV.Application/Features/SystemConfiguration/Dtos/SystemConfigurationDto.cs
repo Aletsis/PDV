@@ -10,12 +10,7 @@ public class SystemConfigurationDto
     public string? Email { get; set; }
     public string Currency { get; set; } = "MXN";
     
-    // Ticket
-    public int TicketWidth { get; set; } = 42; 
-    public bool PrintLogoOnTicket { get; set; } = true;
-    public bool AutoPrintTicket { get; set; } = true;
-    public string? TicketHeader { get; set; }
-    public string? TicketFooter { get; set; }
+
     
     // Logos
     public byte[]? LogoImage { get; set; } // Ticket Logo
