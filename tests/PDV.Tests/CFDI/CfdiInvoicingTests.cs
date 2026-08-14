@@ -19,6 +19,7 @@ using PDV.Infrastructure.Persistence;
 using PDV.Infrastructure.Persistence.Interceptors;
 using PDV.Infrastructure.Repositories;
 using Xunit;
+using Moq;
 
 namespace PDV.Tests.CFDI;
 
@@ -230,12 +231,14 @@ public class CfdiInvoicingTests
         var cfdiXmlGenerator = new CfdiXmlGenerator(context);
         var pacService = new MockPacService();
 
+        var mockComercialSyncService = new Mock<IComercialApiSyncService>();
         var handler = new CreateInvoiceCommandHandler(
             saleRepository,
             context,
             csdCertificateService,
             cfdiXmlGenerator,
-            pacService);
+            pacService,
+            mockComercialSyncService.Object);
 
         var command = new CreateInvoiceCommand
         {
@@ -338,7 +341,8 @@ public class CfdiInvoicingTests
         await context.SaveChangesAsync();
 
         var pacService = new MockPacService();
-        var handler = new CancelInvoiceCommandHandler(context, pacService);
+        var mockComercialSyncService = new Mock<IComercialApiSyncService>();
+        var handler = new CancelInvoiceCommandHandler(context, pacService, mockComercialSyncService.Object);
 
         var command = new CancelInvoiceCommand
         {

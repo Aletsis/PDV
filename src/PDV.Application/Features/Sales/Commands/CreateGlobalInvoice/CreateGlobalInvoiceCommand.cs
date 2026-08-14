@@ -28,19 +28,22 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
     private readonly ICfdiXmlGenerator _cfdiXmlGenerator;
     private readonly IPacService _pacService;
     private readonly ILogger<CreateGlobalInvoiceCommandHandler> _logger;
+    private readonly IComercialApiSyncService _comercialSyncService;
 
     public CreateGlobalInvoiceCommandHandler(
         IApplicationDbContext context,
         ICsdCertificateService csdCertificateService,
         ICfdiXmlGenerator cfdiXmlGenerator,
         IPacService pacService,
-        ILogger<CreateGlobalInvoiceCommandHandler> logger)
+        ILogger<CreateGlobalInvoiceCommandHandler> logger,
+        IComercialApiSyncService comercialSyncService)
     {
         _context = context;
         _csdCertificateService = csdCertificateService;
         _cfdiXmlGenerator = cfdiXmlGenerator;
         _pacService = pacService;
         _logger = logger;
+        _comercialSyncService = comercialSyncService;
     }
 
     public async Task<Guid> Handle(CreateGlobalInvoiceCommand request, CancellationToken cancellationToken)
@@ -88,6 +91,266 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
         if (config == null)
         {
             throw new InvalidOperationException("No se han configurado los parámetros fiscales del sistema.");
+        }
+
+        // Si la integración con CONTPAQi Comercial está activa, delegar timbrado y generación
+        if (!string.IsNullOrWhiteSpace(config.ComercialApiUrl))
+        {
+            // 3. Recuperar secuencia de folios para facturas globales
+            var apiFolioSequence = await _context.FolioSequences
+                .FirstOrDefaultAsync(fs => fs.BranchId == branchId && fs.SeriesType == InvoiceType.Global, cancellationToken);
+
+            if (apiFolioSequence == null)
+            {
+                throw new InvalidOperationException("No se ha configurado la secuencia de folios para Factura Global en esta sucursal.");
+            }
+
+            // Mapear los Conceptos
+            var apiConceptos = new List<ConceptoGlobalDto>();
+            foreach (var sale in sales)
+            {
+                var traslados = sale.Items
+                    .GroupBy(i => new { i.TaxRate, i.IsTaxExempt })
+                    .Select(g => new TrasladoConceptoDto
+                    {
+                        Base = (double)g.Sum(i => i.UnitPrice * i.Quantity),
+                        Impuesto = "002",
+                        TipoFactor = g.Key.IsTaxExempt ? "Exento" : "Tasa",
+                        TasaOCuota = g.Key.IsTaxExempt ? "0.000000" : (g.Key.TaxRate / 100m).ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
+                        Importe = g.Key.IsTaxExempt ? 0 : (double)g.Sum(i => (i.UnitPrice * i.Quantity) * (g.Key.TaxRate / 100m))
+                    }).ToList();
+
+                apiConceptos.Add(new ConceptoGlobalDto
+                {
+                    NoIdentificacion = sale.SaleNumber.ToString(),
+                    ValorUnitario = (double)sale.Subtotal,
+                    Importe = (double)sale.Subtotal,
+                    Traslados = traslados
+                });
+            }
+
+            var apiRequest = new CreateFacturaGlobalCommandDto
+            {
+                CodigoConcepto = apiFolioSequence.ConceptCode ?? "FGIH",
+                Serie = apiFolioSequence.Series,
+                CodigoClientePublicoGeneral = "PUBLICOGENERAL",
+                Periodicidad = "01",
+                Meses = DateTime.Now.Month.ToString("D2"),
+                Anio = DateTime.Now.Year.ToString(),
+                UsoCfdi = "S01",
+                MetodoPago = "PUE",
+                FormaPago = "01",
+                CodigoProductoGravado = request.CodigoProductoGravado,
+                CodigoProductoExento = request.CodigoProductoExento,
+                AutoTimbrar = true,
+                CodigoAlmacen = "1",
+                Conceptos = apiConceptos
+            };
+
+            _logger.LogInformation("Enviando timbrado de Factura Global para Turno {ShiftId} al API Comercial...", shift.Id);
+            var apiResult = await _comercialSyncService.GenerarFacturaGlobalComercialAsync(apiRequest, cancellationToken);
+            if (apiResult == null || !apiResult.Timbrado || apiResult.DatosFiscales == null)
+            {
+                throw new InvalidOperationException($"Error al generar factura global vía API Comercial: {apiResult?.Mensaje ?? "Respuesta vacía"}");
+            }
+
+            var localTaxBreakdowns = sales.SelectMany(s => s.Items)
+                .GroupBy(i => new { i.TaxRate, i.IsTaxExempt })
+                .Select(g => new TaxBreakdown(
+                    Rate: g.Key.TaxRate,
+                    BaseAmount: g.Sum(i => i.UnitPrice * i.Quantity),
+                    TaxAmount: g.Key.IsTaxExempt ? 0 : g.Sum(i => (i.UnitPrice * i.Quantity) * (g.Key.TaxRate / 100m)),
+                    IsExempt: g.Key.IsTaxExempt
+                )).ToList();
+
+            var apiGlobalInvoice = Invoice.CreateGlobalInvoice(
+                branchId: branchId,
+                series: apiResult.Serie,
+                folio: apiResult.Folio,
+                shiftId: shift.Id,
+                subtotal: sales.Sum(s => s.Subtotal),
+                taxBreakdowns: localTaxBreakdowns,
+                receiverZipCode: config.FiscalAddress?.ZipCode ?? "00000"
+            );
+
+            apiGlobalInvoice.Stamp(
+                uuid: apiResult.DatosFiscales.UUID,
+                stampedAt: DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var dt) ? dt : DateTime.UtcNow,
+                selloDigitalEmisor: apiResult.DatosFiscales.SelloDigitalEmisor,
+                selloDigitalSAT: apiResult.DatosFiscales.SelloDigitalSAT,
+                noCertificadoEmisor: apiResult.DatosFiscales.NoCertificadoEmisor,
+                noCertificadoSAT: apiResult.DatosFiscales.NoCertificadoSAT,
+                cadenaOriginal: apiResult.DatosFiscales.CadenaOriginal
+            );
+
+            _context.Invoices.Add(apiGlobalInvoice);
+
+            if (int.TryParse(apiResult.Folio, out var parsedFolio))
+            {
+                apiFolioSequence.ResetTo(parsedFolio);
+            }
+
+            shift.MarkAsGlobalInvoiced(apiGlobalInvoice.Id.ToString());
+
+            foreach (var sale in sales)
+            {
+                sale.MarkAsInvoiced(apiGlobalInvoice.Id.ToString());
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Factura Global {InvoiceNum} timbrada e integrada vía API exitosamente.", apiGlobalInvoice.InvoiceNumber);
+
+            // PROCESAMIENTO AUTOMÁTICO DE NOTAS DE CRÉDITO DE DEVOLUCIONES VÍA API
+            var returnsList = await _context.Returns
+                .Include(r => r.Items)
+                .Where(r => r.ShiftId == shift.Id && r.IsCompleted)
+                .ToListAsync(cancellationToken);
+
+            if (returnsList.Any())
+            {
+                _logger.LogInformation("Procesando {Count} devoluciones del turno para generar Notas de Crédito de forma automática vía API...", returnsList.Count);
+
+                var creditNoteSequence = await _context.FolioSequences
+                    .FirstOrDefaultAsync(fs => fs.BranchId == branchId && fs.SeriesType == InvoiceType.CreditNote, cancellationToken);
+
+                if (creditNoteSequence == null)
+                {
+                    _logger.LogWarning("Secuencia de folios para Nota de Crédito no configurada para la sucursal. Se omitirán las Notas de Crédito automáticas.");
+                }
+                else
+                {
+                    foreach (var ret in returnsList)
+                    {
+                        try
+                        {
+                            var creditNoteExists = await _context.Invoices
+                                .AnyAsync(i => i.ReturnId == ret.Id && i.Type == InvoiceType.CreditNote, cancellationToken);
+
+                            if (creditNoteExists) continue;
+
+                            if (!ret.SaleId.HasValue) continue;
+
+                            var origSale = await _context.Sales
+                                .FirstOrDefaultAsync(s => s.Id == ret.SaleId.Value, cancellationToken);
+
+                            if (origSale == null) continue;
+
+                            Invoice? origInvoice = null;
+                            if (origSale.IsInvoiced || origSale.InvoiceId != null)
+                            {
+                                if (Guid.TryParse(origSale.InvoiceId, out var origInvoiceGuid))
+                                {
+                                    origInvoice = await _context.Invoices
+                                        .FirstOrDefaultAsync(i => i.Id == origInvoiceGuid && i.Status == InvoiceStatus.Stamped, cancellationToken);
+                                }
+                            }
+
+                            if (origInvoice == null)
+                            {
+                                origInvoice = apiGlobalInvoice;
+                            }
+
+                            if (origInvoice == null || string.IsNullOrEmpty(origInvoice.Uuid)) continue;
+
+                            var origInvoiceSequence = await _context.FolioSequences
+                                .FirstOrDefaultAsync(fs => fs.BranchId == origInvoice.BranchId && fs.SeriesType == origInvoice.Type, cancellationToken);
+                            string conceptCodeDocOrigen = origInvoiceSequence?.ConceptCode ?? "FCLI";
+
+                            string formaPagoNC = origSale.PaymentMethod switch
+                            {
+                                PaymentMethodType.Cash => "01",
+                                PaymentMethodType.CreditCard => "04",
+                                PaymentMethodType.DebitCard => "28",
+                                PaymentMethodType.Transfer => "03",
+                                PaymentMethodType.Check => "02",
+                                _ => "01"
+                            };
+
+                            var ncPartidas = ret.Items.Select(item => new NotaCreditoPartidaSyncDto
+                            {
+                                CodigoProducto = item.Product?.Code ?? string.Empty,
+                                Unidades = (double)item.Quantity,
+                                PrecioUnitario = (double)item.UnitPrice,
+                                CodigoAlmacen = "1"
+                            }).ToList();
+
+                            var ncRequest = new GenerarNotaCreditoComercialDto
+                            {
+                                CodigoConcepto = creditNoteSequence.ConceptCode ?? "NC",
+                                Serie = creditNoteSequence.Series,
+                                CodigoCliente = origSale.ClientId.HasValue ? (await _context.Clients.FindAsync(new object[] { origSale.ClientId.Value }, cancellationToken))?.Code ?? "PUBLICOGENERAL" : "PUBLICOGENERAL",
+                                ReferenciaDocumentoOrigen = origSale.SaleNumber.ToString(),
+                                NumeroMoneda = 1,
+                                TipoCambio = 1.0,
+                                UsoCfdi = "G02",
+                                MetodoPago = "PUE",
+                                FormaPago = formaPagoNC,
+                                UuidFacturaOrigen = origInvoice.Uuid,
+                                TipoRelacionSat = "01",
+                                ConceptoFacturaOrigen = conceptCodeDocOrigen,
+                                SerieFacturaOrigen = origInvoice.Series,
+                                FolioFacturaOrigen = double.TryParse(origInvoice.Folio, out var fOrig) ? fOrig : 0,
+                                SaldarFacturaOrigen = true,
+                                CsdPassword = config.CsdPassword ?? string.Empty,
+                                AutoTimbrar = true,
+                                Partidas = ncPartidas
+                            };
+
+                            var ncResult = await _comercialSyncService.GenerarNotaCreditoComercialAsync(ncRequest, cancellationToken);
+                            if (ncResult != null && ncResult.Timbrado && ncResult.DatosFiscales != null)
+                            {
+                                var returnTaxBreakdowns = ret.Items
+                                    .GroupBy(i => new { i.TaxRate, i.IsTaxExempt })
+                                    .Select(g => new TaxBreakdown(
+                                        Rate: g.Key.TaxRate,
+                                        BaseAmount: g.Sum(i => i.UnitPrice * i.Quantity),
+                                        TaxAmount: g.Key.IsTaxExempt ? 0 : g.Sum(i => (i.UnitPrice * i.Quantity) * (g.Key.TaxRate / 100m)),
+                                        IsExempt: g.Key.IsTaxExempt
+                                    )).ToList();
+
+                                var apiCreditInvoice = Invoice.CreateCreditNote(
+                                    branchId: branchId,
+                                    series: creditNoteSequence.Series,
+                                    folio: ncResult.DatosFiscales.UUID.Substring(0, 8),
+                                    returnId: ret.Id,
+                                    clientId: origSale.ClientId ?? Guid.Empty,
+                                    receiverTaxId: origInvoice.ReceiverTaxId,
+                                    receiverName: origInvoice.ReceiverName,
+                                    relatedUuid: origInvoice.Uuid,
+                                    subtotal: ret.Subtotal,
+                                    taxBreakdowns: returnTaxBreakdowns,
+                                    receiverFiscalRegime: origInvoice.ReceiverFiscalRegime,
+                                    receiverZipCode: origInvoice.ReceiverZipCode
+                                );
+
+                                apiCreditInvoice.Stamp(
+                                    uuid: ncResult.DatosFiscales.UUID,
+                                    stampedAt: DateTime.TryParse(ncResult.DatosFiscales.FechaTimbrado, out var dtNc) ? dtNc : DateTime.UtcNow,
+                                    selloDigitalEmisor: ncResult.DatosFiscales.SelloDigitalEmisor,
+                                    selloDigitalSAT: ncResult.DatosFiscales.SelloDigitalSAT,
+                                    noCertificadoEmisor: ncResult.DatosFiscales.NoCertificadoEmisor,
+                                    noCertificadoSAT: ncResult.DatosFiscales.NoCertificadoSAT,
+                                    cadenaOriginal: ncResult.DatosFiscales.CadenaOriginal
+                                );
+
+                                _context.Invoices.Add(apiCreditInvoice);
+
+                                creditNoteSequence.ResetTo(creditNoteSequence.LastFolio + 1);
+
+                                shift.RegisterCreditNote(apiCreditInvoice.Id.ToString(), ret.TotalRefund, ret.Reason);
+                                await _context.SaveChangesAsync(cancellationToken);
+                                _logger.LogInformation("Nota de Crédito {NCNumber} timbrada vía API de forma automática.", apiCreditInvoice.InvoiceNumber);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error al generar Nota de Crédito automática vía API para la devolución {ReturnId}.", ret.Id);
+                        }
+                    }
+                }
+            }
+
+            return apiGlobalInvoice.Id;
         }
 
         string pacUrl = !string.IsNullOrEmpty(config.PacUrl) ? config.PacUrl : (!string.IsNullOrEmpty(config.ComercialApiUrl) ? config.ComercialApiUrl : "https://mock-pac.sat.gob.mx");

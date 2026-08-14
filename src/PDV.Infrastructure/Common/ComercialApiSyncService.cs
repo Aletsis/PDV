@@ -450,6 +450,63 @@ public class ComercialApiSyncService : IComercialApiSyncService
         }
     }
 
+    public async Task<CreateNotaCreditoResultDto?> GenerarNotaCreditoComercialAsync(GenerarNotaCreditoComercialDto command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken, command.Usuario);
+            var endpoint = "api/NotasCredito";
+            var response = await httpClient.PostAsJsonAsync(endpoint, command, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al generar nota de crédito en el API Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Error al generar nota de crédito en Comercial: {body}");
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<CreateNotaCreditoResultDto>(cancellationToken: cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al generar nota de crédito en el API Comercial.");
+            throw;
+        }
+    }
+
+    public async Task<bool> CancelarDocumentoComercialAsync(string codigoConcepto, string serie, double folio, string passwordContpaqi, bool isCreditNote, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var httpClient = await CreateHttpClientAsync(cancellationToken);
+            var endpoint = isCreditNote ? "api/NotasCredito/cancelar" : "api/Facturas/cancelar";
+            var payload = new
+            {
+                CodigoConcepto = codigoConcepto,
+                Serie = serie,
+                Folio = folio,
+                PasswordContpaqi = passwordContpaqi
+            };
+            var response = await httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Error al cancelar documento en el API Comercial. Código: {Status}, Detalle: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Error al cancelar documento en Comercial: {body}");
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<int>(cancellationToken: cancellationToken);
+            return result == 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al cancelar documento en el API Comercial.");
+            throw;
+        }
+    }
+
     public async Task<bool> SendSupplierToComercialAsync(Supplier supplier, CancellationToken cancellationToken)
     {
         try

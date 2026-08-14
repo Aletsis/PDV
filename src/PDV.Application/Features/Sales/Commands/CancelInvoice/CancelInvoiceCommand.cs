@@ -42,11 +42,13 @@ public class CancelInvoiceCommandHandler : IRequestHandler<CancelInvoiceCommand,
 {
     private readonly IApplicationDbContext _context;
     private readonly IPacService _pacService;
+    private readonly IComercialApiSyncService _comercialSyncService;
 
-    public CancelInvoiceCommandHandler(IApplicationDbContext context, IPacService pacService)
+    public CancelInvoiceCommandHandler(IApplicationDbContext context, IPacService pacService, IComercialApiSyncService comercialSyncService)
     {
         _context = context;
         _pacService = pacService;
+        _comercialSyncService = comercialSyncService;
     }
 
     public async Task<bool> Handle(CancelInvoiceCommand request, CancellationToken cancellationToken)
@@ -76,6 +78,43 @@ public class CancelInvoiceCommandHandler : IRequestHandler<CancelInvoiceCommand,
         if (config == null)
         {
             throw new InvalidOperationException("No se han configurado los parámetros fiscales del sistema.");
+        }
+
+        // Si la integración con CONTPAQi Comercial está activa, delegar la cancelación
+        if (!string.IsNullOrWhiteSpace(config.ComercialApiUrl))
+        {
+            var folioSeq = await _context.FolioSequences
+                .FirstOrDefaultAsync(fs => fs.BranchId == invoice.BranchId && fs.SeriesType == invoice.Type, cancellationToken);
+
+            if (folioSeq == null)
+            {
+                throw new InvalidOperationException("No se ha configurado la secuencia de folios para este tipo de comprobante.");
+            }
+
+            if (!double.TryParse(invoice.Folio, out double folioNum))
+            {
+                throw new InvalidOperationException("El folio de la factura no es un número válido.");
+            }
+
+            var cancelled = await _comercialSyncService.CancelarDocumentoComercialAsync(
+                codigoConcepto: folioSeq.ConceptCode ?? (invoice.Type == InvoiceType.CreditNote ? "NC" : "FCLI"),
+                serie: invoice.Series,
+                folio: folioNum,
+                passwordContpaqi: config.CsdPassword ?? string.Empty,
+                isCreditNote: invoice.Type == InvoiceType.CreditNote,
+                cancellationToken: cancellationToken
+            );
+
+            if (!cancelled)
+            {
+                throw new InvalidOperationException("Error al cancelar el documento en el API de CONTPAQi Comercial.");
+            }
+
+            invoice.CancelAtSat(request.Motif, request.Reason, request.SubstituteUuid);
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return true;
         }
 
         if (string.IsNullOrEmpty(config.PacUrl) || string.IsNullOrEmpty(config.PacApiUser))

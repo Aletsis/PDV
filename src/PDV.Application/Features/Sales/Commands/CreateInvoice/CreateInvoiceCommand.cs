@@ -58,19 +58,22 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
     private readonly ICsdCertificateService _csdCertificateService;
     private readonly ICfdiXmlGenerator _cfdiXmlGenerator;
     private readonly IPacService _pacService;
+    private readonly IComercialApiSyncService _comercialSyncService;
 
     public CreateInvoiceCommandHandler(
         ISaleRepository saleRepository,
         IApplicationDbContext context,
         ICsdCertificateService csdCertificateService,
         ICfdiXmlGenerator cfdiXmlGenerator,
-        IPacService pacService)
+        IPacService pacService,
+        IComercialApiSyncService comercialSyncService)
     {
         _saleRepository = saleRepository;
         _context = context;
         _csdCertificateService = csdCertificateService;
         _cfdiXmlGenerator = cfdiXmlGenerator;
         _pacService = pacService;
+        _comercialSyncService = comercialSyncService;
     }
 
     public async Task<Guid> Handle(CreateInvoiceCommand request, CancellationToken cancellationToken)
@@ -98,6 +101,127 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
         if (config == null)
         {
             throw new InvalidOperationException("No se han configurado los parámetros fiscales del sistema.");
+        }
+
+        // Si la integración con CONTPAQi Comercial está activa, delegar timbrado y generación
+        if (!string.IsNullOrWhiteSpace(config.ComercialApiUrl))
+        {
+            var folioSeq = await _context.FolioSequences
+                .FirstOrDefaultAsync(fs => fs.BranchId == sale.BranchId && fs.SeriesType == (request.IsGlobal ? InvoiceType.Global : InvoiceType.Customer), cancellationToken);
+
+            if (folioSeq == null)
+            {
+                throw new InvalidOperationException("No se ha configurado la secuencia de folios de facturación para esta sucursal.");
+            }
+
+            Guid? clientGuid = request.ClientId ?? sale.ClientId;
+            if (!request.IsGlobal && clientGuid == null)
+            {
+                throw new InvalidOperationException("No se puede crear factura por cliente de una venta sin cliente asignado");
+            }
+
+            string clientCode = "PUBLICOGENERAL";
+            string apiRfc = "XAXX010101000";
+            string apiNombre = "PUBLICO EN GENERAL";
+            string apiReceiverFiscalRegime = request.ReceiverFiscalRegime ?? "616";
+            string apiReceiverZipCode = request.ReceiverZipCode ?? "00000";
+
+            if (!request.IsGlobal && clientGuid.HasValue && clientGuid.Value != Guid.Empty)
+            {
+                var cliente = await _context.Clients.FindAsync(new object[] { clientGuid.Value }, cancellationToken);
+                if (cliente != null)
+                {
+                    clientCode = cliente.Code;
+                    apiRfc = cliente.TaxId;
+                    apiNombre = cliente.Name;
+                    
+                    apiReceiverFiscalRegime = request.ReceiverFiscalRegime ?? cliente.FiscalRegime ?? "616";
+                    apiReceiverZipCode = request.ReceiverZipCode ?? cliente.FiscalZipCode ?? "00000";
+
+                    if (request.ReceiverFiscalRegime != null || request.ReceiverZipCode != null)
+                    {
+                        cliente.UpdateFiscalProfile(apiReceiverFiscalRegime, apiReceiverZipCode);
+                        _context.Clients.Update(cliente);
+                    }
+                }
+            }
+
+            var apiPartidas = sale.Items.Select(item => new FacturaPartidaDto
+            {
+                CodigoProducto = item.Product?.Code ?? string.Empty,
+                Unidades = (double)item.Quantity,
+                PrecioUnitario = (double)item.UnitPrice,
+                CodigoAlmacen = "1"
+            }).ToList();
+
+            var apiRequest = new GenerarFacturaComercialDto
+            {
+                CodigoConcepto = folioSeq.ConceptCode ?? "FCLI",
+                Serie = folioSeq.Series,
+                CodigoCliente = clientCode,
+                Referencia = sale.SaleNumber.ToString(),
+                CodigoAgente = string.Empty,
+                NumeroMoneda = 1,
+                TipoCambio = 1.0,
+                UsoCfdi = request.UsoCfdi,
+                MetodoPago = request.MetodoPago,
+                FormaPago = request.FormaPago,
+                AutoTimbrar = true,
+                Partidas = apiPartidas
+            };
+
+            var apiResult = await _comercialSyncService.GenerarFacturaComercialAsync(apiRequest, cancellationToken);
+            if (apiResult == null || !apiResult.Timbrado || apiResult.DatosFiscales == null)
+            {
+                throw new InvalidOperationException($"Error al generar factura vía API Comercial: {apiResult?.Mensaje ?? "Respuesta vacía"}");
+            }
+
+            var localTaxBreakdowns = sale.Items
+                .GroupBy(i => new { i.TaxRate, i.IsTaxExempt })
+                .Select(g => new TaxBreakdown(
+                    Rate: g.Key.TaxRate,
+                    BaseAmount: g.Sum(i => i.UnitPrice * i.Quantity),
+                    TaxAmount: g.Key.IsTaxExempt ? 0 : g.Sum(i => (i.UnitPrice * i.Quantity) * (g.Key.TaxRate / 100m)),
+                    IsExempt: g.Key.IsTaxExempt
+                )).ToList();
+
+            var localInvoice = Invoice.CreateCustomerInvoice(
+                branchId: sale.BranchId,
+                series: apiResult.Serie,
+                folio: apiResult.Folio,
+                saleId: sale.Id,
+                clientId: clientGuid,
+                receiverTaxId: apiRfc,
+                receiverName: apiNombre,
+                cfdiUsage: Enum.TryParse<CfdiUsage>(request.UsoCfdi, true, out var u) ? u : CfdiUsage.GeneralExpense,
+                subtotal: sale.Items.Sum(i => i.Quantity * i.UnitPrice),
+                taxBreakdowns: localTaxBreakdowns,
+                receiverFiscalRegime: apiReceiverFiscalRegime,
+                receiverZipCode: apiReceiverZipCode
+            );
+
+            localInvoice.Stamp(
+                uuid: apiResult.DatosFiscales.UUID,
+                stampedAt: DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var dt) ? dt : DateTime.UtcNow,
+                selloDigitalEmisor: apiResult.DatosFiscales.SelloDigitalEmisor,
+                selloDigitalSAT: apiResult.DatosFiscales.SelloDigitalSAT,
+                noCertificadoEmisor: apiResult.DatosFiscales.NoCertificadoEmisor,
+                noCertificadoSAT: apiResult.DatosFiscales.NoCertificadoSAT,
+                cadenaOriginal: apiResult.DatosFiscales.CadenaOriginal
+            );
+
+            _context.Invoices.Add(localInvoice);
+
+            if (int.TryParse(apiResult.Folio, out var parsedFolio))
+            {
+                folioSeq.ResetTo(parsedFolio);
+            }
+
+            sale.MarkAsInvoiced(localInvoice.Id.ToString());
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return localInvoice.Id;
         }
 
         string pacUrl = !string.IsNullOrEmpty(config.PacUrl) ? config.PacUrl : (!string.IsNullOrEmpty(config.ComercialApiUrl) ? config.ComercialApiUrl : "https://mock-pac.sat.gob.mx");

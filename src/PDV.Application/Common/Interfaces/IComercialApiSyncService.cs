@@ -23,6 +23,8 @@ public interface IComercialApiSyncService
 
     Task<CreateFacturaResultDto?> GenerarFacturaComercialAsync(GenerarFacturaComercialDto command, CancellationToken cancellationToken);
     Task<CreateFacturaResultDto?> GenerarFacturaGlobalComercialAsync(CreateFacturaGlobalCommandDto command, CancellationToken cancellationToken);
+    Task<CreateNotaCreditoResultDto?> GenerarNotaCreditoComercialAsync(GenerarNotaCreditoComercialDto command, CancellationToken cancellationToken);
+    Task<bool> CancelarDocumentoComercialAsync(string codigoConcepto, string serie, double folio, string passwordContpaqi, bool isCreditNote, CancellationToken cancellationToken);
 
     Task<CreateDocumentoResultDto?> SendCompraToComercialAsync(SendCompraDto command, CancellationToken cancellationToken);
     Task<CreateDocumentoResultDto?> SendEntradaToComercialAsync(SendEntradaDto command, CancellationToken cancellationToken);
@@ -192,4 +194,44 @@ public class TimbradoResultDto
     public string NoCertificadoEmisor { get; set; } = string.Empty;
     public string NoCertificadoSAT { get; set; } = string.Empty;
     public string FechaTimbrado { get; set; } = string.Empty;
+}
+
+public class GenerarNotaCreditoComercialDto
+{
+    public string CodigoConcepto { get; set; } = string.Empty;
+    public string Serie { get; set; } = string.Empty;
+    public string CodigoCliente { get; set; } = string.Empty;
+    public string ReferenciaDocumentoOrigen { get; set; } = string.Empty;
+    public int NumeroMoneda { get; set; } = 1;
+    public double TipoCambio { get; set; } = 1.0;
+    public string UsoCfdi { get; set; } = "G02";
+    public string MetodoPago { get; set; } = "PUE";
+    public string FormaPago { get; set; } = "15";
+    public string UuidFacturaOrigen { get; set; } = string.Empty;
+    public string TipoRelacionSat { get; set; } = "01";
+    public string ConceptoFacturaOrigen { get; set; } = string.Empty;
+    public string SerieFacturaOrigen { get; set; } = string.Empty;
+    public double FolioFacturaOrigen { get; set; }
+    public bool SaldarFacturaOrigen { get; set; } = true;
+    public string CsdPassword { get; set; } = string.Empty;
+    public bool AutoTimbrar { get; set; } = true;
+    public string? Usuario { get; set; }
+    public List<NotaCreditoPartidaSyncDto> Partidas { get; set; } = new();
+}
+
+public class NotaCreditoPartidaSyncDto
+{
+    public string CodigoProducto { get; set; } = string.Empty;
+    public double Unidades { get; set; }
+    public double PrecioUnitario { get; set; }
+    public string CodigoAlmacen { get; set; } = "1";
+}
+
+public class CreateNotaCreditoResultDto
+{
+    public int IdDocumento { get; set; }
+    public bool Timbrado { get; set; }
+    public bool Saldado { get; set; }
+    public string? Mensaje { get; set; }
+    public TimbradoResultDto? DatosFiscales { get; set; }
 }
