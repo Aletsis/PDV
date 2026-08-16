@@ -7,10 +7,13 @@
 @using PDV.Application.Features.Sales.Commands.CreateInvoice
 @using PDV.Application.Features.Sales.Commands.PrintSaleTicket
 @using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Features.Sales.Queries.GetSaleByTicket
 @using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
+@using PDV.Application.Features.Sales.Commands.ImportSale
 @using PDV.Application.Common.Helpers
 @using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
 @using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.WebUI.Components.Pages.Auth
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -25,7 +28,7 @@
     <TitleContent>
         <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
             <MudIcon Icon="@Icons.Material.Filled.History" Color="Color.Primary" />
-            Historial de Notas y Devoluciones (POS)
+            Historial de Notas y Devoluciones
         </MudText>
     </TitleContent>
     <DialogContent>
@@ -329,26 +332,26 @@
         }
     }
 
-    private async Task<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult> RequestAuthorizationAsync(string actionName, string requiredPermissionCode)
+    private async Task<AuthorizationDialog.AuthorizationResult> RequestAuthorizationAsync(string actionName, string requiredPermissionCode)
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         if (user.Identity?.IsAuthenticated == true && (user.IsInRole("Admin") || user.IsInRole("Manager")))
         {
-            return new PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult(true, null, null);
+            return new AuthorizationDialog.AuthorizationResult(true, null, null);
         }
 
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
-        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var dialog = await DialogService.ShowAsync<AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
         
-        if (result != null && !result.Canceled && result.Data is PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult authResult && authResult.Success)
+        if (result != null && !result.Canceled && result.Data is AuthorizationDialog.AuthorizationResult authResult && authResult.Success)
         {
             return authResult;
         }
 
-        return new PDV.WebUI.Components.Pages.Auth.AuthorizationDialog.AuthorizationResult(false, null, null);
+        return new AuthorizationDialog.AuthorizationResult(false, null, null);
     }
 
     private async Task ViewSale(SaleDto sale)
@@ -503,7 +506,7 @@
                     var saleDetail = await response.Content.ReadFromJsonAsync<SaleDetailDto>();
                     if (saleDetail != null)
                     {
-                        var importCommand = new PDV.Application.Features.Sales.Commands.ImportSale.ImportSaleCommand(saleDetail);
+                        var importCommand = new ImportSaleCommand(saleDetail);
                         var importSuccess = await Mediator.Send(importCommand);
                         return importSuccess;
                     }
@@ -574,14 +577,14 @@
             }
             else
             {
-                saleDetail = await Mediator.Send(new PDV.Application.Features.Sales.Queries.GetSaleByTicket.GetSaleByTicketQuery(searchSeries, searchFolio.Value));
+                saleDetail = await Mediator.Send(new GetSaleByTicketQuery(searchSeries, searchFolio.Value));
             }
 
             if (saleDetail != null)
             {
                 if (ConnectionMonitor.IsLocalMode)
                 {
-                    var importCommand = new PDV.Application.Features.Sales.Commands.ImportSale.ImportSaleCommand(saleDetail);
+                    var importCommand = new ImportSaleCommand(saleDetail);
                     var importSuccess = await Mediator.Send(importCommand);
                     if (importSuccess)
                     {

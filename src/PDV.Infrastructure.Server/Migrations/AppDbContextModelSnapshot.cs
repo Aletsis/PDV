@@ -1756,6 +1756,9 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1784,6 +1787,8 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.HasIndex("DeliveryRouteId");
 
                     b.HasIndex("DeliveryZoneId");
+
+                    b.HasIndex("ShiftId");
 
                     b.HasIndex("BranchId", "OrderDate")
                         .HasDatabaseName("IX_Orders_BranchId_OrderDate");
@@ -3929,6 +3934,12 @@ namespace PDV.Infrastructure.Server.Migrations
                         .HasForeignKey("DeliveryZoneId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("PDV.Domain.Entities.Shift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "Taxes", b1 =>
                         {
                             b1.Property<int>("Id")
@@ -3974,6 +3985,8 @@ namespace PDV.Infrastructure.Server.Migrations
                     b.Navigation("DeliveryRoute");
 
                     b.Navigation("DeliveryZone");
+
+                    b.Navigation("Shift");
 
                     b.Navigation("Taxes");
                 });

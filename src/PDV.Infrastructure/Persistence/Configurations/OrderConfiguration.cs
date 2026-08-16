@@ -57,6 +57,12 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
               .HasForeignKey(e => e.DeliveryZoneId)
               .OnDelete(DeleteBehavior.SetNull);
 
+        entity.HasOne(e => e.Shift)
+              .WithMany()
+              .HasForeignKey(e => e.ShiftId)
+              .OnDelete(DeleteBehavior.Restrict);
+
+
         entity.HasIndex(e => new { e.BranchId, e.OrderDate })
               .HasDatabaseName("IX_Orders_BranchId_OrderDate");
     }

@@ -1,724 +1,697 @@
 @page "/orders/capture"
-@using MediatR
-@using PDV.Application.Common.Helpers
-@using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
-@using PDV.Application.Features.Clients.Dtos
-@using PDV.Application.Features.Clients.Queries.ListClients
-@using PDV.Application.Features.Products.Dtos
-@using PDV.Application.Features.Products.Queries.GetProducts
-@using PDV.Application.Features.Orders.Commands.CreateOrder
-@using PDV.Application.Features.Orders.Commands.PrintOrderTicket
-@using PDV.Application.Features.Shifts.Dtos
-@using PDV.Application.Features.Shifts.Queries.GetActiveShift
-@using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId
-@using PDV.Domain.Entities
-@using PDV.Domain.Enums
-@using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
-@using PDV.Application.Features.Products.Queries.GetProductByCode
-@using PDV.Application.Common.Interfaces
-@using PDV.WebUI.Components.Pages.Product
-@using PDV.WebUI.Components.Pages.Auth
-@using Microsoft.EntityFrameworkCore
-@inject IMediator Mediator
-@inject ISnackbar Snackbar
-@inject NavigationManager Navigation
-@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
-@inject AuthenticationStateProvider AuthStateProvider
-@inject IHttpContextAccessor HttpContextAccessor
-@inject IJSRuntime JS
-@inject IScaleService ScaleService
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
-@inject IDialogService DialogService
-@inject IApplicationDbContext DbContext
+@layout PDV.WebUI.Components.Layout.LoginLayout
 @attribute [Authorize]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using PDV.Domain.Enums
+@using PDV.Domain.Entities
+@using PDV.Infrastructure.Identity
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Clients.Queries.GetClient
+@using PDV.Application.Features.CashRegisters.Dtos
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp
+@using PDV.Application.Features.CashRegisters.Queries.GetCashRegister
+@using PDV.Application.Features.CashRegisters.Queries.ListCashRegisters
+@using PDV.Application.Features.Orders.Dtos
+@using PDV.Application.Features.Orders.Commands.UpdateOrderItemPrice
+@using PDV.Application.Features.Orders.Commands.ConfirmOrder
+@using PDV.Application.Features.Orders.Commands.CancelOrder
+@using PDV.Application.Features.Orders.Commands.PrintOrderTicket
+@using PDV.Application.Features.Orders.Queries.GetNextFolio
+@using PDV.Application.Features.Orders.Queries.GetOpenOrders
+@using PDV.Application.Features.Orders.Queries.GetDraftOrder
+@using PDV.Application.Features.Orders.Queries.GetOrders
+@using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
+@using PDV.Application.Features.Shifts.Dtos
+@using PDV.Application.Features.Shifts.Queries.GetActiveShiftByUserId
+@using PDV.Application.Features.Shifts.Queries.GetActiveShift
+@using PDV.WebUI.Components.Pages.Auth
+@using PDV.WebUI.Components.Pages.Sales
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IMediator Mediator
+@inject IJSRuntime JSRuntime
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Capturar Pedido</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    @if (!ShiftSession.HasActiveShift)
-    {
-        <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
-            <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 4rem; color: var(--mud-palette-warning);" />
-            <MudText Typo="Typo.h5" Class="mt-4 font-weight-bold">Sin turno activo</MudText>
-            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Debes abrir un turno de caja antes de capturar pedidos.</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/pos"))">
-                Ir al Punto de Venta
-            </MudButton>
-        </div>
-    }
-    else
-    {
-        <MudText Typo="Typo.h4" GutterBottom="true" Class="font-weight-bold">Capturar Pedido en Caja</MudText>
-        <MudText Typo="Typo.body1" Class="mb-4">Capture los productos pesados directamente en caja para generar la comanda de reparto.</MudText>
+@if (!ShiftSession.HasActiveShift)
+{
+    <div class="d-flex flex-column align-center justify-center" style="min-height: 60vh;">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size: 4rem; color: var(--mud-palette-warning);" />
+        <MudText Typo="Typo.h5" Class="mt-4 font-weight-bold">Sin turno activo</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">Debes abrir un turno de caja antes de registrar pedidos.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/shift/open"))">
+            <MudIcon Icon="@Icons.Material.Filled.LockOpen" Class="mr-2" /> Abrir Turno
+        </MudButton>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column gap-3" style="outline: none; height: 100vh; max-height: 100vh; overflow: hidden; padding: 12px; box-sizing: border-box;" tabindex="0" @onkeydown="HandleKeyDown">
+        <!-- Sección 1: Datos del Ticket (Header) -->
+        <OrdersHeader CurrentCashRegister="@currentCashRegister"
+                       CurrentCashierName="@currentUserName"
+                       ActiveSeries="@activeSeries"
+                       ProjectedFolio="@projectedFolio"
+                       SelectedClientName="@SelectedClientName"
+                       SelectedClientId="@selectedClientId"
+                       SuspendedOrders="@suspendedOrders"
+                       OnCatalogClicked="OpenProductLookup"
+                       OnClientSearchClicked="OpenClientSearchDialog"
+                       OnResumeOrder="ResumeOrder"
+                       OnOpenSalesAction="OpenSalesAction"
+                       OnOpenRuteAction="OpenRuteAction"
+                       OnOpenRuteCut="OpenRuteCut"
+                       OnOpenNotesHistory="OpenNotesHistory" />
 
-        <MudGrid>
-            <!-- Formulario de Selección (Cliente y Producto) -->
-            <MudItem xs="12" md="4">
-                <MudCard Elevation="3" Class="mb-4">
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.h6">1. Datos de Entrega</MudText>
-                        </CardHeaderContent>
-                    </MudCardHeader>
-                    <MudCardContent>
-                        <MudAutocomplete T="ClientDto" Label="Buscar Cliente" 
-                                         SearchFunc="SearchClients" 
-                                         Value="_selectedClient"
-                                         ValueChanged="OnClientChanged"
-                                         ToStringFunc="@(c => c == null ? "" : $"{c.Name} ({c.Code})")"
-                                         Variant="Variant.Outlined" 
-                                         Adornment="Adornment.End" 
-                                         AdornmentIcon="@Icons.Material.Filled.Search" 
-                                         Required="true"
-                                         Class="mb-3" />
 
-                        @if (_selectedClient != null)
-                        {
-                            <MudPaper Class="pa-3 bg-light border-solid border rounded-lg mb-3" Elevation="0">
-                                <MudText Typo="Typo.body2"><strong>Dirección:</strong> @(_selectedClient.Address ?? "Sin dirección registrada")</MudText>
-                                <MudText Typo="Typo.body2"><strong>Teléfono:</strong> @_selectedClient.Phone</MudText>
-                                @if (_selectedClient.DeliveryZoneId.HasValue)
-                                {
-                                    <div class="mt-2">
-                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.LocalShipping" Class="font-weight-bold">
-                                            @_selectedClient.DeliveryZoneName
-                                        </MudChip>
-                                        <MudText Typo="Typo.caption" Class="d-block mt-1">Costo de Envío: @_deliveryCost.ToString("C2")</MudText>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="mt-2">
-                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning" Class="font-weight-bold">
-                                            Sin Zona de Reparto
-                                        </MudChip>
-                                        <MudText Typo="Typo.caption" Class="d-block mt-1">El costo de envío será de $0.00</MudText>
-                                    </div>
-                                }
-                            </MudPaper>
-                        }
+        @if (isHistoricalView)
+        {
+            <MudPaper Class="pa-3 mb-2 mud-theme-info d-flex align-center justify-space-between" Style="background-color: var(--mud-palette-info-hover); border-radius: 8px;">
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                    <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-2" />
+                    Editando Pedido Histórico: Estado @(activeOrderStatus?.ToString())
+                </MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Inherit" OnClick="CloseHistoricalView" Style="text-transform: none;">
+                    Cerrar y Volver a Captura
+                </MudButton>
+            </MudPaper>
+        }
 
-                        <MudSelect T="string" @bind-Value="_paymentMethod" Label="Forma de Pago" Variant="Variant.Outlined" Class="mb-3">
-                            <MudSelectItem Value="@("Cash")">Efectivo</MudSelectItem>
-                            <MudSelectItem Value="@("CreditCard")">Tarjeta Bancaria</MudSelectItem>
-                        </MudSelect>
-                    </MudCardContent>
-                </MudCard>
-
-                <MudCard Elevation="3" Class="d-flex flex-column" Style="height: 100%;">
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.h6" Class="font-weight-bold d-flex align-center gap-2">
-                                <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" Color="Color.Primary" />
-                                2. Escanear / Buscar
-                            </MudText>
-                        </CardHeaderContent>
-                    </MudCardHeader>
-                    <MudCardContent Class="d-flex flex-column gap-3">
-                        <MudTextField @ref="barcodeField"
-                                      @bind-Value="searchCode" 
-                                      Label="Código EAN-13 / SKU / PLU" 
-                                      Variant="Variant.Outlined" 
-                                      Adornment="Adornment.End" 
-                                      AdornmentIcon="@Icons.Material.Filled.Search" 
-                                      OnAdornmentClick="SearchProduct"
-                                      @onkeydown="KeyPress"
-                                      Placeholder="Escribe o escanea código..."
-                                      HelperText="Presiona ENTER para buscar"
-                                      Class="font-weight-bold"
-                                      Immediate="true"
-                                      TextUpdateSuppression="false" />
-
-                        <MudDivider />
-
-                        @if (searchedProduct != null)
-                        {
-                            <MudCard Elevation="0" Class="border-solid border-2 mud-border-primary pa-2 d-flex flex-column justify-space-between" Style="background: rgba(255,255,255,0.01); border-radius: 8px;">
-                                <MudCardContent>
-                                    <div class="d-flex justify-space-between align-center mb-2">
-                                        <MudChip T="string" Size="Size.Small" Color="@(searchedProduct.SaleType == "Bulk" ? Color.Info : Color.Default)">
-                                            @(searchedProduct.SaleType == "Bulk" ? "A Granel" : "Por Pieza")
-                                        </MudChip>
-                                        <div class="d-flex align-center gap-1">
-                                            <MudText Color="@(searchedProductStock > 0 ? Color.Success : Color.Error)" Class="font-weight-bold">
-                                                Stock: @searchedProductStock.ToString(searchedProduct.SaleType == "Bulk" ? "N3" : "N0")
-                                            </MudText>
-                                            <MudTooltip Text="Ver existencias por sucursal">
-                                                <MudIconButton Icon="@Icons.Material.Filled.Storefront" 
-                                                               Size="Size.Small" 
-                                                               Color="Color.Info" 
-                                                               OnClick="OpenBranchStockDialog" 
-                                                               Style="padding: 2px;" />
-                                            </MudTooltip>
-                                        </div>
-                                    </div>
-                                    <MudText Typo="Typo.h6" Class="font-weight-bold">@searchedProduct.Name</MudText>
-                                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Código: @searchedProduct.Code</MudText>
-                                    
-                                    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mt-4 font-weight-bold">
-                                        @((_selectedClient != null && _selectedClient.ClientType == ClientType.Wholesale && searchedProduct.WholesalePrice.HasValue ? searchedProduct.WholesalePrice.Value : searchedProduct.Price).ToString("C2"))
-                                        @(searchedProduct.SaleType == "Bulk" ? " / kg" : "")
-                                    </MudText>
-                                    @if (_selectedClient != null && _selectedClient.ClientType == ClientType.Wholesale && searchedProduct.WholesalePrice.HasValue)
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Success" Class="d-block font-weight-bold">Precio de Mayoreo Aplicado</MudText>
-                                    }
-                                </MudCardContent>
-                                <MudCardActions Class="flex-column gap-3 w-100 pa-4">
-                                    @if (searchedProduct.SaleType == "Bulk")
-                                    {
-                                        <div class="d-flex align-center gap-2 w-100">
-                                            <MudNumericField @bind-Value="weightToAdd" 
-                                                           Label="Peso a Agregar (kg)" 
-                                                           Variant="Variant.Outlined" 
-                                                           Min="0.001m" 
-                                                           Step="0.1m"
-                                                           Format="N3"
-                                                           Class="flex-grow-1 font-weight-bold text-lg"
-                                                           HideSpinButtons="true" />
-                                            <MudIconButton Icon="@Icons.Material.Filled.Scale" 
-                                                           Color="Color.Secondary" 
-                                                           Variant="Variant.Filled" 
-                                                           Size="Size.Large"
-                                                           OnClick="ReadFromScale" 
-                                                           title="Leer Báscula (F9)" 
-                                                           Style="height: 56px;" 
-                                                           Disabled="readingScale" />
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <MudNumericField @bind-Value="quantityToAdd" 
-                                                       Label="Cantidad a Agregar" 
-                                                       Variant="Variant.Outlined" 
-                                                       Min="1" 
-                                                       Max="100" 
-                                                       Class="w-100 font-weight-bold text-lg"
-                                                       HideSpinButtons="true" />
-                                    }
-                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddToCart" FullWidth="true" Size="Size.Large" Class="py-3 font-weight-bold">
-                                        Agregar al Pedido
-                                    </MudButton>
-                                </MudCardActions>
-                            </MudCard>
-                        }
-                        else if (notFound)
-                        {
-                             <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Style="border-radius: 8px;">Producto no encontrado.</MudAlert>
-                        }
-                        else
-                        {
-                            <div class="d-flex flex-column align-center justify-center flex-grow-1 mud-text-secondary pa-6 text-center border-dashed border-2 mud-border-secondary" style="border-radius: 8px; background: rgba(255,255,255,0.01); min-height: 200px;">
-                                <MudIcon Icon="@Icons.Material.Filled.Scanner" Size="Size.Large" Class="mb-3" />
-                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Listo para Escanear</MudText>
-                                <MudText Typo="Typo.body2">Escanea el código de barras o escribe el SKU del producto en la caja de búsqueda superior.</MudText>
-                            </div>
-                        }
-                    </MudCardContent>
-                </MudCard>
+        <MudGrid Class="flex-grow-1" Style="min-height: 0; overflow: hidden; margin-top: 0px; margin-bottom: 0px;">
+            <!-- Sección 2: Escáner y buscador de productos -->
+            <MudItem xs="12" md="4" Class="d-flex flex-column" Style="height: 100%; overflow: hidden;">
+                @if (isHistoricalView && activeOrderStatus != OrderStatus.Pending && activeOrderStatus != OrderStatus.Confirmed)
+                {
+                    <MudPaper Elevation="3" Class="pa-4 flex-grow-1 d-flex flex-column justify-center align-center text-center mud-text-secondary" Style="border-radius: 8px;">
+                        <MudIcon Icon="@Icons.Material.Filled.EditOff" Size="Size.Large" Class="mb-2" />
+                        <MudText Typo="Typo.subtitle1">El pedido no se puede editar en su estado actual (@activeOrderStatus)</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    <OrdersScanner @ref="scannerComponent"
+                                   ActiveOrderId="@activeOrderId"
+                                   SelectedClientId="@selectedClientId"
+                                   SelectedClientType="@selectedClient?.ClientType"
+                                   CashRegisterId="@ShiftSession.ActiveCashRegisterId"
+                                   UserId="@currentUserId"
+                                   OnOrderCreated="OnOrderCreated"
+                                   OnCartUpdated="OnCartUpdated" />
+                }
             </MudItem>
 
-            <!-- Carrito y Totales -->
-            <MudItem xs="12" md="8">
-                <MudCard Elevation="3" Style="min-height: 500px;" Class="d-flex flex-column justify-space-between">
-                    <MudCardContent>
-                        <MudText Typo="Typo.h6" Class="mb-3">Detalle del Pedido</MudText>
-                        
-                        @if (_cart.Count == 0)
-                        {
-                            <div class="d-flex flex-column align-center justify-center py-8">
-                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Style="font-size: 3rem; color: var(--mud-palette-action-disabled);" />
-                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">El pedido está vacío. Agregue productos para comenzar.</MudText>
-                            </div>
-                        }
-                        else
-                        {
-                            <MudTable Items="@_cart" Hover="true" Dense="true" Elevation="0">
-                                <HeaderContent>
-                                    <MudTh>Código</MudTh>
-                                    <MudTh>Producto</MudTh>
-                                    <MudTh>Cantidad/Peso</MudTh>
-                                    <MudTh>P. Unitario</MudTh>
-                                    <MudTh>Total</MudTh>
-                                    <MudTh Style="width: 50px;"></MudTh>
-                                </HeaderContent>
-                                <RowTemplate>
-                                    <MudTd>@context.Product.Code</MudTd>
-                                    <MudTd>@context.Product.Name</MudTd>
-                                    <MudTd>
-                                        @if (context.Product.SaleType == "Bulk")
-                                        {
-                                            <span>@context.Quantity.ToString("F3") kg</span>
-                                        }
-                                        else
-                                        {
-                                            <span>@((int)context.Quantity) pz</span>
-                                        }
-                                    </MudTd>
-                                    <MudTd>@((context.PriceOverride ?? context.Product.Price).ToString("C2"))</MudTd>
-                                    <MudTd>@context.Total.ToString("C2")</MudTd>
-                                    <MudTd>
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => RemoveFromCart(context)" />
-                                    </MudTd>
-                                </RowTemplate>
-                            </MudTable>
-                        }
-                    </MudCardContent>
+            <!-- Sección 3 y 4: Carrito y Totales -->
+            <MudItem xs="12" md="8" Class="d-flex flex-column gap-3" Style="height: 100%; max-height: 100%; overflow: hidden;">
+                <!-- Tarjeta Carrito -->
+                <MudPaper Elevation="3" Class="pa-4 flex-grow-1 d-flex flex-column" Style="overflow: hidden; min-height: 0; display: flex; flex-direction: column; border-radius: 8px;">
+                    <MudText Typo="Typo.h5" Class="font-weight-bold mb-3 d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Primary" />
+                        Detalle del Pedido
+                    </MudText>
+                    
+                    <div class="flex-grow-1" style="overflow-y: auto; min-height: 0;">
+                        <OrdersCart IsReadOnly="@(isHistoricalView && activeOrderStatus != OrderStatus.Pending && activeOrderStatus != OrderStatus.Confirmed)"
+                                    ActiveOrderId="@activeOrderId"
+                                    Items="@cart"
+                                    OnCartUpdated="OnCartUpdated" />
+                    </div>
+                </MudPaper>
 
-                    <MudCardActions Class="d-flex flex-column pa-4 border-t">
-                        <div class="d-flex justify-space-between w-100 mb-2">
-                            <MudText Typo="Typo.body1">Subtotal:</MudText>
-                            <MudText Typo="Typo.body1">@_subtotal.ToString("C2")</MudText>
-                        </div>
-                        <div class="d-flex justify-space-between w-100 mb-2">
-                            <MudText Typo="Typo.body1">IVA:</MudText>
-                            <MudText Typo="Typo.body1">@_taxes.ToString("C2")</MudText>
-                        </div>
-                        <div class="d-flex justify-space-between w-100 mb-2">
-                            <MudText Typo="Typo.body1">Costo de Envío:</MudText>
-                            <MudText Typo="Typo.body1">@_deliveryCost.ToString("C2")</MudText>
-                        </div>
-                        <div class="d-flex justify-space-between w-100 mb-4">
-                            <MudText Typo="Typo.h5" Class="font-weight-bold">TOTAL:</MudText>
-                            <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">@_total.ToString("C2")</MudText>
-                        </div>
-
-                        <div class="d-flex gap-2 w-100">
-                            <MudButton OnClick="ClearOrder" Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.DeleteSweep" FullWidth="true" Disabled="@(_cart.Count == 0)">
-                                Limpiar Pedido
-                            </MudButton>
-                            <MudButton OnClick="SubmitOrder" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.CheckCircle" FullWidth="true" Disabled="@(!CanSubmit)">
-                                Registrar Pedido
-                            </MudButton>
-                        </div>
-                    </MudCardActions>
-                </MudCard>
+                <!-- Tarjeta Totales -->
+                <MudPaper Elevation="3" Class="pa-4 flex-shrink-0" Style="border-radius: 8px;">
+                    <OrdersTotals ActiveOrderId="@activeOrderId"
+                                  ActiveOrderStatus="@activeOrderStatus"
+                                  Subtotal="@subtotal"
+                                  TotalTax="@totalTax"
+                                  DeliveryCost="@deliveryCost"
+                                  TotalAmount="@totalAmount"
+                                  HasItems="@cart.Any()"
+                                  IsHistoricalView="@isHistoricalView"
+                                  OnRegisterClicked="SubmitOrder"
+                                  OnCancelClicked="CancelActiveOrder"
+                                  OnNewOrderClicked="ClearScreen"
+                                  OnCloseViewClicked="CloseHistoricalView"
+                                  OnReprintClicked="ReprintTicket" />
+                </MudPaper>
             </MudItem>
         </MudGrid>
-    }
-</MudContainer>
+    </div>
+}
 
-@code {
-    private ClientDto? _selectedClient;
-    private string _paymentMethod = "Cash";
-    private List<CartItem> _cart = new();
+@code
+{
+    private string? redirectPath = null;
+    private string currentUserId = "Anonymous";
+    private string currentUserName = "Empleado General";
+    private bool _initComplete = false;
 
-    private MudTextField<string>? barcodeField;
-    private string searchCode = "";
-    private ProductDto? searchedProduct;
-    private decimal searchedProductStock;
-    private bool notFound = false;
-    private int quantityToAdd = 1;
-    private decimal weightToAdd = 1.0m;
-    private bool readingScale = false;
-
-    private List<ClientDto> _allClients = new();
-    private List<ProductDto> _allProducts = new();
-    private List<DeliveryZone> _zones = new();
-
-    private decimal _subtotal => _cart.Sum(x => x.Total);
-    private decimal _taxes => _cart.Sum(x => x.Total * GetTaxRatePercent(x.Product.TaxRate) / 100m);
-    private decimal _deliveryCost = 0m;
-    private decimal _total => _subtotal + _taxes + _deliveryCost;
-
-    private bool CanSubmit => _selectedClient != null && _cart.Count > 0 && ShiftSession.HasActiveShift;
+    private CashRegisterDto? currentCashRegister;
+    private ShiftDto? currentShift;
+    private string activeSeries = "PED";
+    private int projectedFolio = 1;
+    private Guid? activeOrderId;
+    private List<OpenOrderDto> suspendedOrders = new();
+    private readonly System.Threading.SemaphoreSlim _persistSemaphore = new(1, 1);
+    private List<CartItemDto> cart = new();
+    private Guid? selectedClientId = null;
+    private ClientDto? selectedClient;
+    private decimal subtotal = 0;
+    private decimal totalAmount = 0;
+    private decimal totalTax = 0;
+    private decimal deliveryCost = 0m;
+    private List<DeliveryZone> zones = new();
+    private bool isHistoricalView = false;
+    private OrderStatus? activeOrderStatus;
+    private OrdersScanner scannerComponent = null!;
+    private string SelectedClientName => selectedClient?.Name ?? "Público General (Menudeo)";
 
     protected override async Task OnInitializedAsync()
     {
-        if (!ShiftSession.HasActiveShift)
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user == null || user.Identity?.IsAuthenticated != true)
         {
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var user = authState.User;
-            var currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            redirectPath = $"/login?returnUrl={System.Uri.EscapeDataString(Navigation.Uri)}";
+            return;
+        }
+        currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
+        var appUser = await UserManager.FindByIdAsync(currentUserId);
+        currentUserName = appUser?.FullName ?? user.Identity?.Name ?? "Empleado General";
 
-            ShiftDto? activeShift = null;
+        var httpContext = HttpContextAccessor.HttpContext;
+        var rawIp = httpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
 
-            // 1. Intentar restaurar por ID del usuario autenticado
-            if (!string.IsNullOrEmpty(currentUserId))
+        // Jerarquía de selección de caja:
+        // 1) Vinculación por IP física de la terminal (Máxima prioridad)
+        if (!string.IsNullOrEmpty(clientIp))
+        {
+            currentCashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
+        }
+
+        // 2) Si no hay caja fija por IP, verificar si el usuario ya tiene un turno activo
+        if (currentCashRegister == null)
+        {
+            var userActiveShift = await Mediator.Send(new GetActiveShiftByUserIdQuery(currentUserId));
+            if (userActiveShift != null)
             {
-                activeShift = await Mediator.Send(new GetActiveShiftByUserIdQuery(currentUserId));
-            }
-
-            // 2. Si no se encontró por usuario, intentar restaurar por IP de la terminal
-            if (activeShift == null)
-            {
-                try
-                {
-                    var httpContext = HttpContextAccessor.HttpContext;
-                    var rawIp = httpContext?.Connection.RemoteIpAddress?.MapToIPv4().ToString();
-                    var clientIp = IpAddressHelper.ResolveClientIp(rawIp);
-                    if (!string.IsNullOrEmpty(clientIp))
-                    {
-                        var cashRegister = await Mediator.Send(new GetCashRegisterByIpQuery(clientIp));
-                        if (cashRegister != null)
-                        {
-                            activeShift = await Mediator.Send(new GetActiveShiftByCashRegisterQuery(cashRegister.Id));
-                        }
-                    }
-                }
-                catch
-                {
-                    // Fallback silencioso
-                }
-            }
-
-            // Si se encontró turno activo, hidratar ShiftSession
-            if (activeShift != null)
-            {
-                ShiftSession.SetActive(
-                    activeShift.Id,
-                    activeShift.CashRegisterId,
-                    activeShift.CashRegisterName,
-                    activeShift.InitialCash,
-                    activeShift.StartTime,
-                    activeShift.BranchId);
+                currentCashRegister = await Mediator.Send(new GetCashRegisterQuery(userActiveShift.CashRegisterId));
             }
         }
 
-        if (ShiftSession.HasActiveShift)
+        // 3) Asignación directa por usuario
+        if (currentCashRegister == null)
         {
-            await LoadDataAsync();
-        }
-    }
-
-    private async Task LoadDataAsync()
-    {
-        _allClients = await Mediator.Send(new ListClientsQuery { IncludeInactive = false });
-        _allProducts = await Mediator.Send(new GetProductsQuery());
-        _zones = await Mediator.Send(new GetDeliveryZonesQuery { OnlyActive = true });
-    }
-
-    private Task<IEnumerable<ClientDto>> SearchClients(string value, CancellationToken token)
-    {
-        if (string.IsNullOrEmpty(value))
-            return Task.FromResult<IEnumerable<ClientDto>>(_allClients);
-
-        var search = value.Trim().ToLower();
-        return Task.FromResult<IEnumerable<ClientDto>>(
-            _allClients.Where(x => x.Name.ToLower().Contains(search) || x.Code.ToLower().Contains(search))
-        );
-    }
-
-    private void OnClientChanged(ClientDto client)
-    {
-        _selectedClient = client;
-        if (client != null && client.DeliveryZoneId.HasValue)
-        {
-            var zone = _zones.FirstOrDefault(z => z.Id == client.DeliveryZoneId.Value);
-            _deliveryCost = zone?.DeliveryCost ?? 0m;
-        }
-        else
-        {
-            _deliveryCost = 0m;
+            var registers = await Mediator.Send(new ListCashRegistersQuery());
+            currentCashRegister = registers.FirstOrDefault(r => r.AssignedUserId == currentUserId);
         }
 
-        // Al cambiar de cliente, volvemos a calcular los precios de los productos en el carrito (por si cambió a/de Wholesale)
-        foreach (var item in _cart)
+        // 4) Fallback: Cookie de terminal
+        if (currentCashRegister == null)
         {
-            decimal? priceOverride = null;
-            if (_selectedClient != null)
+            if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr) && Guid.TryParse(idStr, out var id))
             {
-                if (_selectedClient.ClientType == ClientType.Wholesale && item.Product.WholesalePrice.HasValue)
+                var candidate = await Mediator.Send(new GetCashRegisterQuery(id));
+                if (candidate != null && (string.IsNullOrEmpty(candidate.IpAddress) || candidate.IpAddress == clientIp))
                 {
-                    priceOverride = item.Product.WholesalePrice.Value;
+                    currentCashRegister = candidate;
                 }
             }
-            item.PriceOverride = priceOverride;
         }
-        StateHasChanged();
+
+        if (currentCashRegister == null)
+        {
+            redirectPath = "/?error=NotACashRegisterTerminal";
+            return;
+        }
+
+        currentShift = await Mediator.Send(new GetActiveShiftByCashRegisterQuery(currentCashRegister.Id));
+        if (currentShift == null || currentShift.UserId != currentUserId)
+        {
+            ShiftSession.Clear();
+            redirectPath = $"/open-shift?cashRegisterId={currentCashRegister.Id}";
+            return;
+        }
+
+        if (!ShiftSession.HasActiveShift || ShiftSession.ActiveShiftId != currentShift.Id)
+        {
+            ShiftSession.SetActive(
+                currentShift.Id,
+                currentShift.CashRegisterId,
+                currentShift.CashRegisterName,
+                currentShift.InitialCash,
+                currentShift.StartTime,
+                currentShift.BranchId ?? currentCashRegister.BranchId);
+        }
+
+
+        // Cargar zonas de reparto
+        zones = await Mediator.Send(new GetDeliveryZonesQuery
+        {
+            BranchId = currentCashRegister.BranchId,
+            OnlyActive = true
+        });
+        // LoadFolioProjection y RefreshSuspendedOrders se ejecutan en OnAfterRenderAsync
+        // para evitar concurrencia del DbContext con el circuito Blazor Server
+        _initComplete = true;
     }
 
-    private async Task KeyPress(KeyboardEventArgs e)
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (e.Key == "Enter")
+        if (firstRender && _initComplete)
         {
-            await SearchProduct();
-        }
-        else if (e.Key == "F9")
-        {
-            await TriggerScaleRead();
+            if (!string.IsNullOrEmpty(redirectPath))
+            {
+                Navigation.NavigateTo(redirectPath, forceLoad: redirectPath.Contains("/login"));
+                return;
+            }
+
+            await LoadFolioProjection();
+            await SyncTerminalCookiesAndLocalStorage();
+            await LoadPersistedCarts();
         }
     }
 
-    public async Task TriggerScaleRead()
+    private async Task SyncTerminalCookiesAndLocalStorage()
     {
-        if (searchedProduct != null && searchedProduct.SaleType == "Bulk")
-        {
-            await ReadFromScale();
-        }
-    }
-
-    private async Task ReadFromScale()
-    {
-        if (readingScale) return;
-        readingScale = true;
-        StateHasChanged();
         try
         {
-            var port = Configuration["Hardware:Scale:Port"] ?? "MOCK";
-            var baud = int.TryParse(Configuration["Hardware:Scale:BaudRate"], out var b) ? b : 9600;
-            var protocol = Configuration["Hardware:Scale:Protocol"] ?? "Mock";
+            if (currentCashRegister != null)
+            {
+                var regId = currentCashRegister.Id.ToString();
+                var localIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_cash_register_id");
+                string? cookieIdStr = null;
+                var httpContext = HttpContextAccessor.HttpContext;
+                if (httpContext != null && httpContext.Request.Cookies.TryGetValue("pos_cash_register_id", out var idStr))
+                {
+                    cookieIdStr = idStr;
+                }
 
-            var result = await ScaleService.ReadWeightAsync(port, baud, protocol);
-            if (result.Success)
-            {
-                weightToAdd = result.Weight;
-                Snackbar.Add($"Peso leído: {result.Weight} {result.Unit}", Severity.Success);
-            }
-            else
-            {
-                Snackbar.Add($"Error de báscula: {result.ErrorMessage}", Severity.Error);
+                if (localIdStr != regId)
+                {
+                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_cash_register_id", regId);
+                }
+                if (cookieIdStr != regId)
+                {
+                    await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'pos_cash_register_id={regId}; path=/; max-age=2592000; Secure; SameSite=Lax'");
+                }
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error al leer báscula: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            readingScale = false;
-            StateHasChanged();
+            Console.WriteLine($"Error syncing terminal storage: {ex.Message}");
         }
     }
 
-    private async Task SearchProduct()
+    private async Task LoadPersistedCarts()
     {
-        if (string.IsNullOrWhiteSpace(searchCode)) return;
-
-        notFound = false;
-        searchedProduct = null;
-        var processedCode = searchCode.Trim();
-        searchCode = ""; // Limpiar inmediatamente para escaneo continuo fluido
-        StateHasChanged();
-
-        // EAN-13 Bulk Barcode Parsing: starts with '2', has 13 numeric digits
-        if (processedCode.Length == 13 && processedCode.StartsWith("2") && processedCode.All(char.IsDigit))
+        await _persistSemaphore.WaitAsync();
+        try
         {
-            var codePart = processedCode.Substring(1, 6);
-            var weightPart = processedCode.Substring(7, 6);
-
-            if (int.TryParse(weightPart.Substring(0, 2), out int integerPart) && 
-                int.TryParse(weightPart.Substring(2, 4), out int fractionalPart))
+            var activeOrderIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "pos_active_order_id");
+            if (Guid.TryParse(activeOrderIdStr, out var orderId))
             {
-                decimal weight = integerPart + (decimal)fractionalPart / 10000m;
+                activeOrderId = orderId;
+                await RefreshActiveOrderFromDb();
+            }
+            await RefreshSuspendedOrders();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar desde base de datos: {ex.Message}");
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+    }
 
-                var product = await Mediator.Send(new GetProductByCodeQuery(codePart));
-                if (product != null)
+    private async Task RefreshActiveOrderFromDb()
+    {
+        if (activeOrderId.HasValue)
+        {
+            var draft = await Mediator.Send(new GetDraftOrderQuery(activeOrderId.Value));
+            if (draft != null)
+            {
+                cart = draft.Items;
+                selectedClientId = draft.ClientId;
+                if (selectedClientId.HasValue)
                 {
-                    var productDto = MapToDto(product);
-                    AddProductDirectly(productDto, weight);
-                    if (barcodeField != null)
-                    {
-                        await barcodeField.FocusAsync();
-                    }
-                    return;
+                    selectedClient = await Mediator.Send(new GetClientQuery(selectedClientId.Value));
                 }
-            }
-        }
-
-        // Standard flow
-        var foundProduct = await Mediator.Send(new GetProductByCodeQuery(processedCode));
-
-        if (foundProduct == null)
-        {
-            notFound = true;
-            if (barcodeField != null)
-            {
-                await barcodeField.FocusAsync();
-            }
-        }
-        else
-        {
-            var productDto = MapToDto(foundProduct);
-            // Auto add Piece products to cart for ultimate speed!
-            if (productDto.SaleType == "Piece")
-            {
-                AddProductDirectly(productDto, 1);
-                if (barcodeField != null)
+                else
                 {
-                    await barcodeField.FocusAsync();
+                    selectedClient = null;
+                }
+
+                UpdateDeliveryCost();
+
+                // Recalcular subtotales, IVA e importes a partir de la fotografía de base de datos
+                subtotal = cart.Sum(i => i.Total);
+
+                // Para obtener impuestos exactos, sumamos el desglose correspondiente
+                totalTax = cart.Sum(i => {
+                    decimal taxRate = 0m;
+                    switch (i.Product.TaxRate)
+                    {
+                        case TaxRateType.Rate16: taxRate = 0.16m; break;
+                        case TaxRateType.Rate8: taxRate = 0.08m; break;
+                    }
+                    decimal price = i.PriceOverride ?? i.Product.Price;
+                    decimal qty = i.Product.SaleType == SaleType.Bulk ? i.Weight : i.Quantity;
+                    return i.Product.TaxRate == TaxRateType.Exempt ? 0m : (price * qty) * taxRate;
+                });
+
+                subtotal = subtotal - totalTax;
+                totalAmount = subtotal + totalTax + deliveryCost;
+
+                // Buscar el estado real de la orden activa
+                var orderDetails = await Mediator.Send(new GetOrderQuery(activeOrderId.Value));
+                if (orderDetails != null)
+                {
+                    activeOrderStatus = orderDetails.Status;
                 }
             }
             else
             {
-                searchedProduct = productDto;
-                weightToAdd = 1.0m;
-                searchedProductStock = 0;
-                if (ShiftSession.BranchId.HasValue)
-                {
-                    var branchStock = await DbContext.ProductBranchStocks
-                        .FirstOrDefaultAsync(s => s.ProductId == foundProduct.Id && s.BranchId == ShiftSession.BranchId.Value);
-                    if (branchStock != null)
-                    {
-                        searchedProductStock = branchStock.Stock;
-                    }
-                }
+                await ClearScreen();
             }
-        }
-    }
-
-    private ProductDto MapToDto(Product x)
-    {
-        var existing = _allProducts.FirstOrDefault(p => p.Id == x.Id);
-        if (existing != null) return existing;
-
-        return new ProductDto
-        {
-            Id = x.Id,
-            Name = x.Name,
-            Code = x.Code,
-            Plu = x.Plu,
-            Description = x.Description,
-            Price = x.Price,
-            WholesalePrice = x.WholesalePrice,
-            WholesaleMinQuantity = x.WholesaleMinQuantity,
-            SaleType = x.SaleType.ToString(),
-            Barcode = x.Barcode,
-            Cost = x.Cost,
-            TaxRate = x.TaxRate.ToString(),
-            IsActive = x.IsActive,
-            SatCode = x.SatCode,
-            Type = (int)x.Type,
-            ControlExistencia = (int)x.ControlExistencia,
-            SaleUnitId = x.SaleUnitId,
-            SaleUnitName = x.SaleUnitName,
-            XmlUnitId = x.XmlUnitId,
-            Department = x.Department,
-            Clasificacion1Id = x.Clasificacion1Id,
-            Clasificacion5Id = x.Clasificacion5Id
-        };
-    }
-
-    private void AddProductDirectly(ProductDto product, decimal quantityOrWeight)
-    {
-        decimal? priceOverride = null;
-        if (_selectedClient != null)
-        {
-            if (_selectedClient.ClientType == ClientType.Wholesale && product.WholesalePrice.HasValue)
-            {
-                priceOverride = product.WholesalePrice.Value;
-            }
-        }
-
-        var existingItem = _cart.FirstOrDefault(x => x.Product.Id == product.Id);
-        if (existingItem != null)
-        {
-            existingItem.Quantity += quantityOrWeight;
-            Snackbar.Add($"{product.Name} actualizado a {existingItem.Quantity.ToString(product.SaleType == "Bulk" ? "N3" : "N0")}", Severity.Success);
         }
         else
         {
-            _cart.Add(new CartItem
+            cart.Clear();
+            selectedClientId = null;
+            selectedClient = null;
+            subtotal = 0;
+            totalTax = 0;
+            totalAmount = 0;
+            deliveryCost = 0;
+        }
+    }
+
+    private void UpdateDeliveryCost()
+    {
+        if (selectedClient != null && selectedClient.DeliveryZoneId.HasValue)
+        {
+            var zone = zones.FirstOrDefault(z => z.Id == selectedClient.DeliveryZoneId.Value);
+            deliveryCost = zone?.DeliveryCost ?? 0m;
+        }
+        else
+        {
+            deliveryCost = 0m;
+        }
+    }
+
+    private async Task LoadFolioProjection()
+    {
+        if (currentCashRegister != null)
+        {
+            var (series, nextFolio) = await Mediator.Send(new GetNextFolioQuery(currentCashRegister.Id));
+            activeSeries = series;
+            projectedFolio = nextFolio;
+        }
+    }
+
+    private async Task RefreshSuspendedOrders()
+    {
+        if (currentShift != null)
+        {
+            var allOpen = await Mediator.Send(new GetOpenOrdersQuery(currentShift.Id));
+            if (activeOrderId.HasValue)
             {
-                Product = product,
-                Quantity = quantityOrWeight,
-                PriceOverride = priceOverride
-            });
-            Snackbar.Add($"{product.Name} agregado al pedido", Severity.Success);
+                suspendedOrders = allOpen.Where(o => o.OrderId != activeOrderId.Value).ToList();
+            }
+            else
+            {
+                suspendedOrders = allOpen;
+            }
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "F3")
+        {
+            await OpenProductLookup();
+        }
+        else if (e.Key == "F4")
+        {
+            await OpenClientSearchDialog();
+        }
+        else if (e.Key == "F8")
+        {
+            await SubmitOrder();
+        }
+        else if (e.Key == "F9")
+        {
+            if (scannerComponent != null)
+            {
+                await scannerComponent.TriggerScaleRead();
+            }
+        }
+    }
+
+    private async Task OpenProductLookup()
+    {
+        var parameters = new DialogParameters<ProductLookupDialog>();
+        if (currentCashRegister != null)
+        {
+            parameters.Add(x => x.BranchId, currentCashRegister.BranchId);
+        }
+        var dialog = await DialogService.ShowAsync<ProductLookupDialog>("Buscar Producto", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is ProductLookupDialog.ProductLookupResult lookupResult)
+        {
+            var product = lookupResult.Product;
+            var qty = lookupResult.QuantityOrWeight;
+
+            if (scannerComponent != null)
+            {
+                await scannerComponent.AddProductDirectly(product, qty);
+            }
+        }
+    }
+
+    private async Task OpenClientSearchDialog()
+    {
+        var parameters = new DialogParameters();
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<ClientSearchDialog>("Buscar Cliente", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result != null && !result.Canceled)
+        {
+            var client = result.Data as ClientDto;
+            await HandleClientSelection(client?.Id);
+        }
+    }
+
+    private async Task HandleClientSelection(Guid? clientId)
+    {
+        selectedClientId = clientId;
+        
+        if (!clientId.HasValue)
+        {
+            selectedClient = null;
+            foreach (var item in cart)
+            {
+                item.PriceOverride = null;
+            }
+            Snackbar.Add("Precios restablecidos a Menudeo (Público General)", Severity.Info);
+        }
+        else
+        {
+            selectedClient = await Mediator.Send(new GetClientQuery(clientId.Value));
+            var client = selectedClient;
+            if (client != null)
+            {
+                if (client.ClientType == ClientType.Wholesale)
+                {
+                    int modifiedCount = 0;
+                    foreach (var item in cart)
+                    {
+                        if (item.Product.WholesalePrice.HasValue)
+                        {
+                            item.PriceOverride = item.Product.WholesalePrice.Value;
+                            modifiedCount++;
+                        }
+                    }
+                    Snackbar.Add($"Precios de Mayoreo aplicados a {modifiedCount} artículos ({client.Name})", Severity.Success);
+                }
+                else
+                {
+                    foreach (var item in cart)
+                    {
+                        item.PriceOverride = null;
+                    }
+                    Snackbar.Add($"Precios de Menudeo aplicados ({client.Name})", Severity.Info);
+                }
+            }
+        }
+
+        UpdateDeliveryCost();
+
+        // Persistir overrides granulares en la BD SQLite
+        if (activeOrderId.HasValue)
+        {
+            await _persistSemaphore.WaitAsync();
+            try
+            {
+                foreach (var item in cart)
+                {
+                    var command = new UpdateOrderItemPriceCommand(activeOrderId.Value, item.SaleItemId, item.PriceOverride);
+                    await Mediator.Send(command);
+
+                }
+                await RefreshActiveOrderFromDb();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al actualizar precios en base de datos: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _persistSemaphore.Release();
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ResumeOrder(OpenOrderDto saleDto)
+    {
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            activeOrderId = saleDto.OrderId;
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_active_order_id", activeOrderId.Value.ToString());
+
+            await RefreshActiveOrderFromDb();
+            Snackbar.Add($"Nota #{saleDto.Series}-{saleDto.Folio} restaurada", Severity.Success);
+            await RefreshSuspendedOrders();
+        }
+        finally
+        {
+            _persistSemaphore.Release();
         }
         StateHasChanged();
     }
 
-    private void AddToCart()
+    private void OpenSalesAction()
     {
-        if (searchedProduct == null) return;
-        var prod = searchedProduct;
-        decimal amount = prod.SaleType == "Bulk" ? weightToAdd : quantityToAdd;
+        Navigation.NavigateTo("/pos");
+    }
 
-        searchedProduct = null;
-        searchCode = "";
-        notFound = false;
-        quantityToAdd = 1;
-        weightToAdd = 1.0m;
+    private void OpenRuteAction()
+    {
+        Navigation.NavigateTo("/orders/routes");
+    }
 
-        AddProductDirectly(prod, amount);
+    private void OpenRuteCut()
+    {
+        Navigation.NavigateTo("/orders/settlement");
+    }
 
-        if (barcodeField != null)
+    private async Task OpenNotesHistory()
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<OrdersListDialog>("Historial de Pedidos y Cancelaciones", options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is OrderDto selectedSale)
         {
-            InvokeAsync(async () => {
-                await Task.Delay(50);
-                await barcodeField.FocusAsync();
-            });
+            await LoadHistoricalOrder(selectedSale.Id);
         }
-    }
-
-    private async Task OpenBranchStockDialog()
-    {
-        if (searchedProduct == null) return;
-        var parameters = new DialogParameters<ProductBranchStockDialog>
+        else
         {
-            { x => x.ProductId, searchedProduct.Id },
-            { x => x.ProductName, searchedProduct.Name },
-            { x => x.ProductCode, searchedProduct.Code }
-        };
-        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
-        await DialogService.ShowAsync<ProductBranchStockDialog>("Existencias por Sucursal", parameters, options);
-    }
-
-    private async Task RemoveFromCart(CartItem item)
-    {
-        var auth = await RequestAuthorizationAsync($"Eliminar producto '{item.Product.Name}' del pedido", "orders.remove_item");
-        if (auth.Success)
-        {
-            _cart.Remove(item);
-            Snackbar.Add($"{item.Product.Name} eliminado del pedido", Severity.Warning);
+            await RefreshSuspendedOrders();
+            await RefreshActiveOrderFromDb();
         }
+        StateHasChanged();
     }
 
-    private void ResetOrderState()
+    private async Task LoadHistoricalOrder(Guid orderId)
     {
-        _cart.Clear();
-        _selectedClient = null;
-        searchedProduct = null;
-        searchCode = "";
-        notFound = false;
-        quantityToAdd = 1;
-        weightToAdd = 1.0m;
-        _deliveryCost = 0m;
-        _paymentMethod = "Cash";
-    }
-
-    private async Task ClearOrder()
-    {
-        var auth = await RequestAuthorizationAsync("Limpiar pedido completo", "orders.clear_order");
-        if (auth.Success)
+        await _persistSemaphore.WaitAsync();
+        try
         {
-            ResetOrderState();
-            Snackbar.Add("Pedido limpiado", Severity.Info);
+            activeOrderId = orderId;
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_active_order_id", activeOrderId.Value.ToString());
+
+            await RefreshActiveOrderFromDb();
+
+            var orderDetails = await Mediator.Send(new GetOrderQuery(orderId));
+            if (orderDetails != null)
+            {
+                activeOrderStatus = orderDetails.Status;
+                isHistoricalView = true;
+                Snackbar.Add($"Pedido #{orderDetails.Series}-{orderDetails.Folio} cargado para edición", Severity.Success);
+            }
+            
+            await RefreshSuspendedOrders();
         }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task CloseHistoricalView()
+    {
+        await ClearScreen();
+    }
+
+    private async Task ClearScreen()
+    {
+        activeOrderId = null;
+        activeOrderStatus = null;
+        isHistoricalView = false;
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "pos_active_order_id");
+        cart.Clear();
+        selectedClientId = null;
+        selectedClient = null;
+        subtotal = 0;
+        totalTax = 0;
+        totalAmount = 0;
+        deliveryCost = 0;
+        await LoadFolioProjection();
+        await RefreshSuspendedOrders();
+        StateHasChanged();
     }
 
     private async Task SubmitOrder()
     {
-        if (!CanSubmit) return;
+        if (cart.Count == 0 || !activeOrderId.HasValue)
+        {
+            Snackbar.Add("No hay artículos en el pedido", Severity.Warning);
+            return;
+        }
 
         try
         {
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var user = authState.User;
-            string userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "system";
-
-            var command = new CreateOrderCommand
+            var success = await Mediator.Send(new ConfirmOrderCommand(activeOrderId.Value));
+            if (success)
             {
-                ClientId = _selectedClient!.Id,
-                CashRegisterId = ShiftSession.ActiveCashRegisterId ?? Guid.Empty,
-                PaymentMethod = _paymentMethod,
-                UserId = userId,
-                Items = _cart.Select(x => new OrderCartItemDto
+                Snackbar.Add("Pedido registrado con éxito", Severity.Success);
+                
+                if (currentCashRegister != null)
                 {
-                    ProductId = x.Product.Id,
-                    Quantity = x.Quantity,
-                    PriceOverride = x.PriceOverride
-                }).ToList()
-            };
+                    await Mediator.Send(new PrintOrderTicketCommand(activeOrderId.Value, currentCashRegister.Id));
+                }
 
-            var orderId = await Mediator.Send(command);
-            Snackbar.Add("Pedido registrado exitosamente.", Severity.Success);
-
-            // Imprimir el ticket de forma asíncrona
-            await Mediator.Send(new PrintOrderTicketCommand(orderId, ShiftSession.ActiveCashRegisterId ?? Guid.Empty));
-
-            ResetOrderState();
+                await ClearScreen();
+            }
         }
         catch (Exception ex)
         {
@@ -726,9 +699,75 @@
         }
     }
 
+    private async Task CancelActiveOrder()
+    {
+        if (!activeOrderId.HasValue) return;
+
+        var auth = await RequestAuthorizationAsync("Cancelar Pedido completo", "orders.cancel");
+        if (!auth.Success) return;
+
+        try
+        {
+            var command = new CancelOrderCommand(activeOrderId.Value, "Cancelado desde Captura de Pedidos", currentUserId, auth.Username, auth.Password);
+            var success = await Mediator.Send(command);
+            if (success)
+            {
+                Snackbar.Add("Pedido cancelado con éxito", Severity.Success);
+                await ClearScreen();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cancelar pedido: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ReprintTicket()
+    {
+        if (activeOrderId.HasValue && currentCashRegister != null)
+        {
+            try
+            {
+                await Mediator.Send(new PrintOrderTicketCommand(activeOrderId.Value, currentCashRegister.Id));
+                Snackbar.Add("Ticket de pedido enviado a impresión", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al imprimir: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OnOrderCreated(Guid newOrderId)
+    {
+        await _persistSemaphore.WaitAsync();
+        try
+        {
+            activeOrderId = newOrderId;
+            activeOrderStatus = OrderStatus.Pending;
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "pos_active_order_id", activeOrderId.Value.ToString());
+
+            await RefreshActiveOrderFromDb();
+            await RefreshSuspendedOrders();
+        }
+        finally
+        {
+            _persistSemaphore.Release();
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnCartUpdated()
+    {
+        await RefreshActiveOrderFromDb();
+        await RefreshSuspendedOrders();
+        StateHasChanged();
+    }
+
+
     private async Task<AuthorizationDialog.AuthorizationResult> RequestAuthorizationAsync(string actionName, string requiredPermissionCode)
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         if (user.Identity?.IsAuthenticated == true && (user.IsInRole("Admin") || user.IsInRole("Manager")))
         {
@@ -737,7 +776,7 @@
 
         var parameters = new DialogParameters { ["ActionName"] = actionName };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = false, BackdropClick = false };
-        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Auth.AuthorizationDialog>("Autorización Requerida", parameters, options);
+        var dialog = await DialogService.ShowAsync<AuthorizationDialog>("Autorización Requerida", parameters, options);
         var result = await dialog.Result;
         
         if (result != null && !result.Canceled && result.Data is AuthorizationDialog.AuthorizationResult authResult && authResult.Success)
@@ -746,23 +785,5 @@
         }
 
         return new AuthorizationDialog.AuthorizationResult(false, null, null);
-    }
-
-    private decimal GetTaxRatePercent(string taxRate)
-    {
-        return taxRate switch
-        {
-            "Rate16" => 16m,
-            "Rate8" => 8m,
-            _ => 0m
-        };
-    }
-
-    private class CartItem
-    {
-        public ProductDto Product { get; set; } = null!;
-        public decimal Quantity { get; set; }
-        public decimal? PriceOverride { get; set; }
-        public decimal Total => Quantity * (PriceOverride ?? Product.Price);
     }
 }

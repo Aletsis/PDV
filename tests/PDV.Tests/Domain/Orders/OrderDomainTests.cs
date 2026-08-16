@@ -32,6 +32,7 @@ public class OrderDomainTests
         var order = new Order(
             cashRegisterId: cashRegisterId,
             branchId: branchId,
+            shiftId: Guid.NewGuid(),
             clientId: clientId,
             paymentMethod: PaymentMethodType.CreditCard,
             takenById: "user-taken",
@@ -62,7 +63,8 @@ public class OrderDomainTests
     public void AddItem_WhenPending_AddsItemAndRecalculatesTotals()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+
         var product = CreateProduct("Jabon", 15m);
         var item = new OrderItem(product, 2m, 15m, 16m);
 
@@ -82,24 +84,28 @@ public class OrderDomainTests
     }
 
     [Fact]
-    public void AddItem_WhenNotPending_ThrowsDomainException()
+    public void AddItem_WhenNotEditable_ThrowsDomainException()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 1m, 15m, 16m));
         order.Confirm(); // status -> Confirmed
+        order.AssignRoute(Guid.NewGuid(), "supervisor-user");
+        order.AssignDeliveryMan("delivery-1"); // status -> EnRoute
 
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() => order.AddItem(new OrderItem(product, 1m, 15m, 16m)));
-        Assert.Equal("No se pueden agregar artículos a un pedido que no está pendiente.", exception.Message);
+        Assert.Equal("No se pueden agregar artículos a un pedido que no está pendiente o capturado.", exception.Message);
     }
+
 
     [Fact]
     public void Confirm_UnderMinimumWithoutAuthorization_ThrowsDomainException()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 1m, 15m, 0m, isTaxExempt: true)); // TotalAmount = 15m
 
@@ -112,7 +118,8 @@ public class OrderDomainTests
     public void Confirm_UnderMinimumWithAuthorization_ConfirmsSuccessfully()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 1m, 15m, 0m, isTaxExempt: true)); // TotalAmount = 15m
 
@@ -129,7 +136,8 @@ public class OrderDomainTests
     public void RouteAndDeliveryWorkflow_TransitionsStateCorrectly()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 2m, 15m, 0m, isTaxExempt: true));
         order.Confirm();
@@ -153,7 +161,8 @@ public class OrderDomainTests
     public void Cancel_DeliveredOrder_ThrowsDomainException()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 2m, 15m, 0m, isTaxExempt: true));
         order.Confirm();
@@ -170,7 +179,8 @@ public class OrderDomainTests
     public void RequestInvoice_WithoutClient_ThrowsDomainException()
     {
         // Arrange - Sin cliente
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), clientId: null, PaymentMethodType.Cash);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), clientId: null, PaymentMethodType.Cash);
+
 
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() => order.RequestInvoice());

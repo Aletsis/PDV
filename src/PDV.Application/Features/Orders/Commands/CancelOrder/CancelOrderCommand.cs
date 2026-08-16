@@ -1,21 +1,25 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PDV.Application.Common.Interfaces;
+using PDV.Application.Common.Security;
 using PDV.Domain.Enums;
 using PDV.Domain.Exceptions;
 using PDV.Domain.Repositories;
+using PDV.Domain.Entities;
 
 namespace PDV.Application.Features.Orders.Commands.CancelOrder;
 
-public record CancelOrderCommand : IRequest<bool>
+[AuthorizeCommand("orders.cancel")]
+public record CancelOrderCommand(
+    Guid OrderId,
+    string Reason,
+    string UserId,
+    string? SupervisorUsername = null,
+    string? SupervisorPassword = null) : IRequest<bool>, ISupervisorAuthorizedCommand, ISupervisorAuthorizedTarget
 {
-    public Guid OrderId { get; set; }
-    public string Reason { get; set; } = string.Empty;
+    public string? AuthorizedByUserId { get; set; }
 }
+    
 
 public class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, bool>
 {

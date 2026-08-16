@@ -54,6 +54,12 @@ public class OrderItem : BaseEntity
         ValidateQuantity(newQuantity, Product!.SaleType);
         Quantity = newQuantity;
     }
+    public void OverridePrice(decimal newPrice)
+    {
+        if (newPrice < 0) throw new DomainException("El precio no puede ser negativo.");
+        UnitPrice = newPrice;
+    }
+
 
     /// <summary>
     /// Valida que la cantidad sea válida según el tipo de venta del producto.

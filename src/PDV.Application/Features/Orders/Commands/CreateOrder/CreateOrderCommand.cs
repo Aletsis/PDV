@@ -10,23 +10,19 @@ using PDV.Domain.Entities;
 using PDV.Domain.Enums;
 using PDV.Domain.Exceptions;
 using PDV.Domain.Repositories;
+using PDV.Application.Features.Orders.Dtos;
 
 namespace PDV.Application.Features.Orders.Commands.CreateOrder;
 
-public record OrderCartItemDto
-{
-    public Guid ProductId { get; set; }
-    public decimal Quantity { get; set; }
-    public decimal? PriceOverride { get; set; }
-}
-
 public record CreateOrderCommand : IRequest<Guid>
 {
-    public List<OrderCartItemDto> Items { get; set; } = new();
+    public List<CartItemDto> Items { get; set; } = new();
     public string PaymentMethod { get; set; } = "Cash";
     public string UserId { get; set; } = string.Empty;
     public Guid? ClientId { get; set; }
     public Guid? CashRegisterId { get; set; }
+    public bool IsOpen { get; set; }
+    public bool RequiresInvoice { get; set; } = false;
 }
 
 public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Guid>
@@ -101,6 +97,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                 var order = new Order(
                     cashRegisterId: request.CashRegisterId.Value,
                     branchId: activeShift.CashRegister!.BranchId,
+                    shiftId: activeShift.Id,
                     clientId: request.ClientId,
                     paymentMethod: paymentMethod,
                     deliveryZoneId: client?.DeliveryZoneId,
@@ -115,9 +112,9 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                 // Agregar artículos
                 foreach (var item in request.Items)
                 {
-                    var product = await _productRepository.GetByIdAsync(item.ProductId, cancellationToken);
+                    var product = await _productRepository.GetByIdAsync(item.Product.Id, cancellationToken);
                     if (product == null)
-                        throw new DomainException($"Producto con ID {item.ProductId} no encontrado.");
+                        throw new DomainException($"Producto con ID {item.Product.Id} no encontrado.");
 
                     if (!product.IsActive)
                         throw new DomainException($"El producto {product.Name} no está activo.");
@@ -175,8 +172,11 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                     }
                 }
 
-                // Confirmar el pedido inmediatamente (puesto que se captura ya pesado)
-                order.Confirm();
+                // Confirmar el pedido si no se especifica como abierto/borrador
+                if (!request.IsOpen)
+                {
+                    order.Confirm();
+                }
 
                 await _orderRepository.AddAsync(order, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);

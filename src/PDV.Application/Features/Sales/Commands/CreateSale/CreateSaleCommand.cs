@@ -1,4 +1,5 @@
 using MediatR;
+using PDV.Domain.Enums;
 using PDV.Application.Common.Interfaces;
 using PDV.Application.Features.Sales.Dtos;
 using PDV.Domain.Entities;
@@ -7,8 +8,6 @@ using PDV.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace PDV.Application.Features.Sales.Commands.CreateSale;
-
-using PDV.Domain.Enums;
 
 public record CreateSaleCommand : IRequest<Guid>
 {

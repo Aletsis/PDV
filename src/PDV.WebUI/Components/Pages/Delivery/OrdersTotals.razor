@@ -1,0 +1,138 @@
+@using PDV.Domain.Enums
+
+<div class="mt-4">
+    <!-- Totals breakdown -->
+    <MudGrid Class="pa-2 mud-text-secondary" Justify="Justify.FlexEnd">
+        <MudItem xs="6" md="4" Class="text-right pa-1">
+            <MudText Typo="Typo.body2">Subtotal:</MudText>
+        </MudItem>
+        <MudItem xs="6" md="3" Class="text-right pa-1 font-weight-bold">
+            <MudText Typo="Typo.body2">$@Subtotal.ToString("F2")</MudText>
+        </MudItem>
+    </MudGrid>
+    <MudGrid Class="pa-2 mud-text-secondary" Justify="Justify.FlexEnd">
+        <MudItem xs="6" md="4" Class="text-right pa-1">
+            <MudText Typo="Typo.body2">Impuestos (IVA):</MudText>
+        </MudItem>
+        <MudItem xs="6" md="3" Class="text-right pa-1 font-weight-bold">
+            <MudText Typo="Typo.body2">$@TotalTax.ToString("F2")</MudText>
+        </MudItem>
+    </MudGrid>
+    <MudGrid Class="pa-2 mud-text-secondary" Justify="Justify.FlexEnd">
+        <MudItem xs="6" md="4" Class="text-right pa-1">
+            <MudText Typo="Typo.body2">Costo Envío:</MudText>
+        </MudItem>
+        <MudItem xs="6" md="3" Class="text-right pa-1 font-weight-bold">
+            <MudText Typo="Typo.body2">$@DeliveryCost.ToString("F2")</MudText>
+        </MudItem>
+    </MudGrid>
+
+    <MudDivider Class="my-4" />
+
+    <!-- Totals Footer -->
+    <div class="d-flex justify-end align-center pa-2">
+        <div class="text-right">
+             <MudText Typo="Typo.caption" Class="mud-text-secondary">TOTAL DEL PEDIDO</MudText>
+             <MudText Typo="Typo.h3" Class="font-weight-bold mud-text-primary">$@TotalAmount.ToString("F2")</MudText>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <MudStack Row="true" Spacing="2" Class="mt-4">
+        @if (IsHistoricalView)
+        {
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Secondary" 
+                       Size="Size.Large" 
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Class="py-3 px-6 font-weight-bold" 
+                       OnClick="OnCloseViewClicked"
+                       Style="text-transform: none; border-radius: 8px;">
+                Cerrar Vista
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Info" 
+                       Size="Size.Large" 
+                       StartIcon="@Icons.Material.Filled.Print"
+                       Class="py-3 flex-grow-1 font-weight-bold" 
+                       OnClick="OnReprintClicked"
+                       Style="text-transform: none; border-radius: 8px;">
+                Reimprimir Ticket
+            </MudButton>
+        }
+        else
+        {
+            <!-- New draft/clear screen -->
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Warning" 
+                       Size="Size.Large" 
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Class="py-3 px-6 font-weight-bold" 
+                       OnClick="OnNewOrderClicked"
+                       Style="text-transform: none; border-radius: 8px;">
+                Nuevo Pedido
+            </MudButton>
+
+            <!-- Cancel order / Delete draft -->
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Error" 
+                       Size="Size.Large" 
+                       StartIcon="@Icons.Material.Filled.Cancel"
+                       Class="py-3 px-6 font-weight-bold" 
+                       Disabled="!HasItems"
+                       OnClick="OnCancelClicked"
+                       Style="text-transform: none; border-radius: 8px;">
+                Cancelar
+            </MudButton>
+
+            <!-- Register / Confirm order -->
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Success" 
+                       Size="Size.Large" 
+                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                       Class="py-3 flex-grow-1 font-weight-bold" 
+                       Disabled="!HasItems"
+                       OnClick="OnRegisterClicked"
+                       Style="text-transform: none; border-radius: 8px;">
+                @RegisterButtonText (F8)
+            </MudButton>
+
+            <!-- Reprint Ticket (Only visible when active order is already confirmed) -->
+            @if (ActiveOrderId.HasValue && ActiveOrderStatus == OrderStatus.Confirmed)
+            {
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Info" 
+                           Size="Size.Large" 
+                           StartIcon="@Icons.Material.Filled.Print"
+                           Class="py-3 font-weight-bold" 
+                           OnClick="OnReprintClicked"
+                           Style="text-transform: none; border-radius: 8px;">
+                    Reimprimir
+                </MudButton>
+            }
+        }
+    </MudStack>
+</div>
+
+@code {
+    [Parameter] public Guid? ActiveOrderId { get; set; }
+    [Parameter] public OrderStatus? ActiveOrderStatus { get; set; }
+    [Parameter] public decimal Subtotal { get; set; }
+    [Parameter] public decimal TotalTax { get; set; }
+    [Parameter] public decimal DeliveryCost { get; set; }
+    [Parameter] public decimal TotalAmount { get; set; }
+    [Parameter] public bool HasItems { get; set; }
+
+    [Parameter] public bool IsHistoricalView { get; set; }
+
+    [Parameter] public EventCallback OnRegisterClicked { get; set; }
+    [Parameter] public EventCallback OnCancelClicked { get; set; }
+    [Parameter] public EventCallback OnNewOrderClicked { get; set; }
+    [Parameter] public EventCallback OnReprintClicked { get; set; }
+    [Parameter] public EventCallback OnCloseViewClicked { get; set; }
+
+    private string RegisterButtonText => (ActiveOrderId.HasValue && ActiveOrderStatus == OrderStatus.Confirmed) 
+        ? "Guardar Cambios" 
+        : "Registrar Pedido";
+}
