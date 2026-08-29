@@ -1,9 +1,13 @@
 @using MediatR
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.Branches.Commands.CreateBranch
 @using PDV.Application.Features.Branches.Commands.UpdateBranch
 @using PDV.Application.Features.Branches.Dtos
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IGeocodingService GeocodingService
+@implements IDisposable
 
 <MudDialog>
     <TitleContent>
@@ -14,45 +18,160 @@
     </TitleContent>
     <DialogContent>
         <MudForm @ref="branchForm" ValidationDelay="300">
-            <MudGrid>
-                <!-- Left side: General Info -->
+            <MudGrid Spacing="3">
+                <!-- Columna Izquierda: Datos Generales y Domicilio Estructurado -->
                 <MudItem xs="12" md="6">
-                    <div class="d-flex flex-column gap-4">
+                    <div class="d-flex flex-column gap-3">
                         <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DATOS GENERALES</MudText>
                         
-                        <MudTextField @bind-Value="Model.Code" Label="Código de Sucursal" 
-                                      Variant="Variant.Outlined" Required="true" RequiredError="El código es obligatorio"
-                                      Disabled="@IsEdit" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.VpnKey" />
-                        
-                        <MudTextField @bind-Value="Model.Name" Label="Nombre Comercial" 
-                                      Variant="Variant.Outlined" Required="true" RequiredError="El nombre es obligatorio"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Storefront" />
-                        
-                        <MudTextField @bind-Value="Model.Address" Label="Calle y Número (Dirección)" 
-                                      Variant="Variant.Outlined" Required="true" RequiredError="La dirección es obligatoria"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Home" />
-                    </div>
-                </MudItem>
-                
-                <!-- Right side: Contact / Role -->
-                <MudItem xs="12" md="6">
-                    <div class="d-flex flex-column gap-4">
-                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DATOS DE CONTACTO Y ROL</MudText>
-                        
-                        <MudTextField @bind-Value="Model.Phone" Label="Teléfono de Contacto" 
-                                      Variant="Variant.Outlined" Required="true" RequiredError="El teléfono es obligatorio"
-                                      HelperText="Mínimo 10 dígitos numéricos"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
-                        
-                        <MudTextField @bind-Value="Model.Email" Label="Correo Electrónico" 
-                                      Variant="Variant.Outlined" Required="false"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="5">
+                                <MudTextField @bind-Value="Model.Code" Label="Código" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="El código es obligatorio"
+                                              Disabled="@IsEdit" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.VpnKey" />
+                            </MudItem>
+                            <MudItem xs="12" sm="7">
+                                <MudTextField @bind-Value="Model.Name" Label="Nombre Comercial" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="El nombre es obligatorio"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Storefront" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="Model.Phone" Label="Teléfono de Contacto" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="El teléfono es obligatorio"
+                                              HelperText="Mínimo 10 dígitos numéricos"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="Model.Email" Label="Correo Electrónico" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Required="false"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
+                            </MudItem>
+                        </MudGrid>
 
                         @if (!IsEdit)
                         {
-                            <MudCheckBox @bind-Value="Model.IsMainBranch" Label="¿Es Casa Matriz?" 
-                                         Color="Color.Primary" Class="mt-2" />
+                            <MudCheckBox @bind-Value="Model.IsMainBranch" Label="¿Es Casa Matriz Principal?" 
+                                         Color="Color.Primary" Dense="true" Class="mt-1" />
                         }
+
+                        <MudDivider Class="my-2" />
+                        
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">DOMICILIO DE LA SUCURSAL</MudText>
+                        
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="8">
+                                <MudTextField @bind-Value="Model.Street" Label="Calle" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="La calle es obligatoria"
+                                              Placeholder="Nombre de calle o avenida"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.LocationOn" />
+                            </MudItem>
+                            <MudItem xs="6" sm="2">
+                                <MudTextField @bind-Value="Model.ExteriorNumber" Label="Núm. Ext." 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="123" />
+                            </MudItem>
+                            <MudItem xs="6" sm="2">
+                                <MudTextField @bind-Value="Model.InteriorNumber" Label="Núm. Int." 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="A-1" />
+                            </MudItem>
+
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="Model.Colony" Label="Colonia / Fraccionamiento" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: Centro, Moderna" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="Model.ZipCode" Label="Código Postal (C.P.)" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: 44100" />
+                            </MudItem>
+
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="Model.City" Label="Ciudad / Municipio" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: Guadalajara" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="Model.State" Label="Estado" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: Jalisco" />
+                            </MudItem>
+
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="Model.Country" Label="País" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="México" />
+                            </MudItem>
+                        </MudGrid>
+                    </div>
+                </MudItem>
+                
+                <!-- Columna Derecha: Mapa Interactivo y Geolocalización -->
+                <MudItem xs="12" md="6">
+                    <div class="d-flex flex-column gap-3 h-100">
+                        <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">GEOLOCALIZACIÓN Y MAPA</MudText>
+                            <div class="d-flex gap-1">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.Search" OnClick="GeocodeCurrentAddress"
+                                           Disabled="@_isGeocoding" Style="text-transform: none;">
+                                    @if (_isGeocoding)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                                        <span>Buscando...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Buscar en Mapa</span>
+                                    }
+                                </MudButton>
+                                @if (Model.Latitude.HasValue && Model.Longitude.HasValue)
+                                {
+                                    <MudTooltip Text="Limpiar ubicación">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Clear" Color="Color.Default" Size="Size.Small"
+                                                       OnClick="ClearLocation" />
+                                    </MudTooltip>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Dirección completa generada -->
+                        <div class="p-2 border rounded-lg bg-surface">
+                            <MudText Typo="Typo.caption" Class="font-weight-bold text-secondary">Dirección completa formateada:</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-primary" Style="font-size: 0.85rem;">
+                                @(string.IsNullOrWhiteSpace(GetFullAddressString()) ? "Capture los campos de dirección para visualizar y ubicar" : GetFullAddressString())
+                            </MudText>
+                        </div>
+
+                        <!-- Contenedor del Mapa Leaflet -->
+                        <div style="position: relative; flex-grow: 1; min-height: 280px; border-radius: 8px; overflow: hidden; border: 1px solid var(--mud-palette-lines-default);">
+                            <div id="branch-picker-map" style="height: 100%; width: 100%; min-height: 280px;"></div>
+                        </div>
+
+                        <!-- Estado y Coordenadas -->
+                        <div class="d-flex align-center justify-space-between flex-wrap gap-2 pt-1">
+                            @if (Model.Latitude.HasValue && Model.Longitude.HasValue)
+                            {
+                                <div class="d-flex align-center gap-2">
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="font-weight-medium">
+                                        Geolocalizada
+                                    </MudChip>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Lat: <strong>@Model.Latitude.Value.ToString("F6")</strong> | Lon: <strong>@Model.Longitude.Value.ToString("F6")</strong>
+                                    </MudText>
+                                </div>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.LocationOff" Class="font-weight-medium">
+                                    Sin coordenadas (Haga clic en el mapa o use 'Buscar en Mapa')
+                                </MudChip>
+                            }
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-style: italic;">
+                                Puede hacer clic o arrastrar el marcador sobre el mapa.
+                            </MudText>
+                        </div>
                     </div>
                 </MudItem>
             </MudGrid>
@@ -61,7 +180,7 @@
     <DialogActions>
         <MudButton OnClick="Cancel" Style="text-transform: none; font-weight: 500;">Cancelar</MudButton>
         <PdvInteractiveButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="Save" IsLoading="@_saving">
-            Guardar
+            Guardar Sucursal
         </PdvInteractiveButton>
     </DialogActions>
 </MudDialog>
@@ -78,6 +197,121 @@
 
     private MudForm branchForm = null!;
     private bool _saving = false;
+    private bool _isGeocoding = false;
+    private DotNetObjectReference<BranchDialog>? _dotNetRef;
+    private bool _mapInitialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_mapInitialized)
+        {
+            _mapInitialized = true;
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await Task.Delay(150); // Breve espera para que el contenedor modal termine su renderizado
+            await JS.InvokeVoidAsync(
+                "leafletHelper.initLocationPicker", 
+                "branch-picker-map", 
+                _dotNetRef, 
+                Model.Latitude, 
+                Model.Longitude, 
+                Model.Latitude.HasValue ? 16 : 12, 
+                !string.IsNullOrWhiteSpace(Model.Name) ? Model.Name : "Ubicación de Sucursal"
+            );
+        }
+    }
+
+    [JSInvokable]
+    public void OnLocationSelected(double lat, double lng)
+    {
+        Model.Latitude = lat;
+        Model.Longitude = lng;
+        StateHasChanged();
+    }
+
+    private string GetFullAddressString()
+    {
+        var parts = new List<string>();
+
+        var streetPart = Model.Street?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(Model.ExteriorNumber))
+            streetPart += $" #{Model.ExteriorNumber.Trim()}";
+        if (!string.IsNullOrWhiteSpace(Model.InteriorNumber))
+            streetPart += $" Int. {Model.InteriorNumber.Trim()}";
+
+        if (!string.IsNullOrWhiteSpace(streetPart))
+            parts.Add(streetPart);
+
+        if (!string.IsNullOrWhiteSpace(Model.Colony))
+            parts.Add($"Col. {Model.Colony.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(Model.ZipCode) && Model.ZipCode != "00000")
+            parts.Add($"C.P. {Model.ZipCode.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(Model.City) && Model.City != "N/A")
+            parts.Add(Model.City.Trim());
+
+        if (!string.IsNullOrWhiteSpace(Model.State) && Model.State != "N/A")
+            parts.Add(Model.State.Trim());
+
+        if (!string.IsNullOrWhiteSpace(Model.Country))
+            parts.Add(Model.Country.Trim());
+
+        return string.Join(", ", parts);
+    }
+
+    private async Task GeocodeCurrentAddress()
+    {
+        var fullAddress = GetFullAddressString();
+        if (string.IsNullOrWhiteSpace(fullAddress))
+        {
+            Snackbar.Add("Por favor ingrese al menos la calle y ciudad/estado para buscar en el mapa", Severity.Warning);
+            return;
+        }
+
+        _isGeocoding = true;
+        StateHasChanged();
+
+        try
+        {
+            var (lat, lon) = await GeocodingService.GeocodeAddressQueryAsync(fullAddress);
+            if (lat.HasValue && lon.HasValue)
+            {
+                Model.Latitude = lat.Value;
+                Model.Longitude = lon.Value;
+                await JS.InvokeVoidAsync(
+                    "leafletHelper.setLocationPickerMarker", 
+                    "branch-picker-map", 
+                    lat.Value, 
+                    lon.Value, 
+                    16, 
+                    !string.IsNullOrWhiteSpace(Model.Name) ? Model.Name : "Ubicación de Sucursal",
+                    _dotNetRef
+                );
+                Snackbar.Add("Ubicación encontrada en el mapa", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("No se encontró la dirección exacta en el mapa. Puede ubicarla manualmente haciendo clic en el mapa.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al geocodificar: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGeocoding = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearLocation()
+    {
+        Model.Latitude = null;
+        Model.Longitude = null;
+        await JS.InvokeVoidAsync("leafletHelper.removeLocationPickerMarker", "branch-picker-map");
+        StateHasChanged();
+    }
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -92,22 +326,40 @@
             if (IsEdit)
             {
                 await Mediator.Send(new UpdateBranchCommand(
-                    Model.Id,
-                    Model.Name,
-                    Model.Address,
-                    Model.Phone,
-                    Model.Email
+                    Id: Model.Id,
+                    Name: Model.Name,
+                    Street: Model.Street,
+                    Phone: Model.Phone,
+                    ExteriorNumber: Model.ExteriorNumber,
+                    InteriorNumber: Model.InteriorNumber,
+                    Colony: Model.Colony,
+                    ZipCode: Model.ZipCode,
+                    City: Model.City,
+                    State: Model.State,
+                    Country: Model.Country,
+                    Email: Model.Email,
+                    Latitude: Model.Latitude,
+                    Longitude: Model.Longitude
                 ));
             }
             else
             {
                 await Mediator.Send(new CreateBranchCommand(
-                    Model.Name,
-                    Model.Code,
-                    Model.Address,
-                    Model.Phone,
-                    Model.Email,
-                    Model.IsMainBranch
+                    Name: Model.Name,
+                    Code: Model.Code,
+                    Street: Model.Street,
+                    Phone: Model.Phone,
+                    ExteriorNumber: Model.ExteriorNumber,
+                    InteriorNumber: Model.InteriorNumber,
+                    Colony: Model.Colony,
+                    ZipCode: Model.ZipCode,
+                    City: Model.City,
+                    State: Model.State,
+                    Country: Model.Country,
+                    Email: Model.Email,
+                    IsMainBranch: Model.IsMainBranch,
+                    Latitude: Model.Latitude,
+                    Longitude: Model.Longitude
                 ));
             }
             MudDialog.Close(DialogResult.Ok(true));
@@ -122,14 +374,28 @@
         }
     }
 
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+    }
+
     public class BranchFormModel
     {
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
+        public string Street { get; set; } = string.Empty;
+        public string? ExteriorNumber { get; set; }
+        public string? InteriorNumber { get; set; }
+        public string? Colony { get; set; }
+        public string ZipCode { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        public string Country { get; set; } = "México";
         public string Phone { get; set; } = string.Empty;
         public string? Email { get; set; }
         public bool IsMainBranch { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
     }
 }

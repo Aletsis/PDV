@@ -30,7 +30,9 @@ public class GetBranchByIdQueryHandler : IRequestHandler<GetBranchByIdQuery, Bra
             branch.Phone,
             branch.Email,
             branch.IsActive,
-            branch.IsMainBranch
+            branch.IsMainBranch,
+            branch.Latitude,
+            branch.Longitude
         );
     }
 }

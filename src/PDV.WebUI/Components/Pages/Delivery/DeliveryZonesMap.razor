@@ -224,6 +224,14 @@ else
             return cachedCoords;
         }
 
+        // Si la sucursal ya tiene coordenadas geolocalizadas guardadas, utilizarlas directamente
+        if (branch.Latitude.HasValue && branch.Longitude.HasValue)
+        {
+            var directResult = (branch.Latitude, branch.Longitude);
+            _branchCoordsCache[branch.Id] = directResult;
+            return directResult;
+        }
+
         if (branch.Address != null)
         {
             // 1. Intentar geocodificar dirección formateada completa

@@ -14,6 +14,8 @@ public class Branch : BaseEntity, IAggregateRoot
     public string? Email { get; private set; }
     public bool IsActive { get; private set; }
     public bool IsMainBranch { get; private set; }
+    public double? Latitude { get; private set; }
+    public double? Longitude { get; private set; }
     
     public Guid? CompanyId { get; private set; }
     public Company? Company { get; private set; }
@@ -33,7 +35,9 @@ public class Branch : BaseEntity, IAggregateRoot
         Address? address, 
         string phone, 
         string? email = null,
-        bool isMainBranch = false)
+        bool isMainBranch = false,
+        double? latitude = null,
+        double? longitude = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("El nombre de la sucursal es requerido.");
@@ -51,6 +55,8 @@ public class Branch : BaseEntity, IAggregateRoot
         Email = email?.Trim();
         IsActive = true;
         IsMainBranch = isMainBranch;
+        Latitude = latitude;
+        Longitude = longitude;
 
         AddDomainEvent(new BranchCreatedEvent(Id, Name, Code));
     }
@@ -73,7 +79,7 @@ public class Branch : BaseEntity, IAggregateRoot
             throw new DomainException("El formato del correo electrónico es inválido.");
     }
 
-    public void Update(string name, Address? address, string phone, string? email)
+    public void Update(string name, Address? address, string phone, string? email, double? latitude = null, double? longitude = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("El nombre es requerido.");
@@ -85,8 +91,16 @@ public class Branch : BaseEntity, IAggregateRoot
         Address = address;
         Phone = phone?.Trim() ?? string.Empty;
         Email = email?.Trim();
+        Latitude = latitude;
+        Longitude = longitude;
 
         AddDomainEvent(new BranchUpdatedEvent(Id, Name));
+    }
+
+    public void SetCoordinates(double? latitude, double? longitude)
+    {
+        Latitude = latitude;
+        Longitude = longitude;
     }
 
     public void Activate()

@@ -4,6 +4,7 @@ let drawMarkers = {};
 let clientMarkers = {};
 let branchMarkers = {};
 let zonePolygons = {};
+let pickerMarkers = {};
 
 window.leafletHelper = {
     initMap: function (elementId, dotNetRef, defaultLat, defaultLng, zoom) {
@@ -209,6 +210,127 @@ window.leafletHelper = {
             if (branchMarkers[elementId]) {
                 branchMarkers[elementId].openPopup();
             }
+        }
+    },
+
+    initLocationPicker: function (elementId, dotNetRef, initialLat, initialLng, zoom, markerTitle) {
+        if (maps[elementId]) {
+            maps[elementId].remove();
+            delete maps[elementId];
+        }
+
+        let lat = initialLat || 20.659698;
+        let lng = initialLng || -103.349609;
+        let mapZoom = zoom || (initialLat && initialLng ? 16 : 13);
+
+        let map = L.map(elementId).setView([lat, lng], mapZoom);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        maps[elementId] = map;
+        pickerMarkers[elementId] = null;
+
+        let createOrMoveMarker = function (mLat, mLng) {
+            if (pickerMarkers[elementId]) {
+                pickerMarkers[elementId].setLatLng([mLat, mLng]);
+            } else {
+                let branchIcon = L.divIcon({
+                    className: 'custom-branch-marker',
+                    html: `<div style="background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%); color: white; border: 2px solid #ffffff; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.35); cursor: pointer;"><svg style="width: 20px; height: 20px; fill: white;" viewBox="0 0 24 24"><path d="M20 4H4v2h16V4zm1 10v-2l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6h1zm-9 4H6v-4h6v4z"/></svg></div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18],
+                    popupAnchor: [0, -20]
+                });
+
+                let marker = L.marker([mLat, mLng], {
+                    draggable: true,
+                    icon: branchIcon
+                }).addTo(map);
+
+                marker.bindPopup(markerTitle || "Ubicación de Sucursal");
+
+                marker.on('dragend', function (e) {
+                    let position = e.target.getLatLng();
+                    dotNetRef.invokeMethodAsync('OnLocationSelected', position.lat, position.lng);
+                });
+
+                pickerMarkers[elementId] = marker;
+            }
+        };
+
+        if (initialLat && initialLng) {
+            createOrMoveMarker(initialLat, initialLng);
+        }
+
+        map.on('click', function (e) {
+            createOrMoveMarker(e.latlng.lat, e.latlng.lng);
+            dotNetRef.invokeMethodAsync('OnLocationSelected', e.latlng.lat, e.latlng.lng);
+        });
+
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 300);
+    },
+
+    setLocationPickerMarker: function (elementId, lat, lng, zoom, markerTitle, dotNetRef) {
+        let map = maps[elementId];
+        if (!map) return;
+
+        if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+            let mapZoom = zoom || 16;
+            map.setView([lat, lng], mapZoom);
+
+            if (pickerMarkers[elementId]) {
+                pickerMarkers[elementId].setLatLng([lat, lng]);
+                if (markerTitle) {
+                    pickerMarkers[elementId].setPopupContent(markerTitle);
+                }
+            } else {
+                let branchIcon = L.divIcon({
+                    className: 'custom-branch-marker',
+                    html: `<div style="background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%); color: white; border: 2px solid #ffffff; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.35); cursor: pointer;"><svg style="width: 20px; height: 20px; fill: white;" viewBox="0 0 24 24"><path d="M20 4H4v2h16V4zm1 10v-2l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6h1zm-9 4H6v-4h6v4z"/></svg></div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18],
+                    popupAnchor: [0, -20]
+                });
+
+                let marker = L.marker([lat, lng], {
+                    draggable: true,
+                    icon: branchIcon
+                }).addTo(map);
+
+                marker.bindPopup(markerTitle || "Ubicación de Sucursal");
+
+                if (dotNetRef) {
+                    marker.on('dragend', function (e) {
+                        let position = e.target.getLatLng();
+                        dotNetRef.invokeMethodAsync('OnLocationSelected', position.lat, position.lng);
+                    });
+                }
+
+                pickerMarkers[elementId] = marker;
+            }
+        }
+    },
+
+    removeLocationPickerMarker: function (elementId) {
+        let map = maps[elementId];
+        if (!map) return;
+
+        if (pickerMarkers[elementId]) {
+            map.removeLayer(pickerMarkers[elementId]);
+            pickerMarkers[elementId] = null;
+        }
+    },
+
+    invalidateMapSize: function (elementId) {
+        let map = maps[elementId];
+        if (map) {
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
         }
     }
 };

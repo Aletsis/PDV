@@ -10,5 +10,7 @@ public record BranchDto(
     string Phone,
     string? Email,
     bool IsActive,
-    bool IsMainBranch
+    bool IsMainBranch,
+    double? Latitude = null,
+    double? Longitude = null
 );

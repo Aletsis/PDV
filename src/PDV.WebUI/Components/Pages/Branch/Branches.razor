@@ -143,7 +143,27 @@ else
                     <PropertyColumn Property="x => x.Name" Title="Nombre" />
                     <TemplateColumn Title="Dirección">
                         <CellTemplate>
-                            @context.Item.Address?.Street
+                            <div class="d-flex flex-column gap-1">
+                                <MudText Typo="Typo.body2">
+                                    @(context.Item.Address != null ? context.Item.Address.ToFullAddressString() : "Sin dirección")
+                                </MudText>
+                                @if (context.Item.Latitude.HasValue && context.Item.Longitude.HasValue)
+                                {
+                                    <div class="d-flex align-center gap-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Color="Color.Success" />
+                                        <MudText Typo="Typo.caption" Color="Color.Success">
+                                            @context.Item.Latitude.Value.ToString("F4"), @context.Item.Longitude.Value.ToString("F4")
+                                        </MudText>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="d-flex align-center gap-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocationOff" Size="Size.Small" Color="Color.Default" />
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Sin geolocalizar</MudText>
+                                    </div>
+                                }
+                            </div>
                         </CellTemplate>
                     </TemplateColumn>
                     <PropertyColumn Property="x => x.Phone" Title="Teléfono" />
@@ -330,7 +350,7 @@ else
             { x => x.Model, new BranchDialog.BranchFormModel() }
         };
 
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = false };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true, BackdropClick = false };
         var dialog = await DialogService.ShowAsync<BranchDialog>("Nueva Sucursal", parameters, options);
         var result = await dialog.Result;
 
@@ -350,10 +370,19 @@ else
             Id = branch.Id,
             Code = branch.Code,
             Name = branch.Name,
-            Address = branch.Address?.Street ?? string.Empty,
+            Street = branch.Address?.Street ?? string.Empty,
+            ExteriorNumber = branch.Address?.ExteriorNumber,
+            InteriorNumber = branch.Address?.InteriorNumber,
+            Colony = branch.Address?.Colony,
+            ZipCode = branch.Address?.ZipCode ?? string.Empty,
+            City = branch.Address?.City ?? string.Empty,
+            State = branch.Address?.State ?? string.Empty,
+            Country = branch.Address?.Country ?? "México",
             Phone = branch.Phone,
             Email = branch.Email,
-            IsMainBranch = branch.IsMainBranch
+            IsMainBranch = branch.IsMainBranch,
+            Latitude = branch.Latitude,
+            Longitude = branch.Longitude
         };
 
         var parameters = new DialogParameters<BranchDialog>
@@ -362,7 +391,7 @@ else
             { x => x.Model, model }
         };
 
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = false };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true, BackdropClick = false };
         var dialog = await DialogService.ShowAsync<BranchDialog>("Editar Sucursal", parameters, options);
         var result = await dialog.Result;
 

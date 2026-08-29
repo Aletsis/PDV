@@ -819,14 +819,17 @@ public class SyncWorker : BackgroundService
                 var existing = await db.Branches.FirstOrDefaultAsync(b => b.Id == dto.Id, stoppingToken);
 
                 Domain.ValueObjects.Address? address = null;
-                if (!string.IsNullOrWhiteSpace(dto.Street))
+                if (!string.IsNullOrWhiteSpace(dto.Street) || !string.IsNullOrWhiteSpace(dto.Colony))
                 {
                     address = Domain.ValueObjects.Address.Create(
-                        dto.Street, 
+                        dto.Street ?? "N/A", 
                         dto.City ?? "N/A", 
                         dto.State ?? "N/A", 
                         dto.ZipCode ?? "00000", 
-                        dto.Country ?? "México");
+                        dto.Country ?? "México",
+                        dto.ExteriorNumber,
+                        dto.InteriorNumber,
+                        dto.Colony);
                 }
 
                 if (existing == null)
@@ -837,7 +840,9 @@ public class SyncWorker : BackgroundService
                         address: address,
                         phone: dto.Phone,
                         email: dto.Email,
-                        isMainBranch: dto.IsMainBranch
+                        isMainBranch: dto.IsMainBranch,
+                        latitude: dto.Latitude,
+                        longitude: dto.Longitude
                     );
                     branch.SetId(dto.Id);
 
@@ -881,7 +886,7 @@ public class SyncWorker : BackgroundService
                         {
                             existing.Restore();
                         }
-                        existing.Update(dto.Name, address, dto.Phone, dto.Email);
+                        existing.Update(dto.Name, address, dto.Phone, dto.Email, dto.Latitude, dto.Longitude);
 
                         if (dto.IsMainBranch && !existing.IsMainBranch)
                         {

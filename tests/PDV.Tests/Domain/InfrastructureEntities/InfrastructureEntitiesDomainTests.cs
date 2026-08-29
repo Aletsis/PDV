@@ -69,14 +69,60 @@ public class InfrastructureEntitiesDomainTests
         var branch = new Branch("Sucursal Centro", "SC01", null, "5551234567", isMainBranch: false);
 
         // Act
-        branch.Update("Sucursal Centro Modificada", null, "5550000000", "modificado@correo.com");
+        branch.Update("Sucursal Centro Modificada", null, "5550000000", "modificado@correo.com", 20.6736, -103.3682);
         branch.SetAsMainBranch();
 
         // Assert
         Assert.Equal("Sucursal Centro Modificada", branch.Name);
+        Assert.Equal(20.6736, branch.Latitude);
+        Assert.Equal(-103.3682, branch.Longitude);
         Assert.True(branch.IsMainBranch);
         Assert.Single(branch.DomainEvents.OfType<BranchUpdatedEvent>());
         Assert.Single(branch.DomainEvents.OfType<BranchSetAsMainEvent>());
+    }
+
+    [Fact]
+    public void Branch_Constructor_WithCoordinates_InitializesCorrectly()
+    {
+        // Arrange
+        var address = Address.Create("Av Juárez 100", "Guadalajara", "Jalisco", "44100", "México", "100", "A", "Centro");
+
+        // Act
+        var branch = new Branch(
+            name: "Sucursal Juárez",
+            code: "SJ01",
+            address: address,
+            phone: "3331234567",
+            email: "juarez@tienda.com",
+            isMainBranch: false,
+            latitude: 20.6750,
+            longitude: -103.3500
+        );
+
+        // Assert
+        Assert.Equal(20.6750, branch.Latitude);
+        Assert.Equal(-103.3500, branch.Longitude);
+        Assert.Equal("Centro", branch.Address?.Colony);
+        Assert.Equal("100", branch.Address?.ExteriorNumber);
+    }
+
+    [Fact]
+    public void Branch_SetCoordinates_UpdatesCoordinates()
+    {
+        // Arrange
+        var branch = new Branch("Sucursal Norte", "SN01", null, "3331234567");
+
+        // Act
+        branch.SetCoordinates(20.7000, -103.4000);
+
+        // Assert
+        Assert.Equal(20.7000, branch.Latitude);
+        Assert.Equal(-103.4000, branch.Longitude);
+
+        // Act - Reset coordinates
+        branch.SetCoordinates(null, null);
+        Assert.Null(branch.Latitude);
+        Assert.Null(branch.Longitude);
     }
 
     [Fact]

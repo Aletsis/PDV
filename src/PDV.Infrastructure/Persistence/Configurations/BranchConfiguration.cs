@@ -46,5 +46,11 @@ public class BranchConfiguration : IEntityTypeConfiguration<Branch>
 
         builder.Property(b => b.IsMainBranch)
             .IsRequired();
+
+        builder.Property(b => b.Latitude)
+            .HasPrecision(9, 6);
+
+        builder.Property(b => b.Longitude)
+            .HasPrecision(9, 6);
     }
 }

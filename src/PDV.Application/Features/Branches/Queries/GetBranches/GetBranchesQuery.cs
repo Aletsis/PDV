@@ -29,7 +29,9 @@ public class GetBranchesQueryHandler : IRequestHandler<GetBranchesQuery, List<Br
             b.Phone,
             b.Email,
             b.IsActive,
-            b.IsMainBranch
+            b.IsMainBranch,
+            b.Latitude,
+            b.Longitude
         )).ToList();
     }
 }

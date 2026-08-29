@@ -17,10 +17,15 @@ public class BranchSyncDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string? Street { get; set; }
+    public string? ExteriorNumber { get; set; }
+    public string? InteriorNumber { get; set; }
+    public string? Colony { get; set; }
     public string? City { get; set; }
     public string? State { get; set; }
     public string? ZipCode { get; set; }
     public string? Country { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public string Phone { get; set; } = string.Empty;
     public string? Email { get; set; }
     public bool IsActive { get; set; }
@@ -54,10 +59,15 @@ public class GetBranchesDeltaQueryHandler : IRequestHandler<GetBranchesDeltaQuer
                 Name = b.Name,
                 Code = b.Code,
                 Street = b.Address != null ? b.Address.Street : null,
+                ExteriorNumber = b.Address != null ? b.Address.ExteriorNumber : null,
+                InteriorNumber = b.Address != null ? b.Address.InteriorNumber : null,
+                Colony = b.Address != null ? b.Address.Colony : null,
                 City = b.Address != null ? b.Address.City : null,
                 State = b.Address != null ? b.Address.State : null,
                 ZipCode = b.Address != null ? b.Address.ZipCode : null,
                 Country = b.Address != null ? b.Address.Country : null,
+                Latitude = b.Latitude,
+                Longitude = b.Longitude,
                 Phone = b.Phone,
                 Email = b.Email,
                 IsActive = b.IsActive,
