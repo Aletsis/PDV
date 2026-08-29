@@ -36,34 +36,36 @@ graph TD
 ## 📦 2. Guías de Despliegue Paso a Paso
 
 ### Opción A: Contenedores (Docker / Podman)
-Ideal para entornos modernos de microservicios y despliegues estandarizados.
+Ideal para entornos modernos de microservicios y despliegues estandarizados. El contenedor ejecuta exclusivamente la aplicación web (`PDV.WebUI`), permitiendo conectarse a cualquier base de datos externa (PostgreSQL en la nube/servidor o SQLite).
 
 #### 1. Despliegue con Docker Compose
 1. Clonar el repositorio en el servidor de producción.
-2. Modificar el archivo `docker-compose.yml` para establecer contraseñas seguras y configurar el volumen de almacenamiento:
+2. Copiar y configurar las variables de entorno para apuntar a la base de datos externa:
    ```bash
-   nano docker-compose.yml
+   cp .env.example .env
+   nano .env
    ```
-3. Levantar la infraestructura completa (Base de datos y Servidor Web Blazor):
+3. Levantar el contenedor de la aplicación web:
    ```bash
    docker compose up -d --build
    ```
-4. El contenedor web aplicará automáticamente las migraciones pendientes gracias a la variable de entorno `APPLY_MIGRATIONS=true`.
+4. El contenedor web aplicará automáticamente las migraciones pendientes si `APPLY_MIGRATIONS=true`.
 
-#### 2. Despliegue usando Podman (Alternativa Rootless)
-Si prefiere ejecutar contenedores sin privilegios de root por motivos de seguridad:
-1. Construir la imagen del frontend:
+#### 2. Despliegue con Docker directo o Podman
+1. Construir la imagen de la aplicación:
    ```bash
-   podman build -t pdv-webui:latest -f src/PDV.WebUI/Dockerfile .
+   docker build -t pdv-webui:latest -f src/PDV.WebUI/Dockerfile .
    ```
-2. Crear un pod para agrupar los contenedores y compartir la red local:
+2. Ejecutar el contenedor conectándolo a la base de datos externa:
    ```bash
-   podman pod create --name pdv-pod -p 5000:5000
-   ```
-3. Ejecutar la base de datos PostgreSQL y la WebUI dentro del pod:
-   ```bash
-   podman run -d --pod pdv-pod --name pdv-db -v pgdata:/var/lib/postgresql/data:Z -e POSTGRES_DB=pdv_db -e POSTGRES_USER=pdv_user -e POSTGRES_PASSWORD=ClaveSegura postgres:15-alpine
-   podman run -d --pod pdv-pod --name pdv-app -v webui-logs:/app/Logs:Z -e ConnectionStrings__DefaultConnection="Host=127.0.0.1;Database=pdv_db;Username=pdv_user;Password=ClaveSegura" -e APPLY_MIGRATIONS=true pdv-webui:latest
+   docker run -d \
+     --name pdv-app \
+     -p 5000:5000 \
+     -v webui-logs:/app/Logs \
+     -e ConnectionStrings__DefaultConnection="Host=tu-servidor-db;Database=pdv_db;Username=pdv_user;Password=ClaveSegura" \
+     -e RunMode="Server" \
+     -e APPLY_MIGRATIONS="true" \
+     pdv-webui:latest
    ```
 
 ---

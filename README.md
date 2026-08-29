@@ -73,10 +73,14 @@ El sistema estará disponible en su navegador web en `http://localhost:5000` o l
 
 ## 🐋 Despliegue con Docker
 
-El sistema se puede inicializar completamente con sus servicios auxiliares (como Prometheus para monitoreo y Nginx como proxy inverso) utilizando Docker Compose:
+El contenedor ejecuta exclusivamente la aplicación web (`PDV.WebUI`), conectándose a una base de datos PostgreSQL externa o SQLite local mediante variables de entorno:
 
 ```bash
-docker-compose up -d
+# Configurar variables de entorno (cadena de conexión, modo, etc.)
+cp .env.example .env
+
+# Levantar el contenedor de la aplicación
+docker compose up -d --build
 ```
 
 Para obtener detalles específicos sobre arquitecturas de red, proxies, certificados SSL y balanceo de carga, consulte la documentación interna de DevOps:
