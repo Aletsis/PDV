@@ -29,6 +29,17 @@ public class RoleHelperTests
     [InlineData("almacén", "Almacen")]
     [InlineData("Compras", "Compras")]
     [InlineData("compras", "Compras")]
+    [InlineData("Picker", "Surtidor")]
+    [InlineData("picker", "Surtidor")]
+    [InlineData("surtidor", "Surtidor")]
+    [InlineData("Surtidor", "Surtidor")]
+    [InlineData("surtidora", "Surtidor")]
+    [InlineData("Verifier", "Verificador")]
+    [InlineData("verifier", "Verificador")]
+    [InlineData("verificador", "Verificador")]
+    [InlineData("Verificador", "Verificador")]
+    [InlineData("verificadora", "Verificador")]
+    [InlineData("checker", "Verificador")]
     public void GetRoleDisplayName_ShouldReturnExpectedSpanishName(string inputRole, string expectedDisplayName)
     {
         // Act
@@ -58,6 +69,17 @@ public class RoleHelperTests
     [InlineData("Almacen", "Almacen")]
     [InlineData("almacén", "Almacen")]
     [InlineData("Compras", "Compras")]
+    [InlineData("Surtidor", "Picker")]
+    [InlineData("surtidor", "Picker")]
+    [InlineData("surtidora", "Picker")]
+    [InlineData("Picker", "Picker")]
+    [InlineData("picker", "Picker")]
+    [InlineData("Verificador", "Verifier")]
+    [InlineData("verificador", "Verifier")]
+    [InlineData("verificadora", "Verifier")]
+    [InlineData("Verifier", "Verifier")]
+    [InlineData("verifier", "Verifier")]
+    [InlineData("checker", "Verifier")]
     public void ToSystemRoleName_ShouldReturnCanonicalIdentityRoleName(string inputRole, string expectedSystemRole)
     {
         // Act
@@ -68,10 +90,10 @@ public class RoleHelperTests
     }
 
     [Fact]
-    public void StandardRoles_ShouldContainAllSevenRoles()
+    public void StandardRoles_ShouldContainAllNineRoles()
     {
         // Assert
-        Assert.Equal(7, RoleHelper.StandardRoles.Count);
+        Assert.Equal(9, RoleHelper.StandardRoles.Count);
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Admin" && r.DisplayName == "Administrador");
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Manager" && r.DisplayName == "Supervisor");
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Cashier" && r.DisplayName == "Cajero/a");
@@ -79,5 +101,7 @@ public class RoleHelperTests
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Telephonist" && r.DisplayName == "Telefonista");
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Almacen" && r.DisplayName == "Almacen");
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Compras" && r.DisplayName == "Compras");
+        Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Picker" && r.DisplayName == "Surtidor");
+        Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Verifier" && r.DisplayName == "Verificador");
     }
 }

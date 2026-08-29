@@ -57,6 +57,24 @@
             return;
         }
 
+        if (user.IsInRole("Picker"))
+        {
+            Navigation.NavigateTo("/orders/fulfillment", replace: true);
+            return;
+        }
+
+        if (user.IsInRole("Verifier"))
+        {
+            Navigation.NavigateTo("/orders/verify", replace: true);
+            return;
+        }
+
+        if (user.IsInRole("DeliveryMan"))
+        {
+            Navigation.NavigateTo("/orders/my-route", replace: true);
+            return;
+        }
+
         // Sin rol asignado → dashboard por defecto
         Navigation.NavigateTo("/dashboard", replace: true);
     }

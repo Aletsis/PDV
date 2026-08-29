@@ -12,6 +12,8 @@ public static class RoleHelper
     public const string Telephonist = "Telephonist";
     public const string Almacen = "Almacen";
     public const string Compras = "Compras";
+    public const string Picker = "Picker";
+    public const string Verifier = "Verifier";
 
     public const string AdminDisplay = "Administrador";
     public const string ManagerDisplay = "Supervisor";
@@ -20,6 +22,8 @@ public static class RoleHelper
     public const string TelephonistDisplay = "Telefonista";
     public const string AlmacenDisplay = "Almacen";
     public const string ComprasDisplay = "Compras";
+    public const string PickerDisplay = "Surtidor";
+    public const string VerifierDisplay = "Verificador";
 
     /// <summary>
     /// Lista con todos los roles estándar y sus nombres de visualización en español.
@@ -32,7 +36,9 @@ public static class RoleHelper
         (DeliveryMan, DeliveryManDisplay),
         (Telephonist, TelephonistDisplay),
         (Almacen, AlmacenDisplay),
-        (Compras, ComprasDisplay)
+        (Compras, ComprasDisplay),
+        (Picker, PickerDisplay),
+        (Verifier, VerifierDisplay)
     };
 
     /// <summary>
@@ -52,6 +58,8 @@ public static class RoleHelper
             "telephonist" or "telefonista" => TelephonistDisplay,
             "almacen" or "almacén" or "warehouse" => AlmacenDisplay,
             "compras" or "purchasing" => ComprasDisplay,
+            "picker" or "surtidor" or "surtidora" => PickerDisplay,
+            "verifier" or "checker" or "verificador" or "verificadora" => VerifierDisplay,
             _ => role
         };
     }
@@ -73,6 +81,8 @@ public static class RoleHelper
             "telephonist" or "telefonista" => Telephonist,
             "almacen" or "almacén" or "warehouse" => Almacen,
             "compras" or "purchasing" => Compras,
+            "picker" or "surtidor" or "surtidora" => Picker,
+            "verifier" or "checker" or "verificador" or "verificadora" => Verifier,
             _ => role
         };
     }

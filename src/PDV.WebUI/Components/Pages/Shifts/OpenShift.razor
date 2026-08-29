@@ -333,7 +333,7 @@
             currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
             // 1. Validar Rol de Usuario
-            isRoleAuthorized = user.IsInRole("Admin") || user.IsInRole("Manager") || user.IsInRole("Cashier");
+            isRoleAuthorized = user.IsInRole("Admin") || user.IsInRole("Manager") || user.IsInRole("Cashier") || user.IsInRole("Verifier");
             if (!isRoleAuthorized)
             {
                 isLoading = false;

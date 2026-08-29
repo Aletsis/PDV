@@ -76,6 +76,18 @@ public class AccountController : Controller
         {
             return Redirect("/orders/capture");
         }
+        else if (roles.Contains("Picker"))
+        {
+            return Redirect("/orders/fulfillment");
+        }
+        else if (roles.Contains("Verifier"))
+        {
+            return Redirect("/orders/verify");
+        }
+        else if (roles.Contains("DeliveryMan"))
+        {
+            return Redirect("/orders/my-route");
+        }
         else if (roles.Contains("Admin") || roles.Contains("Manager"))
         {
             return Redirect("/dashboard");

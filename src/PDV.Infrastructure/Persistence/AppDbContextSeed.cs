@@ -17,7 +17,7 @@ public static class AppDbContextSeed
         AppDbContext context)
     {
         // 1. Asegurar la existencia de los roles principales
-        var roles = new[] { "Admin", "Manager", "Cashier", "DeliveryMan", "Telephonist", "Almacen", "Compras" };
+        var roles = new[] { "Admin", "Manager", "Cashier", "DeliveryMan", "Telephonist", "Almacen", "Compras", "Picker", "Verifier" };
         foreach (var roleName in roles)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
@@ -183,6 +183,42 @@ public static class AppDbContextSeed
                     {
                         context.RolePermissions.Add(new RolePermission(role.Id, p.Id));
                     }
+                }
+            }
+        }
+
+        var pickerRole = await roleManager.FindByNameAsync("Picker");
+        if (pickerRole != null)
+        {
+            var pickerPermCodes = new[] { "products.view_catalog", "orders.fulfill" };
+            var dbPermissions = await context.Permissions
+                .Where(p => pickerPermCodes.Contains(p.Code))
+                .ToListAsync();
+
+            foreach (var p in dbPermissions)
+            {
+                var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == pickerRole.Id && rp.PermissionId == p.Id);
+                if (!roleHasPerm)
+                {
+                    context.RolePermissions.Add(new RolePermission(pickerRole.Id, p.Id));
+                }
+            }
+        }
+
+        var verifierRole = await roleManager.FindByNameAsync("Verifier");
+        if (verifierRole != null)
+        {
+            var verifierPermCodes = new[] { "products.view_catalog", "clients.create_edit", "orders.capture", "orders.verify" };
+            var dbPermissions = await context.Permissions
+                .Where(p => verifierPermCodes.Contains(p.Code))
+                .ToListAsync();
+
+            foreach (var p in dbPermissions)
+            {
+                var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == verifierRole.Id && rp.PermissionId == p.Id);
+                if (!roleHasPerm)
+                {
+                    context.RolePermissions.Add(new RolePermission(verifierRole.Id, p.Id));
                 }
             }
         }

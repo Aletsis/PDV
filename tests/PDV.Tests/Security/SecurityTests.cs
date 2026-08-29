@@ -248,6 +248,8 @@ public class SecurityTests
         Assert.True(await roleManager.RoleExistsAsync("Cashier"));
         Assert.True(await roleManager.RoleExistsAsync("Almacen"));
         Assert.True(await roleManager.RoleExistsAsync("Compras"));
+        Assert.True(await roleManager.RoleExistsAsync("Picker"));
+        Assert.True(await roleManager.RoleExistsAsync("Verifier"));
 
         // Assert - Permissions for Telephonist
         var telephonistRole = await roleManager.FindByNameAsync("Telephonist");
@@ -269,6 +271,28 @@ public class SecurityTests
             .Join(context.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => p.Code)
             .ToListAsync();
         Assert.Contains("products.view_catalog", almacenPerms);
+
+        // Assert - Permissions for Picker
+        var pickerRole = await roleManager.FindByNameAsync("Picker");
+        Assert.NotNull(pickerRole);
+        var pickerPerms = await context.RolePermissions
+            .Where(rp => rp.RoleId == pickerRole.Id)
+            .Join(context.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => p.Code)
+            .ToListAsync();
+        Assert.Contains("products.view_catalog", pickerPerms);
+        Assert.Contains("orders.fulfill", pickerPerms);
+
+        // Assert - Permissions for Verifier
+        var verifierRole = await roleManager.FindByNameAsync("Verifier");
+        Assert.NotNull(verifierRole);
+        var verifierPerms = await context.RolePermissions
+            .Where(rp => rp.RoleId == verifierRole.Id)
+            .Join(context.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => p.Code)
+            .ToListAsync();
+        Assert.Contains("products.view_catalog", verifierPerms);
+        Assert.Contains("clients.create_edit", verifierPerms);
+        Assert.Contains("orders.capture", verifierPerms);
+        Assert.Contains("orders.verify", verifierPerms);
 
         // Act - Create user with employee number and branch
         var testBranchId = Guid.NewGuid();
