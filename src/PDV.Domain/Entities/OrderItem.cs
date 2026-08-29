@@ -14,9 +14,12 @@ public class OrderItem : BaseEntity
 
     /// <summary>decimal para soportar productos a granel. Piezas siempre serán entero sin fracción.</summary>
     public decimal Quantity { get; private set; }
+    public decimal RequestedQuantity { get; private set; }
     public decimal UnitPrice { get; private set; }
     public decimal TaxRate { get; private set; }
     public bool IsTaxExempt { get; private set; }
+    public string? Notes { get; private set; }
+    public bool IsFulfilled { get; private set; }
 
     // Calculados
     public decimal Subtotal => Quantity * UnitPrice;
@@ -32,7 +35,9 @@ public class OrderItem : BaseEntity
         decimal quantity,
         decimal unitPrice,
         decimal taxRate,
-        bool isTaxExempt = false)
+        bool isTaxExempt = false,
+        string? notes = null,
+        decimal? requestedQuantity = null)
     {
         if (product == null) throw new DomainException("El producto es obligatorio.");
         ValidateQuantity(quantity, product.SaleType);
@@ -44,16 +49,36 @@ public class OrderItem : BaseEntity
         Product = product;
         ProductName = product.Name;
         Quantity = quantity;
+        RequestedQuantity = requestedQuantity ?? quantity;
         UnitPrice = unitPrice;
         TaxRate = taxRate;
         IsTaxExempt = isTaxExempt;
+        Notes = notes?.Trim();
+        IsFulfilled = false;
     }
 
     public void UpdateQuantity(decimal newQuantity)
     {
-        ValidateQuantity(newQuantity, Product!.SaleType);
+        ValidateQuantity(newQuantity, Product?.SaleType ?? (newQuantity == Math.Floor(newQuantity) ? SaleType.Piece : SaleType.Bulk));
         Quantity = newQuantity;
     }
+
+    public void SetVerifiedQuantity(decimal realWeightOrQty)
+    {
+        ValidateQuantity(realWeightOrQty, Product?.SaleType ?? (realWeightOrQty == Math.Floor(realWeightOrQty) ? SaleType.Piece : SaleType.Bulk));
+        Quantity = realWeightOrQty;
+    }
+
+    public void UpdateNotes(string? notes)
+    {
+        Notes = notes?.Trim();
+    }
+
+    public void MarkFulfilled(bool isFulfilled = true)
+    {
+        IsFulfilled = isFulfilled;
+    }
+
     public void OverridePrice(decimal newPrice)
     {
         if (newPrice < 0) throw new DomainException("El precio no puede ser negativo.");

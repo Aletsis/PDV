@@ -1,0 +1,502 @@
+@page "/orders/take"
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Common.Interfaces
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Clients.Queries.GetClient
+@using PDV.Application.Features.Products.Queries.GetProductByCode
+@using PDV.Application.Features.Orders.Commands.TakeTelephonistOrder
+@using PDV.Application.Features.Orders.Dtos
+@using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
+@using PDV.WebUI.Components.Pages.Sales
+@using PDV.WebUI.Components.Pages.Clients
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IApplicationDbContext DbContext
+@attribute [Authorize(Roles = "Admin,Manager,Telephonist,Cashier")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Captura Telefónica de Pedidos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Phone" Color="Color.Primary" Size="Size.Large" />
+                Captura Telefónica de Pedidos
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Tome los pedidos de los clientes por teléfono, agregue especificaciones por producto y envíelos a la cola de surtido.
+            </MudText>
+        </div>
+        <div style="min-width: 250px;">
+            <MudSelect T="Guid" Label="Sucursal de Preparación" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var b in _branches)
+                {
+                    <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </div>
+
+    <MudGrid>
+        <!-- Panel Izquierdo: Datos del Cliente y Búsqueda de Productos -->
+        <MudItem xs="12" md="5" Class="d-flex flex-column gap-4">
+            <!-- Tarjeta de Cliente -->
+            <MudCard Elevation="3">
+                <MudCardHeader Class="pb-2">
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2 font-weight-bold">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Info" />
+                            Datos del Cliente
+                        </MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Search" OnClick="OpenClientSearchDialog">
+                            Buscar
+                        </MudButton>
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent Class="pt-0">
+                    @if (_selectedClient != null)
+                    {
+                        <div class="d-flex flex-column gap-1 pa-3" style="background: var(--mud-palette-background-grey); border-radius: 8px;">
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@_selectedClient.Name</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="ClearClient" title="Quitar cliente" />
+                            </div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                <MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" Class="mr-1" />
+                                @(!string.IsNullOrWhiteSpace(_selectedClient.Phone) ? _selectedClient.Phone : "Sin teléfono registrado")
+                            </MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Class="mr-1" />
+                                @(!string.IsNullOrWhiteSpace(_selectedClient.Address) ? _selectedClient.Address : "Sin dirección registrada")
+                            </MudText>
+
+                            @if (_selectedClient.DeliveryZoneId.HasValue && !string.IsNullOrWhiteSpace(_deliveryZoneName))
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle" Class="mt-2">
+                                    Zona de Reparto: @_deliveryZoneName
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2 text-sm">
+                                    ⚠️ La dirección no está dentro de una zona de cobertura configurada. Se registrará como pedido fuera de zona.
+                                </MudAlert>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column align-center justify-center py-4 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.PersonOutline" Size="Size.Large" Color="Color.Default" Class="mb-1" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Ningún cliente seleccionado</MudText>
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" OnClick="OpenClientSearchDialog">
+                                Seleccionar Cliente
+                            </MudButton>
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            <!-- Tarjeta de Búsqueda y Selección de Producto -->
+            <MudCard Elevation="3" Class="flex-grow-1">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2 font-weight-bold">
+                            <MudIcon Icon="@Icons.Material.Filled.AddShoppingCart" Color="Color.Success" />
+                            Agregar Productos
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="d-flex flex-column gap-3">
+                    <MudAutocomplete T="Product"
+                                     Label="Buscar producto por nombre o código"
+                                     Value="_searchedProduct"
+                                     ValueChanged="OnProductSelected"
+                                     SearchFunc="SearchProductsAsync"
+                                     ToStringFunc="@(p => p == null ? "" : $"{p.Name} - ${p.Price:F2}")"
+                                     Variant="Variant.Outlined"
+                                     Placeholder="Escribe para buscar producto..."
+                                     AdornmentIcon="@Icons.Material.Filled.Search"
+                                     AdornmentColor="Color.Primary"
+                                     Clearable="true"
+                                     ResetValueOnEmptyText="true"
+                                     CoerceText="false" />
+
+                    @if (_searchedProduct != null)
+                    {
+                        <div class="pa-3 border-solid border-1 mud-border-primary" style="border-radius: 8px;">
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@_searchedProduct.Name</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="@(_searchedProduct.SaleType == SaleType.Bulk ? Color.Info : Color.Default)">
+                                    @(_searchedProduct.SaleType == SaleType.Bulk ? "A Granel" : "Por Pieza")
+                                </MudChip>
+                            </div>
+                            <MudText Typo="Typo.h5" Color="Color.Primary" Class="font-weight-bold mb-3">
+                                $@_searchedProduct.Price.ToString("F2") @(_searchedProduct.SaleType == SaleType.Bulk ? "/ kg" : "c/u")
+                            </MudText>
+
+                            <div class="d-flex gap-3 mb-3">
+                                @if (_searchedProduct.SaleType == SaleType.Bulk)
+                                {
+                                    <MudNumericField @bind-Value="_weightToAdd"
+                                                     Label="Peso Solicitado (kg)"
+                                                     Variant="Variant.Outlined"
+                                                     Min="0.05m"
+                                                     Step="0.5m"
+                                                     Format="N3"
+                                                     Class="flex-grow-1" />
+                                }
+                                else
+                                {
+                                    <MudNumericField @bind-Value="_quantityToAdd"
+                                                     Label="Cantidad Piezas"
+                                                     Variant="Variant.Outlined"
+                                                     Min="1"
+                                                     Max="1000"
+                                                     Class="flex-grow-1" />
+                                }
+                            </div>
+
+                            <MudTextField @bind-Value="_itemNotesToAdd"
+                                          Label="Notas del Producto (Opcional)"
+                                          Placeholder="Ej. Maduro, rebanado delgado, verde..."
+                                          Variant="Variant.Outlined"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.EditNote"
+                                          Class="mb-3" />
+
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       OnClick="AddProductToOrder">
+                                Agregar al Pedido
+                            </MudButton>
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Panel Derecho: Lista de Productos en el Pedido y Envío -->
+        <MudItem xs="12" md="7" Class="d-flex flex-column gap-4">
+            <MudCard Elevation="3" Class="d-flex flex-column" Style="height: 100%; min-height: 550px;">
+                <MudCardHeader Class="pb-2">
+                    <CardHeaderContent>
+                        <div class="d-flex justify-space-between align-center w-100">
+                            <MudText Typo="Typo.h6" Class="d-flex align-center gap-2 font-weight-bold">
+                                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" />
+                                Detalle de lo Solicitado (@_items.Count artículos)
+                            </MudText>
+                            @if (_items.Any())
+                            {
+                                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.DeleteSweep" OnClick="ClearOrder">
+                                    Limpiar Todo
+                                </MudButton>
+                            }
+                        </div>
+                    </CardHeaderContent>
+                </MudCardHeader>
+
+                <MudCardContent Class="flex-grow-1 pa-2" Style="overflow-y: auto;">
+                    @if (!_items.Any())
+                    {
+                        <div class="d-flex flex-column align-center justify-center py-12 text-center mud-text-secondary">
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Style="font-size: 3.5rem;" Color="Color.Default" Class="mb-2" />
+                            <MudText Typo="Typo.subtitle1">No hay productos agregados al pedido todavía.</MudText>
+                            <MudText Typo="Typo.body2">Busque productos a la izquierda para armar la lista.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudTable Items="@_items" Hover="true" Dense="true" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Producto</MudTh>
+                                <MudTh Style="width: 110px; text-align: center;">Cantidad</MudTh>
+                                <MudTh Style="width: 100px; text-align: right;">Precio</MudTh>
+                                <MudTh Style="width: 110px; text-align: right;">Subtotal</MudTh>
+                                <MudTh Style="width: 50px;"></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>
+                                    <div class="d-flex flex-column">
+                                        <span class="font-weight-bold">@context.Product.Name</span>
+                                        @if (!string.IsNullOrWhiteSpace(context.Notes))
+                                        {
+                                            <span class="mud-text-info text-sm d-flex align-center gap-1">
+                                                <MudIcon Icon="@Icons.Material.Filled.Comment" Size="Size.Small" Style="font-size: 0.85rem;" />
+                                                @context.Notes
+                                            </span>
+                                        }
+                                    </div>
+                                </MudTd>
+                                <MudTd Style="text-align: center;">
+                                    <span class="font-weight-medium">
+                                        @context.QuantityDisplay.ToString(context.Product.SaleType == SaleType.Bulk ? "N3" : "N0")
+                                        @(context.Product.SaleType == SaleType.Bulk ? " kg" : " pza")
+                                    </span>
+                                </MudTd>
+                                <MudTd Style="text-align: right;">$@context.Product.Price.ToString("F2")</MudTd>
+                                <MudTd Style="text-align: right;" Class="font-weight-bold">$@context.Total.ToString("F2")</MudTd>
+                                <MudTd Style="text-align: center;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveItem(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudCardContent>
+
+                <!-- Pie de Pedido: Forma de pago, Notas de entrega y Botón de envío -->
+                <MudCardActions Class="flex-column gap-3 pa-4 border-t-1 mud-border-lines-default" Style="background: var(--mud-palette-background-grey);">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="string" @bind-Value="_paymentMethod" Label="Forma de Pago Prevista" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelectItem Value="@("Cash")">Efectivo</MudSelectItem>
+                                <MudSelectItem Value="@("Card")">Tarjeta de Crédito / Débito</MudSelectItem>
+                                <MudSelectItem Value="@("Transfer")">Transferencia Electrónica</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" Class="d-flex flex-column align-end justify-center">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Total Estimado</MudText>
+                            <MudText Typo="Typo.h4" Color="Color.Primary" Class="font-weight-bold">
+                                $@TotalAmount.ToString("F2")
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudTextField @bind-Value="_deliveryNotes"
+                                  Label="Notas de Entrega / Domicilio (Opcional)"
+                                  Placeholder="Ej. Tocar timbre blanco, dejar con portero, paga con billete de $500..."
+                                  Variant="Variant.Outlined"
+                                  Lines="2"
+                                  FullWidth="true" />
+
+                    <div class="d-flex justify-space-between align-center w-100 mt-2">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ClearAll" OnClick="ClearOrder">
+                            Cancelar / Nuevo
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   Size="Size.Large"
+                                   StartIcon="@Icons.Material.Filled.Send"
+                                   OnClick="SubmitTelephonistOrder"
+                                   Disabled="@(!_items.Any() || _isSubmitting)">
+                            @if (_isSubmitting)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Enviando...</span>
+                            }
+                            else
+                            {
+                                <span>Enviar a Surtido</span>
+                            }
+                        </MudButton>
+                    </div>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<BranchDto> _branches = new();
+    private Guid _selectedBranchId = Guid.Empty;
+    private ClientDto? _selectedClient;
+    private string? _deliveryZoneName;
+
+    private Product? _searchedProduct;
+    private int _quantityToAdd = 1;
+    private decimal _weightToAdd = 1.000m;
+    private string? _itemNotesToAdd;
+
+    private List<CartItemDto> _items = new();
+    private string _paymentMethod = "Cash";
+    private string? _deliveryNotes;
+    private bool _isSubmitting = false;
+    private string _currentUserId = string.Empty;
+
+    private decimal TotalAmount => _items.Sum(i => i.Total);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "Telephonist";
+
+        var branchesResult = await Mediator.Send(new GetBranchesQuery());
+        if (branchesResult != null && branchesResult.Any())
+        {
+            _branches = branchesResult.ToList();
+            _selectedBranchId = _branches.First().Id;
+        }
+    }
+
+    private void OnBranchChanged(Guid branchId)
+    {
+        _selectedBranchId = branchId;
+    }
+
+    private async Task OpenClientSearchDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ClientSearchDialog>("Buscar Cliente", options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is ClientDto client)
+        {
+            _selectedClient = client;
+            if (client.DeliveryZoneId.HasValue)
+            {
+                var zone = await DbContext.DeliveryZones.FindAsync(client.DeliveryZoneId.Value);
+                _deliveryZoneName = zone?.Name;
+            }
+            else
+            {
+                _deliveryZoneName = null;
+            }
+        }
+    }
+
+    private void ClearClient()
+    {
+        _selectedClient = null;
+        _deliveryZoneName = null;
+    }
+
+    private async Task<IEnumerable<Product>> SearchProductsAsync(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 2)
+            return Array.Empty<Product>();
+
+        var term = value.Trim().ToLower();
+        return await DbContext.Products
+            .AsNoTracking()
+            .Where(p => p.IsActive && (p.Name.ToLower().Contains(term) || (p.Code != null && p.Code.ToLower().Contains(term)) || (p.Barcode != null && p.Barcode.ToLower().Contains(term))))
+            .Take(25)
+            .ToListAsync(cancellationToken);
+    }
+
+    private void OnProductSelected(Product? product)
+    {
+        _searchedProduct = product;
+        if (product != null)
+        {
+            _quantityToAdd = 1;
+            _weightToAdd = product.SaleType == SaleType.Bulk ? 1.000m : 1m;
+            _itemNotesToAdd = string.Empty;
+        }
+    }
+
+    private void AddProductToOrder()
+    {
+        if (_searchedProduct == null) return;
+
+        var existingItem = _items.FirstOrDefault(i => i.Product.Id == _searchedProduct.Id && i.Notes == _itemNotesToAdd);
+        if (existingItem != null)
+        {
+            if (_searchedProduct.SaleType == SaleType.Bulk)
+            {
+                existingItem.Weight += _weightToAdd;
+            }
+            else
+            {
+                existingItem.Quantity += _quantityToAdd;
+            }
+        }
+        else
+        {
+            var newItem = new CartItemDto
+            {
+                Product = _searchedProduct,
+                Quantity = _searchedProduct.SaleType == SaleType.Bulk ? 0 : _quantityToAdd,
+                Weight = _searchedProduct.SaleType == SaleType.Bulk ? _weightToAdd : 0,
+                RequestedQuantity = _searchedProduct.SaleType == SaleType.Bulk ? _weightToAdd : _quantityToAdd,
+                Notes = _itemNotesToAdd
+            };
+            _items.Add(newItem);
+        }
+
+        _searchedProduct = null;
+        _quantityToAdd = 1;
+        _weightToAdd = 1.000m;
+        _itemNotesToAdd = string.Empty;
+        Snackbar.Add("Producto agregado al pedido", Severity.Info);
+    }
+
+    private void RemoveItem(CartItemDto item)
+    {
+        _items.Remove(item);
+    }
+
+    private void ClearOrder()
+    {
+        _items.Clear();
+        _deliveryNotes = string.Empty;
+        _searchedProduct = null;
+    }
+
+    private async Task SubmitTelephonistOrder()
+    {
+        if (!_items.Any())
+        {
+            Snackbar.Add("Agregue al menos un producto", Severity.Warning);
+            return;
+        }
+
+        if (_selectedBranchId == Guid.Empty)
+        {
+            Snackbar.Add("Seleccione una sucursal", Severity.Warning);
+            return;
+        }
+
+        _isSubmitting = true;
+
+        try
+        {
+            var command = new TakeTelephonistOrderCommand
+            {
+                BranchId = _selectedBranchId,
+                ClientId = _selectedClient?.Id,
+                PaymentMethod = _paymentMethod,
+                UserId = _currentUserId,
+                DeliveryZoneId = _selectedClient?.DeliveryZoneId,
+                IsOutOfZone = _selectedClient != null && !_selectedClient.DeliveryZoneId.HasValue,
+                GeneralNotes = _deliveryNotes,
+                DeliveryNotes = _deliveryNotes,
+                Items = _items.Select(i => new TakeTelephonistOrderItemDto
+                {
+                    ProductId = i.Product.Id,
+                    Quantity = i.QuantityDisplay,
+                    PriceOverride = i.PriceOverride,
+                    Notes = i.Notes
+                }).ToList()
+            };
+
+            var orderId = await Mediator.Send(command);
+
+            Snackbar.Add("¡Pedido telefónico registrado y enviado a surtido con éxito!", Severity.Success);
+            ClearOrder();
+            ClearClient();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al registrar pedido: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

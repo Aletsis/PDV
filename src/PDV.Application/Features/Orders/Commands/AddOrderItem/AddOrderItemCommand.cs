@@ -12,6 +12,8 @@ public record AddOrderItemCommand : IRequest<Guid>
     public Guid ProductId { get; set; }
     public decimal Quantity { get; set; }
     public decimal? PriceOverride { get; set; }
+    public string? Notes { get; set; }
+    public decimal? RequestedQuantity { get; set; }
 }
 
 public class AddOrderItemCommandHandler : IRequestHandler<AddOrderItemCommand, Guid>
@@ -103,7 +105,9 @@ public class AddOrderItemCommandHandler : IRequestHandler<AddOrderItemCommand, G
                     quantity: request.Quantity,
                     unitPrice: request.PriceOverride ?? product.Price,
                     taxRate: taxRatePercent,
-                    isTaxExempt: isExempt
+                    isTaxExempt: isExempt,
+                    notes: request.Notes,
+                    requestedQuantity: request.RequestedQuantity > 0 ? request.RequestedQuantity : request.Quantity
                 );
 
                 order.AddItem(orderItem);

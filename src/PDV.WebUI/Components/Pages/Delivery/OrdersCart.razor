@@ -25,11 +25,20 @@
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Producto">
-            <div>
-                <span class="font-weight-bold">@context.Product.Name</span>
-                @if (context.Product.SaleType == SaleType.Bulk)
+            <div class="d-flex flex-column">
+                <div class="d-flex align-center">
+                    <span class="font-weight-bold">@context.Product.Name</span>
+                    @if (context.Product.SaleType == SaleType.Bulk)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-2">Granel</MudChip>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(context.Notes))
                 {
-                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-2">Granel</MudChip>
+                    <div class="mud-text-info text-xs d-flex align-center gap-1 mt-1">
+                        <MudIcon Icon="@Icons.Material.Filled.Notes" Size="Size.Small" Style="font-size: 0.8rem;" />
+                        <span>@context.Notes</span>
+                    </div>
                 }
             </div>
         </MudTd>

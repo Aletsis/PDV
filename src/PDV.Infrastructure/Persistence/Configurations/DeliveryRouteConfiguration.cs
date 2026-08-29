@@ -9,7 +9,7 @@ public class DeliveryRouteConfiguration : IEntityTypeConfiguration<DeliveryRoute
     public void Configure(EntityTypeBuilder<DeliveryRoute> entity)
     {
         entity.Property(e => e.Folio).IsRequired();
-        entity.Property(e => e.DeliveryManId).IsRequired().HasMaxLength(50);
+        entity.Property(e => e.DeliveryManId).IsRequired(false).HasMaxLength(50);
 
         entity.HasOne(e => e.Branch)
               .WithMany()

@@ -8,10 +8,40 @@ public class CartItemDto : System.ComponentModel.INotifyPropertyChanged
     private int _quantity = 1;
     private decimal _weight = 0;
     private decimal? _priceOverride;
+    private string? _notes;
+    private bool _isFulfilled;
 
     public Product Product { get; set; } = null!;
     public Guid SaleItemId { get; set; }
+    public Guid OrderItemId { get; set; }
+    public decimal RequestedQuantity { get; set; }
     
+    public string? Notes
+    {
+        get => _notes;
+        set
+        {
+            if (_notes != value)
+            {
+                _notes = value;
+                OnPropertyChanged(nameof(Notes));
+            }
+        }
+    }
+
+    public bool IsFulfilled
+    {
+        get => _isFulfilled;
+        set
+        {
+            if (_isFulfilled != value)
+            {
+                _isFulfilled = value;
+                OnPropertyChanged(nameof(IsFulfilled));
+            }
+        }
+    }
+
     public int Quantity 
     { 
         get => _quantity; 

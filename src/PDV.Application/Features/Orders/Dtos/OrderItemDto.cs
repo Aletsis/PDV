@@ -8,6 +8,9 @@ public class OrderItemDto
     public decimal UnitPrice { get; set; }
     public decimal? PriceOverride { get; set; }
     public decimal Quantity { get; set; }
+    public decimal RequestedQuantity { get; set; }
     public decimal TotalPrice { get; set; }
+    public string? Notes { get; set; }
+    public bool IsFulfilled { get; set; }
     public bool IsReturned { get; set; }
 }

@@ -48,6 +48,13 @@
         </MudItem>
         <MudItem xs="12" xl="3" Class="d-flex justify-xl-end gap-2 flex-wrap align-center">
             <MudButton Variant="Variant.Filled" 
+                       Color="Color.Success" 
+                       StartIcon="@Icons.Material.Filled.FactCheck"
+                       OnClick="OnOpenVerifyOrdersList"
+                       Style="text-transform: none; font-weight: bold; border-radius: 8px; height: 42px;">
+                Verificar Surtidos (F7)
+            </MudButton>
+            <MudButton Variant="Variant.Filled" 
                        Color="Color.Info" 
                        StartIcon="@Icons.Material.Filled.Search"
                        OnClick="OnCatalogClicked"
@@ -108,6 +115,7 @@
     [Parameter] public EventCallback OnClientSearchClicked { get; set; }
     [Parameter] public EventCallback OnCatalogClicked { get; set; }
     [Parameter] public EventCallback OnOpenNotesHistory { get; set; }
+    [Parameter] public EventCallback OnOpenVerifyOrdersList { get; set; }
     [Parameter] public EventCallback<OpenOrderDto> OnResumeOrder { get; set; }
     [Parameter] public EventCallback OnOpenSalesAction { get; set; }
     [Parameter] public EventCallback OnOpenRuteAction { get; set; }

@@ -101,15 +101,14 @@ public class SettleDeliveryRouteCommandHandler : IRequestHandler<SettleDeliveryR
                         throw new DomainException($"El pedido {settleResult.OrderId} no pertenece a esta ruta.");
                     }
 
-                    if (order.Status != OrderStatus.EnRoute)
-                    {
-                        continue; // Ya procesado o cancelado previamente
-                    }
+                    var isDelivered = settleResult.Delivered || order.Status == OrderStatus.Delivered;
 
-                    if (settleResult.Delivered)
+                    if (isDelivered)
                     {
-                        // 1. Marcar como entregado en el pedido
-                        order.MarkAsDelivered();
+                        if (order.Status == OrderStatus.EnRoute)
+                        {
+                            order.MarkAsDelivered();
+                        }
 
                         // 2. Generar Venta (Sale) asociada al turno actual de la caja
                         var sequence = await _ticketSequenceRepository.GetWithLockAsync(request.CashRegisterId, TicketSequenceType.Sale, cancellationToken);
@@ -164,16 +163,19 @@ public class SettleDeliveryRouteCommandHandler : IRequestHandler<SettleDeliveryR
 
                         sale.MarkAsPaid();
                         await _saleRepository.AddAsync(sale, cancellationToken);
+
+                        order.Settle(request.UserId);
                     }
                     else
                     {
-                        // Pedido Devuelto
-                        if (string.IsNullOrWhiteSpace(settleResult.ReturnReason))
-                        {
-                            throw new DomainException($"Se requiere un motivo de devolución para el pedido {order.Folio}.");
-                        }
+                        var reason = !string.IsNullOrWhiteSpace(settleResult.ReturnReason) 
+                            ? settleResult.ReturnReason 
+                            : (order.ReturnReason ?? "Devuelto en Liquidación");
 
-                        order.MarkAsReturned(settleResult.ReturnReason);
+                        if (order.Status == OrderStatus.EnRoute)
+                        {
+                            order.MarkAsReturned(reason);
+                        }
 
                         // Reingresar el stock al almacén
                         var orderWithItems = await _orderRepository.GetByIdWithItemsAsync(order.Id, cancellationToken);
@@ -189,11 +191,13 @@ public class SettleDeliveryRouteCommandHandler : IRequestHandler<SettleDeliveryR
 
                                     if (branchStock != null)
                                     {
-                                        branchStock.ApplyMovement(orderItem.Quantity, InventoryMovementType.Return, order.Id, $"Devolución de Ruta (Motivo: {settleResult.ReturnReason})");
+                                        branchStock.ApplyMovement(orderItem.Quantity, InventoryMovementType.Return, order.Id, $"Devolución de Ruta (Motivo: {reason})");
                                     }
                                 }
                             }
                         }
+
+                        order.Settle(request.UserId);
                     }
 
                     await _orderRepository.UpdateAsync(order, cancellationToken);

@@ -58,6 +58,10 @@ public static class AppDbContextSeed
             new Permission("Crear/Editar Clientes", "clients.create_edit", "Permite crear y editar información de clientes"),
             new Permission("Consultar Catálogo de Productos", "products.view_catalog", "Permite ver la lista de productos en modo consulta"),
             new Permission("Capturar Pedidos", "orders.capture", "Permite capturar nuevos pedidos en caja"),
+            new Permission("Tomar Pedidos Telefónicos", "orders.take", "Permite tomar y capturar pedidos preliminares vía telefónica"),
+            new Permission("Surtir Pedidos", "orders.fulfill", "Permite surtir pedidos y marcarlos como surtidos en almacén"),
+            new Permission("Verificar Pedidos", "orders.verify", "Permite verificar pedidos surtidos y registrar pesaje real"),
+            new Permission("Entregar Pedidos en Ruta", "orders.deliver", "Permite ver ruta asignada y marcar entrega o incidencia de pedidos"),
             new Permission("Gestionar Rutas de Reparto", "orders.routes", "Permite crear, despachar y gestionar rutas de reparto"),
             new Permission("Liquidar Cuentas de Ruta", "orders.settle", "Permite realizar la liquidación de cuentas de rutas de reparto"),
             new Permission("Gestionar Zonas de Reparto", "delivery_zones.manage", "Permite configurar zonas de reparto en el mapa"),
@@ -107,7 +111,7 @@ public static class AppDbContextSeed
         var telephonistRole = await roleManager.FindByNameAsync("Telephonist");
         if (telephonistRole != null)
         {
-            var telephonistPermissionCodes = new[] { "products.view_catalog", "clients.create_edit", "orders.capture" };
+            var telephonistPermissionCodes = new[] { "products.view_catalog", "clients.create_edit", "orders.capture", "orders.take" };
             var dbPermissions = await context.Permissions
                 .Where(p => telephonistPermissionCodes.Contains(p.Code))
                 .ToListAsync();
@@ -122,13 +126,52 @@ public static class AppDbContextSeed
             }
         }
 
+        var deliveryManRole = await roleManager.FindByNameAsync("DeliveryMan");
+        if (deliveryManRole != null)
+        {
+            var deliveryPermCodes = new[] { "orders.deliver" };
+            var dbPermissions = await context.Permissions
+                .Where(p => deliveryPermCodes.Contains(p.Code))
+                .ToListAsync();
+
+            foreach (var p in dbPermissions)
+            {
+                var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == deliveryManRole.Id && rp.PermissionId == p.Id);
+                if (!roleHasPerm)
+                {
+                    context.RolePermissions.Add(new RolePermission(deliveryManRole.Id, p.Id));
+                }
+            }
+        }
+
+        var cashierRole = await roleManager.FindByNameAsync("Cashier");
+        if (cashierRole != null)
+        {
+            var cashierPermCodes = new[] { "orders.capture", "orders.verify", "orders.routes", "orders.settle", "products.view_catalog", "clients.create_edit" };
+            var dbPermissions = await context.Permissions
+                .Where(p => cashierPermCodes.Contains(p.Code))
+                .ToListAsync();
+
+            foreach (var p in dbPermissions)
+            {
+                var roleHasPerm = await context.RolePermissions.AnyAsync(rp => rp.RoleId == cashierRole.Id && rp.PermissionId == p.Id);
+                if (!roleHasPerm)
+                {
+                    context.RolePermissions.Add(new RolePermission(cashierRole.Id, p.Id));
+                }
+            }
+        }
+
         var catalogViewerRoles = new[] { "Almacen", "Compras" };
         foreach (var rName in catalogViewerRoles)
         {
             var role = await roleManager.FindByNameAsync(rName);
             if (role != null)
             {
-                var catalogPermCodes = new[] { "products.view_catalog" };
+                var catalogPermCodes = rName == "Almacen" 
+                    ? new[] { "products.view_catalog", "orders.fulfill" } 
+                    : new[] { "products.view_catalog" };
+
                 var dbPermissions = await context.Permissions
                     .Where(p => catalogPermCodes.Contains(p.Code))
                     .ToListAsync();

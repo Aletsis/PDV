@@ -1,0 +1,172 @@
+@using MediatR
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Orders.Dtos
+@using PDV.Application.Features.Orders.Queries.GetOrdersForVerification
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="font-weight-bold d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.FactCheck" Color="Color.Primary" />
+            Pedidos Disponibles para Verificación
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="d-flex flex-column gap-3 py-2">
+            <MudTextField @bind-Value="_searchQuery"
+                          Placeholder="Buscar por cliente, folio o notas..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          OnKeyUp="OnSearchKeyUp"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Clearable="true" />
+
+            @if (_isLoading)
+            {
+                <div class="d-flex justify-center align-center py-8">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                </div>
+            }
+            else if (!_orders.Any())
+            {
+                <div class="d-flex flex-column align-center justify-center py-8 text-center mud-text-secondary">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" Size="Size.Large" Color="Color.Success" Class="mb-2" />
+                    <MudText Typo="Typo.subtitle1">No hay pedidos pendientes de verificación</MudText>
+                    <MudText Typo="Typo.body2">Todos los pedidos surtidos han sido verificados y enrutados.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudTable Items="@_orders" Hover="true" Dense="true" Elevation="0" Height="380px" FixedHeader="true">
+                    <HeaderContent>
+                        <MudTh>Folio / Pedido</MudTh>
+                        <MudTh>Fecha / Hora</MudTh>
+                        <MudTh>Cliente</MudTh>
+                        <MudTh>Zona de Reparto</MudTh>
+                        <MudTh Style="text-align: center;">Estado</MudTh>
+                        <MudTh Style="text-align: right;">Total</MudTh>
+                        <MudTh Style="text-align: center; width: 100px;">Acción</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd Class="font-weight-bold">@context.OrderNumber</MudTd>
+                        <MudTd>@context.Date.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                        <MudTd>
+                            <div class="d-flex flex-column">
+                                <span class="font-weight-medium">@context.ClientName</span>
+                                @if (!string.IsNullOrWhiteSpace(context.GeneralNotes))
+                                {
+                                    <span class="text-xs mud-text-info">@context.GeneralNotes</span>
+                                }
+                            </div>
+                        </MudTd>
+                        <MudTd>
+                            @if (!string.IsNullOrWhiteSpace(context.DeliveryZoneName))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">
+                                    @context.DeliveryZoneName
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <span class="mud-text-secondary">—</span>
+                            }
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            @if (context.Status == OrderStatus.Filled)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.Checklist">
+                                    Surtido
+                                </MudChip>
+                            }
+                            else if (context.Status == OrderStatus.InFulfillment)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Timelapse">
+                                    En Surtido
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Phone">
+                                    Telefónico
+                                </MudChip>
+                            }
+                        </MudTd>
+                        <MudTd Style="text-align: right;" Class="font-weight-bold">
+                            $@context.TotalAmount.ToString("F2")
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.FactCheck"
+                                       OnClick="@(() => SelectOrder(context))">
+                                Cargar
+                            </MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public Guid BranchId { get; set; }
+
+    private List<OrderDetailDto> _orders = new();
+    private string _searchQuery = string.Empty;
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _orders = await Mediator.Send(new GetOrdersForVerificationQuery
+            {
+                BranchId = BranchId,
+                SearchTerm = _searchQuery
+            });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar pedidos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadOrdersAsync();
+        }
+    }
+
+    private void SelectOrder(OrderDetailDto order)
+    {
+        MudDialog.Close(DialogResult.Ok(order));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -15,7 +15,7 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
     public Branch? Branch { get; private set; }
     public Guid? DeliveryZoneId { get; private set; }
     public DeliveryZone? DeliveryZone { get; private set; }
-    public string DeliveryManId { get; private set; } = null!;
+    public string? DeliveryManId { get; private set; }
     public DateTime CreatedDate { get; private set; }
     public DateTime? DispatchedDate { get; private set; }
     public DateTime? SettledDate { get; private set; }
@@ -27,10 +27,9 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
     private DeliveryRoute() { } // For EF Core
     #pragma warning restore CS8618
 
-    public DeliveryRoute(Guid branchId, Guid? deliveryZoneId, string deliveryManId, int folio)
+    public DeliveryRoute(Guid branchId, Guid? deliveryZoneId, string? deliveryManId, int folio)
     {
         if (branchId == Guid.Empty) throw new DomainException("El ID de sucursal es requerido.");
-        if (string.IsNullOrWhiteSpace(deliveryManId)) throw new DomainException("El ID del repartidor es requerido.");
         if (folio <= 0) throw new DomainException("El folio de la ruta debe ser mayor a cero.");
 
         BranchId = branchId;
@@ -39,6 +38,14 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
         Folio = folio;
         CreatedDate = DateTime.UtcNow;
         Status = DeliveryRouteStatus.Created;
+    }
+
+    public void AssignDeliveryMan(string deliveryManId)
+    {
+        if (string.IsNullOrWhiteSpace(deliveryManId)) throw new DomainException("El ID del repartidor es requerido.");
+        if (Status != DeliveryRouteStatus.Created) throw new DomainException("Solo se puede asignar repartidor a una ruta en estado Creada.");
+
+        DeliveryManId = deliveryManId;
     }
 
     public void AddOrder(Order order)
@@ -52,10 +59,18 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
         order.AssignRoute(Id, CreatedBy ?? "system");
     }
 
-    public void Dispatch()
+    public void Dispatch(string? deliveryManId = null)
     {
         if (Status != DeliveryRouteStatus.Created) throw new DomainException("La ruta debe estar en estado Creada para poder despacharse.");
         if (_orders.Count == 0) throw new DomainException("No se puede despachar una ruta sin pedidos.");
+
+        if (!string.IsNullOrWhiteSpace(deliveryManId))
+        {
+            DeliveryManId = deliveryManId;
+        }
+
+        if (string.IsNullOrWhiteSpace(DeliveryManId))
+            throw new DomainException("Se requiere un repartidor asignado para despachar la ruta.");
 
         Status = DeliveryRouteStatus.EnRoute;
         DispatchedDate = DateTime.UtcNow;
@@ -74,3 +89,4 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
         SettledDate = DateTime.UtcNow;
     }
 }
+

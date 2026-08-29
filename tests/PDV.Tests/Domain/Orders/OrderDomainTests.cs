@@ -96,7 +96,7 @@ public class OrderDomainTests
 
         // Act & Assert
         var exception = Assert.Throws<DomainException>(() => order.AddItem(new OrderItem(product, 1m, 15m, 16m)));
-        Assert.Equal("No se pueden agregar artículos a un pedido que no está pendiente o capturado.", exception.Message);
+        Assert.Equal("No se pueden agregar artículos a un pedido en su estado actual.", exception.Message);
     }
 
 

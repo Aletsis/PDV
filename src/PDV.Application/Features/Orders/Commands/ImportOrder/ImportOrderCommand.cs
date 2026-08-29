@@ -69,39 +69,42 @@ public class ImportOrderCommandHandler : IRequestHandler<ImportOrderCommand, boo
         }
 
         // 5. Ensure the ShiftId exists locally to satisfy foreign key constraints
-        var shiftExists = await _context.Shifts.AnyAsync(s => s.Id == dto.ShiftId, cancellationToken);
-        if (!shiftExists)
+        if (dto.ShiftId.HasValue)
         {
-            // Insert a closed stub shift record to satisfy FK
-            var stubShift = new Shift(
-                cashRegisterId: resolvedRegisterId,
-                userId: "Sync",
-                initialCash: 0m
-            );
-            stubShift.SetId(dto.ShiftId);
+            var shiftExists = await _context.Shifts.AnyAsync(s => s.Id == dto.ShiftId.Value, cancellationToken);
+            if (!shiftExists)
+            {
+                // Insert a closed stub shift record to satisfy FK
+                var stubShift = new Shift(
+                    cashRegisterId: resolvedRegisterId,
+                    userId: "Sync",
+                    initialCash: 0m
+                );
+                stubShift.SetId(dto.ShiftId.Value);
 
-            // Close the shift so it doesn't affect active drawer operations
-            stubShift.Close(
-                endTime: DateTime.UtcNow,
-                totalCashSales: 0m,
-                totalCashReturns: 0m,
-                totalInflows: 0m,
-                totalOutflows: 0m,
-                paymentMethodTotals: new List<PaymentMethodBreakdown>(),
-                salesTaxTotals: new List<TaxBreakdown>(),
-                returnsTaxTotals: new List<TaxBreakdown>()
-            );
+                // Close the shift so it doesn't affect active drawer operations
+                stubShift.Close(
+                    endTime: DateTime.UtcNow,
+                    totalCashSales: 0m,
+                    totalCashReturns: 0m,
+                    totalInflows: 0m,
+                    totalOutflows: 0m,
+                    paymentMethodTotals: new List<PaymentMethodBreakdown>(),
+                    salesTaxTotals: new List<TaxBreakdown>(),
+                    returnsTaxTotals: new List<TaxBreakdown>()
+                );
 
-            _context.Shifts.Add(stubShift);
-            await _context.SaveChangesAsync(cancellationToken);
+                _context.Shifts.Add(stubShift);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
 
         // 6. Create the Sale
         var paymentMethod = Enum.TryParse<PaymentMethodType>(dto.PaymentMethod, true, out var pm) ? pm : PaymentMethodType.Cash;
 
         var order = new Order(
-            cashRegisterId: resolvedRegisterId,
             branchId: branchId,
+            cashRegisterId: resolvedRegisterId,
             shiftId: dto.ShiftId,
             clientId: clientId,
             paymentMethod: paymentMethod,

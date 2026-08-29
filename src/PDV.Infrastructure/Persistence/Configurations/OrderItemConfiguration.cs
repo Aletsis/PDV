@@ -9,8 +9,10 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
     public void Configure(EntityTypeBuilder<OrderItem> entity)
     {
         entity.Property(e => e.Quantity).HasPrecision(18, 4);
+        entity.Property(e => e.RequestedQuantity).HasPrecision(18, 4);
         entity.Property(e => e.UnitPrice).HasPrecision(18, 2);
         entity.Property(e => e.TaxRate).HasPrecision(18, 4);
+        entity.Property(e => e.Notes).HasMaxLength(250);
 
         entity.Property(e => e.ProductName)
               .IsRequired()

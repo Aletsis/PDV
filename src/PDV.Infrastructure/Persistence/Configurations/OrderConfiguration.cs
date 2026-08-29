@@ -14,11 +14,16 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         
         entity.Property(e => e.Series).HasMaxLength(10);
         entity.Property(e => e.ReturnReason).HasMaxLength(250);
+        entity.Property(e => e.CancellationReason).HasMaxLength(250);
+        entity.Property(e => e.GeneralNotes).HasMaxLength(500);
+        entity.Property(e => e.DeliveryNotes).HasMaxLength(500);
         entity.Property(e => e.DeliveryManId).HasMaxLength(50);
         entity.Property(e => e.TakenById).HasMaxLength(50);
         entity.Property(e => e.FilledById).HasMaxLength(50);
         entity.Property(e => e.CapturedById).HasMaxLength(50);
+        entity.Property(e => e.VerifiedById).HasMaxLength(50);
         entity.Property(e => e.RoutedById).HasMaxLength(50);
+        entity.Property(e => e.SettledById).HasMaxLength(50);
         entity.Property(e => e.AuthorizedBySupervisorId).HasMaxLength(50);
 
         entity.OwnsMany(e => e.Taxes, a =>
@@ -45,7 +50,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         entity.HasOne(e => e.CashRegister)
               .WithMany()
               .HasForeignKey(e => e.CashRegisterId)
-              .OnDelete(DeleteBehavior.Restrict);
+              .OnDelete(DeleteBehavior.SetNull);
 
         entity.HasOne(e => e.DeliveryRoute)
               .WithMany(r => r.Orders)
@@ -60,7 +65,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         entity.HasOne(e => e.Shift)
               .WithMany()
               .HasForeignKey(e => e.ShiftId)
-              .OnDelete(DeleteBehavior.Restrict);
+              .OnDelete(DeleteBehavior.SetNull);
 
 
         entity.HasIndex(e => new { e.BranchId, e.OrderDate })

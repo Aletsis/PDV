@@ -44,7 +44,13 @@ public class CreateDeliveryRouteCommandHandlerTests
         context.Products.Add(product);
 
         // Crear y confirmar el pedido
-        var order = new Order(Guid.NewGuid(), branch.Id, Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(
+            branchId: branch.Id,
+            cashRegisterId: Guid.NewGuid(),
+            shiftId: Guid.NewGuid(),
+            clientId: Guid.NewGuid(),
+            paymentMethod: PaymentMethodType.Cash
+        );
 
         order.AddItem(new OrderItem(product, 1m, 25m, 0m, isTaxExempt: false));
         order.Confirm();

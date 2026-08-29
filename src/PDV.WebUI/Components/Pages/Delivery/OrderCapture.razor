@@ -1,3 +1,4 @@
+@page "/orders/verify"
 @page "/orders/capture"
 @layout PDV.WebUI.Components.Layout.LoginLayout
 @attribute [Authorize]
@@ -17,6 +18,7 @@
 @using PDV.Application.Features.Orders.Dtos
 @using PDV.Application.Features.Orders.Commands.UpdateOrderItemPrice
 @using PDV.Application.Features.Orders.Commands.ConfirmOrder
+@using PDV.Application.Features.Orders.Commands.VerifyAndConfirmOrder
 @using PDV.Application.Features.Orders.Commands.CancelOrder
 @using PDV.Application.Features.Orders.Commands.PrintOrderTicket
 @using PDV.Application.Features.Orders.Queries.GetNextFolio
@@ -39,7 +41,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<PageTitle>Capturar Pedido</PageTitle>
+<PageTitle>Verificación de Pedidos</PageTitle>
 
 @if (!ShiftSession.HasActiveShift)
 {
@@ -65,6 +67,7 @@ else
                        SuspendedOrders="@suspendedOrders"
                        OnCatalogClicked="OpenProductLookup"
                        OnClientSearchClicked="OpenClientSearchDialog"
+                       OnOpenVerifyOrdersList="OpenVerifyOrdersList"
                        OnResumeOrder="ResumeOrder"
                        OnOpenSalesAction="OpenSalesAction"
                        OnOpenRuteAction="OpenRuteAction"
@@ -449,6 +452,10 @@ else
         {
             await OpenClientSearchDialog();
         }
+        else if (e.Key == "F7")
+        {
+            await OpenVerifyOrdersList();
+        }
         else if (e.Key == "F8")
         {
             await SubmitOrder();
@@ -603,6 +610,30 @@ else
         Navigation.NavigateTo("/orders/settlement");
     }
 
+    private async Task OpenVerifyOrdersList()
+    {
+        if (currentCashRegister == null) return;
+
+        var parameters = new DialogParameters<VerifyOrdersListDialog>
+        {
+            { x => x.BranchId, currentCashRegister.BranchId }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<VerifyOrdersListDialog>("Pedidos para Verificación", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is OrderDetailDto orderDetail)
+        {
+            await LoadHistoricalOrder(orderDetail.Id);
+        }
+        else
+        {
+            await RefreshSuspendedOrders();
+            await RefreshActiveOrderFromDb();
+        }
+        StateHasChanged();
+    }
+
     private async Task OpenNotesHistory()
     {
         var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true };
@@ -635,7 +666,7 @@ else
             {
                 activeOrderStatus = orderDetails.Status;
                 isHistoricalView = true;
-                Snackbar.Add($"Pedido #{orderDetails.Series}-{orderDetails.Folio} cargado para edición", Severity.Success);
+                Snackbar.Add($"Pedido #{orderDetails.Series}-{orderDetails.Folio} cargado para verificación y ajuste", Severity.Success);
             }
             
             await RefreshSuspendedOrders();
@@ -680,17 +711,50 @@ else
 
         try
         {
-            var success = await Mediator.Send(new ConfirmOrderCommand(activeOrderId.Value));
-            if (success)
+            if (activeOrderId.HasValue && ShiftSession.ActiveShiftId.HasValue && ShiftSession.ActiveCashRegisterId.HasValue)
             {
-                Snackbar.Add("Pedido registrado con éxito", Severity.Success);
-                
-                if (currentCashRegister != null)
+                var verifyCommand = new VerifyAndConfirmOrderCommand
                 {
-                    await Mediator.Send(new PrintOrderTicketCommand(activeOrderId.Value, currentCashRegister.Id));
-                }
+                    OrderId = activeOrderId.Value,
+                    UserId = currentUserId,
+                    CashRegisterId = ShiftSession.ActiveCashRegisterId.Value,
+                    ShiftId = ShiftSession.ActiveShiftId.Value,
+                    DeliveryZoneId = selectedClient?.DeliveryZoneId,
+                    UpdatedItems = cart.Select(i => new VerifyOrderItemDto
+                    {
+                        ItemId = i.SaleItemId,
+                        RealQuantity = i.QuantityDisplay,
+                        PriceOverride = i.PriceOverride
+                    }).ToList()
+                };
 
-                await ClearScreen();
+                var success = await Mediator.Send(verifyCommand);
+                if (success)
+                {
+                    Snackbar.Add("¡Pedido verificado, confirmado y enrutado con éxito!", Severity.Success);
+                    
+                    if (currentCashRegister != null)
+                    {
+                        await Mediator.Send(new PrintOrderTicketCommand(activeOrderId.Value, currentCashRegister.Id));
+                    }
+
+                    await ClearScreen();
+                }
+            }
+            else
+            {
+                var success = await Mediator.Send(new ConfirmOrderCommand(activeOrderId.Value));
+                if (success)
+                {
+                    Snackbar.Add("Pedido registrado con éxito", Severity.Success);
+                    
+                    if (currentCashRegister != null)
+                    {
+                        await Mediator.Send(new PrintOrderTicketCommand(activeOrderId.Value, currentCashRegister.Id));
+                    }
+
+                    await ClearScreen();
+                }
             }
         }
         catch (Exception ex)

@@ -95,8 +95,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                 string series = sequence.Series ?? "PED";
 
                 var order = new Order(
-                    cashRegisterId: request.CashRegisterId.Value,
                     branchId: activeShift.CashRegister!.BranchId,
+                    cashRegisterId: request.CashRegisterId.Value,
                     shiftId: activeShift.Id,
                     clientId: request.ClientId,
                     paymentMethod: paymentMethod,
@@ -130,9 +130,9 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                             throw new DomainException($"No se encontró inventario configurado para el producto {product.Name} en esta sucursal.");
                         }
 
-                        if (!branchStock.HasStock(item.Quantity))
+                        if (!branchStock.HasStock(item.QuantityDisplay))
                         {
-                            throw new DomainException($"Stock insuficiente para el producto {product.Name}. Disponible: {branchStock.Stock}, Requerido: {item.Quantity}");
+                            throw new DomainException($"Stock insuficiente para el producto {product.Name}. Disponible: {branchStock.Stock}, Requerido: {item.QuantityDisplay}");
                         }
                     }
 
@@ -157,10 +157,12 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
 
                     var orderItem = new OrderItem(
                         product: product,
-                        quantity: item.Quantity,
+                        quantity: item.QuantityDisplay,
                         unitPrice: item.PriceOverride ?? product.Price,
                         taxRate: taxRatePercent,
-                        isTaxExempt: isExempt
+                        isTaxExempt: isExempt,
+                        notes: item.Notes,
+                        requestedQuantity: item.RequestedQuantity > 0 ? item.RequestedQuantity : item.QuantityDisplay
                     );
 
                     order.AddItem(orderItem);
@@ -168,7 +170,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                     // Descontar inventario preventivo
                     if (product.ControlExistencia != ControlExistencia.SinControl && branchStock != null)
                     {
-                        branchStock.ApplyMovement(-item.Quantity, InventoryMovementType.Sale, order.Id, "Reserva de Pedido");
+                        branchStock.ApplyMovement(-item.QuantityDisplay, InventoryMovementType.Sale, order.Id, "Reserva de Pedido");
                     }
                 }
 

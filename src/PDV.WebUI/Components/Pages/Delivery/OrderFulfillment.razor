@@ -1,0 +1,386 @@
+@page "/orders/fulfillment"
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Orders.Dtos
+@using PDV.Application.Features.Orders.Queries.GetOrdersForFulfillment
+@using PDV.Application.Features.Orders.Commands.StartOrderFulfillment
+@using PDV.Application.Features.Orders.Commands.CompleteOrderFulfillment
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@attribute [Authorize(Roles = "Admin,Manager,Almacen,Picker,Cashier")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Surtido de Pedidos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Checklist" Color="Color.Primary" Size="Size.Large" />
+                Panel de Surtido de Pedidos
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Seleccione pedidos de la cola para recolectar productos en almacén y prepararlos para verificación.
+            </MudText>
+        </div>
+        <div class="d-flex align-center gap-3">
+            <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 200px;">
+                @foreach (var b in _branches)
+                {
+                    <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadOrdersAsync">
+                Actualizar
+            </MudButton>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center align-center py-12">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else
+    {
+        <MudGrid>
+            <!-- Columna Izquierda: Cola de Pedidos -->
+            <MudItem xs="12" md="4">
+                <MudPaper Elevation="3" Class="pa-4 d-flex flex-column gap-3" Style="height: 100%; min-height: 600px;">
+                    <div class="d-flex justify-space-between align-center">
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">
+                            Cola de Pedidos (@_orders.Count)
+                        </MudText>
+                    </div>
+
+                    <MudTextField @bind-Value="_searchTerm"
+                                  Placeholder="Buscar por cliente o folio..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Immediate="true"
+                                  OnKeyUp="OnSearchKeyUp"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Clearable="true" />
+
+                    @if (!_orders.Any())
+                    {
+                        <div class="d-flex flex-column align-center justify-center py-12 text-center mud-text-secondary">
+                            <MudIcon Icon="@Icons.Material.Filled.DoneAll" Size="Size.Large" Color="Color.Success" Class="mb-2" />
+                            <MudText Typo="Typo.subtitle1">No hay pedidos pendientes de surtir</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-2 flex-grow-1" style="overflow-y: auto; max-height: 520px;">
+                            @foreach (var order in _orders)
+                            {
+                                var isSelected = _selectedOrder?.Id == order.Id;
+                                var isInProgress = order.Status == OrderStatus.InFulfillment;
+
+                                <MudCard Elevation="@(isSelected ? 6 : 1)"
+                                         Class="@($"cursor-pointer transition-all border-solid {(isSelected ? "border-2 mud-border-primary" : "border-1 mud-border-lines-default")}")"
+                                         Style="@(isSelected ? "background: rgba(33, 150, 243, 0.08);" : "")"
+                                         @onclick="@(() => SelectOrder(order))">
+                                    <MudCardContent Class="pa-3">
+                                        <div class="d-flex justify-space-between align-start mb-1">
+                                            <div>
+                                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                                                    @order.OrderNumber
+                                                </MudText>
+                                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                                    @order.ClientName
+                                                </MudText>
+                                            </div>
+                                            @if (isInProgress)
+                                            {
+                                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Timelapse">
+                                                    En Surtido
+                                                </MudChip>
+                                            }
+                                            else
+                                            {
+                                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule">
+                                                    Pendiente
+                                                </MudChip>
+                                            }
+                                        </div>
+
+                                        <div class="d-flex justify-space-between align-center mt-2 text-sm mud-text-secondary">
+                                            <span>
+                                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" Style="font-size: 0.9rem;" Class="mr-1" />
+                                                @order.Items.Count artículos
+                                            </span>
+                                            <span>
+                                                <MudIcon Icon="@Icons.Material.Filled.AccessTime" Size="Size.Small" Style="font-size: 0.9rem;" Class="mr-1" />
+                                                @order.Date.ToLocalTime().ToString("HH:mm")
+                                            </span>
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(order.GeneralNotes))
+                                        {
+                                            <div class="mt-2 pa-1 text-xs mud-text-info" style="background: rgba(33, 150, 243, 0.1); border-radius: 4px;">
+                                                <MudIcon Icon="@Icons.Material.Filled.Notes" Size="Size.Small" Style="font-size: 0.8rem;" />
+                                                @order.GeneralNotes
+                                            </div>
+                                        }
+                                    </MudCardContent>
+                                </MudCard>
+                            }
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Columna Derecha: Mesa de Trabajo / Detalle de Surtido -->
+            <MudItem xs="12" md="8">
+                <MudPaper Elevation="3" Class="pa-4 d-flex flex-column gap-3" Style="height: 100%; min-height: 600px;">
+                    @if (_selectedOrder == null)
+                    {
+                        <div class="d-flex flex-column align-center justify-center py-16 text-center mud-text-secondary" style="height: 100%;">
+                            <MudIcon Icon="@Icons.Material.Filled.TouchApp" Style="font-size: 4rem;" Color="Color.Default" Class="mb-3" />
+                            <MudText Typo="Typo.h6">Seleccione un pedido de la lista izquierda</MudText>
+                            <MudText Typo="Typo.body2">Podrá visualizar los productos, especificaciones y marcar el pedido como surtido.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Encabezado del Pedido Seleccionado -->
+                        <div class="d-flex justify-space-between align-center pb-3 border-b-1 mud-border-lines-default">
+                            <div>
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.h5" Class="font-weight-bold">
+                                        @_selectedOrder.OrderNumber
+                                    </MudText>
+                                    @if (_selectedOrder.Status == OrderStatus.InFulfillment)
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">En Preparación</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Info" Size="Size.Small">Por Iniciar</MudChip>
+                                    }
+                                </div>
+                                <MudText Typo="Typo.body1" Color="Color.Secondary">
+                                    Cliente: <strong class="text-primary">@_selectedOrder.ClientName</strong>
+                                </MudText>
+                            </div>
+
+                            @if (_selectedOrder.Status == OrderStatus.Pending)
+                            {
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Warning"
+                                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                                           OnClick="StartFulfillmentAsync">
+                                    Tomar Pedido
+                                </MudButton>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_selectedOrder.GeneralNotes))
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="my-1">
+                                <strong>Notas Generales:</strong> @_selectedOrder.GeneralNotes
+                            </MudAlert>
+                        }
+
+                        <!-- Checklist de Productos a Surtir -->
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold mt-2">
+                            Lista de Productos a Recolectar (@_selectedOrder.Items.Count(i => i.IsFulfilled) / @_selectedOrder.Items.Count listos):
+                        </MudText>
+
+                        <div class="flex-grow-1" style="overflow-y: auto; max-height: 380px;">
+                            <MudTable Items="@_selectedOrder.Items" Hover="true" Dense="true" Elevation="0">
+                                <HeaderContent>
+                                    <MudTh Style="width: 50px; text-align: center;">Listo</MudTh>
+                                    <MudTh>Producto</MudTh>
+                                    <MudTh Style="width: 140px; text-align: center;">Cantidad Solicitada</MudTh>
+                                    <MudTh>Instrucciones / Notas</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd Style="text-align: center;">
+                                        <MudCheckBox T="bool"
+                                                     Value="@context.IsFulfilled"
+                                                     ValueChanged="@((val) => ToggleItemFulfilled(context, val))"
+                                                     Color="Color.Success" />
+                                    </MudTd>
+                                    <MudTd>
+                                        <span class="@(context.IsFulfilled ? "text-decoration-line-through text-secondary" : "font-weight-bold")">
+                                            @context.ProductName
+                                        </span>
+                                    </MudTd>
+                                    <MudTd Style="text-align: center;">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="font-weight-bold">
+                                            @context.Quantity.ToString("N3")
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd>
+                                        @if (!string.IsNullOrWhiteSpace(context.Notes))
+                                        {
+                                            <div class="pa-1 text-sm font-weight-medium" style="background: rgba(255, 152, 0, 0.15); color: #f57c00; border-radius: 4px; display: inline-block;">
+                                                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Style="font-size: 0.9rem;" Class="mr-1" />
+                                                @context.Notes
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="mud-text-secondary">—</span>
+                                        }
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        </div>
+
+                        <!-- Botón de Completar Surtido -->
+                        <div class="d-flex justify-space-between align-center pt-3 border-t-1 mud-border-lines-default mt-auto">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@(() => _selectedOrder = null)">
+                                Cerrar Detalle
+                            </MudButton>
+
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Success"
+                                       Size="Size.Large"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       OnClick="CompleteFulfillmentAsync"
+                                       Disabled="_isSubmitting">
+                                @if (_isSubmitting)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Guardando...</span>
+                                }
+                                else
+                                {
+                                    <span>Marcar como Surtido (Enviar a Verificación)</span>
+                                }
+                            </MudButton>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private List<BranchDto> _branches = new();
+    private Guid _selectedBranchId = Guid.Empty;
+    private List<OrderDetailDto> _orders = new();
+    private OrderDetailDto? _selectedOrder;
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = false;
+    private bool _isSubmitting = false;
+    private string _currentUserId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "Picker";
+
+        var branchesResult = await Mediator.Send(new GetBranchesQuery());
+        if (branchesResult != null && branchesResult.Any())
+        {
+            _branches = branchesResult.ToList();
+            _selectedBranchId = _branches.First().Id;
+            await LoadOrdersAsync();
+        }
+    }
+
+    private async Task OnBranchChanged(Guid branchId)
+    {
+        _selectedBranchId = branchId;
+        _selectedOrder = null;
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        if (_selectedBranchId == Guid.Empty) return;
+
+        _isLoading = true;
+        try
+        {
+            _orders = await Mediator.Send(new GetOrdersForFulfillmentQuery
+            {
+                BranchId = _selectedBranchId,
+                SearchTerm = _searchTerm
+            });
+
+            if (_selectedOrder != null)
+            {
+                _selectedOrder = _orders.FirstOrDefault(o => o.Id == _selectedOrder.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar pedidos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadOrdersAsync();
+        }
+    }
+
+    private void SelectOrder(OrderDetailDto order)
+    {
+        _selectedOrder = order;
+    }
+
+    private async Task StartFulfillmentAsync()
+    {
+        if (_selectedOrder == null) return;
+
+        try
+        {
+            await Mediator.Send(new StartOrderFulfillmentCommand(_selectedOrder.Id, _currentUserId));
+            Snackbar.Add("Pedido tomado para surtido.", Severity.Info);
+            await LoadOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al tomar pedido: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void ToggleItemFulfilled(OrderItemDto item, bool value)
+    {
+        item.IsFulfilled = value;
+    }
+
+    private async Task CompleteFulfillmentAsync()
+    {
+        if (_selectedOrder == null) return;
+
+        _isSubmitting = true;
+        try
+        {
+            await Mediator.Send(new CompleteOrderFulfillmentCommand(_selectedOrder.Id, _currentUserId));
+            Snackbar.Add("¡Pedido surtido exitosamente! Pasó a la estación de verificación.", Severity.Success);
+            _selectedOrder = null;
+            await LoadOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al completar surtido: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

@@ -1,0 +1,64 @@
+@using MudBlazor
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Color="Color.Error" />
+            <MudText Typo="Typo.h6">Motivo de No Entrega - @OrderNumber</MudText>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Seleccione el motivo por el cual no fue posible entregar el pedido al cliente:
+        </MudText>
+
+        <MudRadioGroup T="string" @bind-Value="_selectedReason" Class="d-flex flex-column gap-2">
+            <MudRadio T="string" Value="@("Cliente Ausente / Domicilio Cerrado")" Color="Color.Primary">Cliente Ausente / Domicilio Cerrado</MudRadio>
+            <MudRadio T="string" Value="@("Dirección Errónea / Inexistente")" Color="Color.Primary">Dirección Errónea / Inexistente</MudRadio>
+            <MudRadio T="string" Value="@("Rechazado por el Cliente")" Color="Color.Primary">Rechazado por el Cliente</MudRadio>
+            <MudRadio T="string" Value="@("Sin Dinero / No Puede Pagar")" Color="Color.Primary">Sin Dinero / No Puede Pagar</MudRadio>
+            <MudRadio T="string" Value="@("Mercancía Incompleta o Dañada")" Color="Color.Primary">Mercancía Incompleta o Dañada</MudRadio>
+            <MudRadio T="string" Value="@("Otro")" Color="Color.Primary">Otro Motivo</MudRadio>
+        </MudRadioGroup>
+
+        @if (_selectedReason == "Otro")
+        {
+            <MudTextField @bind-Value="_customReason"
+                          Label="Especifique el motivo"
+                          Variant="Variant.Outlined"
+                          Class="mt-3"
+                          Required="true" />
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit" Disabled="@(string.IsNullOrWhiteSpace(FinalReason))">
+            Confirmar No Entrega
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public string OrderNumber { get; set; } = string.Empty;
+
+    private string _selectedReason = "Cliente Ausente / Domicilio Cerrado";
+    private string _customReason = string.Empty;
+
+    private string FinalReason => _selectedReason == "Otro" ? _customReason.Trim() : _selectedReason;
+
+    private void Submit()
+    {
+        if (!string.IsNullOrWhiteSpace(FinalReason))
+        {
+            MudDialog.Close(DialogResult.Ok(FinalReason));
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

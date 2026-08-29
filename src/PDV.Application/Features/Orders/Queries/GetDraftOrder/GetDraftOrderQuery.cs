@@ -39,11 +39,15 @@ public class GetDraftOrderQueryHandler : IRequestHandler<GetDraftOrderQuery, Dra
             ClientId = order.ClientId,
             Items = order.Items.Select(i => new CartItemDto
             {
-                Product = i.Product,
+                Product = i.Product!,
                 SaleItemId = i.Id,
-                Quantity = i.Product.SaleType == SaleType.Bulk ? 0 : (int)i.Quantity,
-                Weight = i.Product.SaleType == SaleType.Bulk ? i.Quantity : 0m,
-                PriceOverride = i.Product != null && i.UnitPrice != i.Product.Price ? i.UnitPrice : null
+                OrderItemId = i.Id,
+                Quantity = i.Product?.SaleType == SaleType.Bulk ? 0 : (int)i.Quantity,
+                Weight = i.Product?.SaleType == SaleType.Bulk ? i.Quantity : 0m,
+                PriceOverride = i.Product != null && i.UnitPrice != i.Product.Price ? i.UnitPrice : null,
+                Notes = i.Notes,
+                RequestedQuantity = i.RequestedQuantity,
+                IsFulfilled = i.IsFulfilled
             }).ToList()
         };
 

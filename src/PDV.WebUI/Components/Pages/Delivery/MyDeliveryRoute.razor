@@ -1,0 +1,298 @@
+@page "/orders/my-route"
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.DeliveryRoutes.Queries.GetMyActiveRoute
+@using PDV.Application.Features.Orders.Commands.ReportOrderDelivery
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@attribute [Authorize(Roles = "Admin,Manager,DeliveryMan")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Mi Ruta de Reparto</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-8">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.TwoWheeler" Color="Color.Primary" Size="Size.Large" />
+                Mi Ruta de Reparto
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Consulte sus pedidos asignados, navegue hacia el domicilio y registre el estado de cada entrega.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRouteAsync">
+            Actualizar
+        </MudButton>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center align-center py-12">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (_activeRoute == null)
+    {
+        <MudPaper Elevation="3" Class="pa-8 text-center d-flex flex-column align-center justify-center" Style="min-height: 350px;">
+            <MudIcon Icon="@Icons.Material.Filled.NoCrash" Style="font-size: 4.5rem;" Color="Color.Default" Class="mb-3" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold">Sin Ruta Activa</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-2" Style="max-width: 450px;">
+                No tienes ninguna ruta de entrega asignada actualmente. Acércate con el encargado de sucursal para tu siguiente asignación.
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <!-- Resumen de la Ruta -->
+        <MudCard Elevation="3" Class="mb-4" Style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); color: white;">
+            <MudCardContent Class="pa-4">
+                <div class="d-flex justify-space-between align-center flex-wrap gap-2">
+                    <div>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold text-white">
+                            Ruta #@_activeRoute.Folio @(!string.IsNullOrWhiteSpace(_activeRoute.DeliveryZone?.Name) ? $"({_activeRoute.DeliveryZone.Name})" : "")
+                        </MudText>
+                        <MudText Typo="Typo.body2" Style="opacity: 0.9;" Class="text-white">
+                            Despachada: @((_activeRoute.DispatchedDate ?? _activeRoute.CreatedDate).ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                        </MudText>
+                    </div>
+                    <div class="d-flex gap-4 align-center">
+                        <div class="text-right">
+                            <MudText Typo="Typo.caption" Style="opacity: 0.8;" Class="text-white">Total a Cobrar</MudText>
+                            <MudText Typo="Typo.h5" Class="font-weight-bold text-white">
+                                $@_activeRoute.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmount).ToString("F2")
+                            </MudText>
+                        </div>
+                        <MudChip T="string" Color="Color.Surface" Size="Size.Small" Class="font-weight-bold">
+                            @_activeRoute.Orders.Count(o => o.Status == OrderStatus.Delivered) / @_activeRoute.Orders.Count Entregados
+                        </MudChip>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+
+        <!-- Lista de Paradas / Pedidos -->
+        <div class="d-flex flex-column gap-4">
+            @foreach (var (order, index) in _activeRoute.Orders.Select((o, i) => (o, i + 1)))
+            {
+                var isDelivered = order.Status == OrderStatus.Delivered;
+                var isReturned = order.Status == OrderStatus.Returned;
+                var isPendingDelivery = order.Status == OrderStatus.EnRoute || order.Status == OrderStatus.Confirmed || order.Status == OrderStatus.Routed;
+
+                <MudCard Elevation="2" Class="@($"border-solid border-1 {(isDelivered ? "mud-border-success" : isReturned ? "mud-border-error" : "mud-border-primary")}")">
+                    <MudCardHeader Class="pb-2">
+                        <CardHeaderContent>
+                            <div class="d-flex justify-space-between align-center">
+                                <div class="d-flex align-center gap-2">
+                                    <MudAvatar Color="@(isDelivered ? Color.Success : isReturned ? Color.Error : Color.Primary)" Size="Size.Medium">
+                                        @index
+                                    </MudAvatar>
+                                    <div>
+                                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                                            @order.Series-@order.Folio — @(order.Client?.Name ?? "Público General")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                            Importe: <strong>$@order.TotalAmount.ToString("F2")</strong> (@(order.PaymentMethod == PaymentMethodType.Cash ? "Efectivo" : "Tarjeta / Otro"))
+                                        </MudText>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    @if (isDelivered)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                            Entregado
+                                        </MudChip>
+                                    }
+                                    else if (isReturned)
+                                    {
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel">
+                                            No Entregado (@order.ReturnReason)
+                                        </MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.DirectionsRun">
+                                            En Camino
+                                        </MudChip>
+                                    }
+                                </div>
+                            </div>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+
+                    <MudCardContent Class="py-2">
+                        <!-- Dirección y Contacto -->
+                        <div class="pa-3 mb-2" style="background: var(--mud-palette-background-grey); border-radius: 8px;">
+                            <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Color="Color.Error" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2" Class="font-weight-medium">
+                                        @(order.Client?.Address?.ToFullAddressString() ?? "Sin dirección registrada")
+                                    </MudText>
+                                </div>
+                                @if (order.Client?.Address != null)
+                                {
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Map"
+                                               OnClick="@(() => OpenNavigation(order.Client.Address.ToFullAddressString()))">
+                                        Ver en Mapa
+                                    </MudButton>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(order.Client?.Phone))
+                            {
+                                <div class="d-flex align-center justify-space-between flex-wrap gap-2 mt-2 pt-2 border-t-1 mud-border-lines-default">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Phone" Color="Color.Success" Size="Size.Small" />
+                                        <MudText Typo="Typo.body2">@order.Client.Phone</MudText>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Phone"
+                                                       Color="Color.Success"
+                                                       Size="Size.Small"
+                                                       Href="@($"tel:{order.Client.Phone}")"
+                                                       title="Llamar al cliente" />
+                                        <MudIconButton Icon="@Icons.Custom.Brands.WhatsApp"
+                                                       Color="Color.Success"
+                                                       Size="Size.Small"
+                                                       Href="@($"https://wa.me/52{order.Client.Phone.Replace(" ", "").Replace("-", "")}")"
+                                                       target="_blank"
+                                                       title="Enviar WhatsApp" />
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Notas de entrega -->
+                        @if (!string.IsNullOrWhiteSpace(order.DeliveryNotes) || !string.IsNullOrWhiteSpace(order.GeneralNotes))
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="text-sm">
+                                <strong>Instrucciones:</strong> @(order.DeliveryNotes ?? order.GeneralNotes)
+                            </MudAlert>
+                        }
+                    </MudCardContent>
+
+                    <!-- Acciones de Entrega -->
+                    @if (isPendingDelivery)
+                    {
+                        <MudCardActions Class="justify-end gap-2 pa-3 border-t-1 mud-border-lines-default">
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Error"
+                                       StartIcon="@Icons.Material.Filled.Cancel"
+                                       OnClick="@(() => OpenNotDeliveredDialog(order))">
+                                No Entregado
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Success"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       OnClick="@(() => MarkDeliveredAsync(order))">
+                                Marcar Entregado
+                            </MudButton>
+                        </MudCardActions>
+                    }
+                </MudCard>
+            }
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private DeliveryRoute? _activeRoute;
+    private bool _isLoading = false;
+    private string _currentUserId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "";
+        await LoadRouteAsync();
+    }
+
+    private async Task LoadRouteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentUserId)) return;
+
+        _isLoading = true;
+        try
+        {
+            _activeRoute = await Mediator.Send(new GetMyActiveRouteQuery(_currentUserId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar ruta: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenNavigation(string address)
+    {
+        var url = $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(address)}";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private async Task MarkDeliveredAsync(Order order)
+    {
+        try
+        {
+            await Mediator.Send(new ReportOrderDeliveryCommand
+            {
+                OrderId = order.Id,
+                IsDelivered = true,
+                DeliveryManId = _currentUserId
+            });
+
+            Snackbar.Add($"¡Pedido {order.Series}-{order.Folio} marcado como entregado!", Severity.Success);
+            await LoadRouteAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al registrar entrega: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenNotDeliveredDialog(Order order)
+    {
+        var parameters = new DialogParameters<NotDeliveredReasonDialog>
+        {
+            { x => x.OrderNumber, $"{order.Series}-{order.Folio}" }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<NotDeliveredReasonDialog>("Reportar No Entrega", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is string reason)
+        {
+            try
+            {
+                await Mediator.Send(new ReportOrderDeliveryCommand
+                {
+                    OrderId = order.Id,
+                    IsDelivered = false,
+                    ReturnReason = reason,
+                    DeliveryManId = _currentUserId
+                });
+
+                Snackbar.Add($"Pedido marcado como no entregado: {reason}", Severity.Warning);
+                await LoadRouteAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al registrar devolución: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

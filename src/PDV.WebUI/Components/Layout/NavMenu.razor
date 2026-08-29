@@ -10,9 +10,20 @@
     <AuthorizeView Roles="Admin,Manager,Cashier">
         <MudNavLink Href="pos" Icon="@Icons.Material.Filled.PointOfSale">Punto de Venta</MudNavLink>
     </AuthorizeView>
-    <AuthorizeView Roles="Admin,Manager,Cashier,Telephonist">
+    <AuthorizeView Roles="Admin,Manager,Cashier,Telephonist,Almacen,Picker,DeliveryMan">
         <MudNavGroup Title="Reparto y Pedidos" Icon="@Icons.Material.Filled.LocalShipping" Expanded="false">
-            <MudNavLink Href="orders/capture" Icon="@Icons.Material.Filled.AddShoppingCart">Capturar Pedido</MudNavLink>
+            <AuthorizeView Roles="Admin,Manager,Telephonist,Cashier" Context="takeCtx">
+                <MudNavLink Href="orders/take" Icon="@Icons.Material.Filled.Phone">Toma Telefónica</MudNavLink>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin,Manager,Almacen,Picker,Cashier" Context="pickerCtx">
+                <MudNavLink Href="orders/fulfillment" Icon="@Icons.Material.Filled.Checklist">Surtir Pedidos</MudNavLink>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin,Manager,Cashier" Context="verifyCtx">
+                <MudNavLink Href="orders/verify" Icon="@Icons.Material.Filled.FactCheck">Verificar Pedidos</MudNavLink>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin,Manager,DeliveryMan" Context="driverCtx">
+                <MudNavLink Href="orders/my-route" Icon="@Icons.Material.Filled.TwoWheeler">Mi Ruta</MudNavLink>
+            </AuthorizeView>
             <AuthorizeView Roles="Admin,Manager,Cashier" Context="routesContext">
                 <MudNavLink Href="orders/routes" Icon="@Icons.Material.Filled.Map">Gestión de Rutas</MudNavLink>
                 <MudNavLink Href="orders/settlement" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Liquidación de Rutas</MudNavLink>

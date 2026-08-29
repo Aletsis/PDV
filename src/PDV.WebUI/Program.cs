@@ -226,9 +226,9 @@ app.MapHub<PDV.WebUI.Hubs.SyncHub>("/hubs/sync");
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
-// Optional: apply EF migrations at startup when env var APPLY_MIGRATIONS=true
+// Apply EF migrations at startup (unless explicitly disabled with APPLY_MIGRATIONS=false)
 var applyMigrations = Environment.GetEnvironmentVariable("APPLY_MIGRATIONS");
-if (!string.IsNullOrWhiteSpace(applyMigrations) && applyMigrations.Equals("true", StringComparison.OrdinalIgnoreCase))
+if (string.IsNullOrWhiteSpace(applyMigrations) || !applyMigrations.Equals("false", StringComparison.OrdinalIgnoreCase))
 {
     try
     {
@@ -239,8 +239,7 @@ if (!string.IsNullOrWhiteSpace(applyMigrations) && applyMigrations.Equals("true"
     }
     catch (Exception ex)
     {
-        Log.Fatal(ex, "Failed applying migrations at startup");
-        throw;
+        Log.Warning(ex, "Could not apply migrations automatically at startup: {Message}", ex.Message);
     }
 }
 

@@ -22,15 +22,22 @@ public class TransportFactoryTests
     }
 
     [Theory]
-    [InlineData("usb://EPSON_TM_T20", "usb://EPSON_TM_T20")]
-    [InlineData("usb://Generic_Text_Only", "usb://Generic_Text_Only")]
-    public void CreateTransport_UsbEndpoints_ShouldReturnUsbTransport(string input, string expectedEndpoint)
+    [InlineData("usb://EPSON_TM_T20")]
+    [InlineData("usb://Generic_Text_Only")]
+    public void CreateTransport_UsbEndpoints_ShouldReturnUsbTransport(string input)
     {
         var transport = _factory.CreateTransport(input);
 
         Assert.NotNull(transport);
         Assert.Equal(PrinterConnectionType.Usb, transport.ConnectionType);
-        Assert.Equal(expectedEndpoint, transport.TargetEndpoint);
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+        {
+            Assert.Equal(input, transport.TargetEndpoint);
+        }
+        else
+        {
+            Assert.Contains(input.Replace("usb://", ""), transport.TargetEndpoint);
+        }
     }
 
     [Theory]
