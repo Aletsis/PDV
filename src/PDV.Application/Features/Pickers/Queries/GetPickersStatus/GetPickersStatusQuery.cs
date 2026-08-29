@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PDV.Application.Common.Helpers;
 using PDV.Application.Common.Interfaces;
 using PDV.Application.Features.Pickers.Dtos;
 using PDV.Domain.Entities;
@@ -41,9 +42,7 @@ public class GetPickersStatusQueryHandler : IRequestHandler<GetPickersStatusQuer
         var allUsers = await _identityService.GetUsersAsync(cancellationToken);
         var pickerUsers = allUsers
             .Where(u => u.IsActive && 
-                        u.Roles.Any(r => r.Equals("Picker", StringComparison.OrdinalIgnoreCase) || 
-                                         r.Equals("Surtidor", StringComparison.OrdinalIgnoreCase) ||
-                                         r.Equals("Almacen", StringComparison.OrdinalIgnoreCase)) &&
+                        RoleHelper.HasPickerRole(u.Roles) &&
                         (!u.BranchId.HasValue || u.BranchId.Value == request.BranchId))
             .ToList();
 

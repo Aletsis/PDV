@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using PDV.Application.Common.Helpers;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
@@ -13,16 +15,19 @@ namespace PDV.Application.Common.Services;
 public class PickerDispatcherService : IPickerDispatcherService
 {
     private readonly IApplicationDbContext _context;
+    private readonly IIdentityService? _identityService;
     private readonly IRealTimeSyncNotifier? _syncNotifier;
     private readonly ILogger<PickerDispatcherService> _logger;
 
     public PickerDispatcherService(
         IApplicationDbContext context,
         ILogger<PickerDispatcherService> logger,
+        IIdentityService? identityService = null,
         IRealTimeSyncNotifier? syncNotifier = null)
     {
         _context = context;
         _logger = logger;
+        _identityService = identityService;
         _syncNotifier = syncNotifier;
     }
 
@@ -43,10 +48,35 @@ public class PickerDispatcherService : IPickerDispatcherService
                 ? config.DefaultMaxPickingOrdersPerPicker 
                 : 1;
 
+            // Obtener usuarios activos con rol Picker para la sucursal del pedido
+            HashSet<string>? validPickerUserIds = null;
+            if (_identityService != null)
+            {
+                var allUsers = await _identityService.GetUsersAsync(cancellationToken);
+                validPickerUserIds = allUsers
+                    .Where(u => u.IsActive && 
+                                RoleHelper.HasPickerRole(u.Roles) &&
+                                (!u.BranchId.HasValue || u.BranchId.Value == order.BranchId))
+                    .Select(u => u.Id)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (!validPickerUserIds.Any())
+                {
+                    _logger.LogInformation("No hay surtidores activos con rol Picker en la sucursal {BranchId} para el pedido {OrderId}. Permanece en cola.", order.BranchId, orderId);
+                    return false;
+                }
+            }
+
             // Obtener todos los estados de surtidores marcados como disponibles en la sucursal
-            var candidateStatuses = await _context.UserWorkStatuses
-                .Where(s => s.BranchId == order.BranchId && s.Status == PickerAvailabilityStatus.Available)
-                .ToListAsync(cancellationToken);
+            var query = _context.UserWorkStatuses
+                .Where(s => s.BranchId == order.BranchId && s.Status == PickerAvailabilityStatus.Available);
+
+            if (validPickerUserIds != null)
+            {
+                query = query.Where(s => validPickerUserIds.Contains(s.UserId));
+            }
+
+            var candidateStatuses = await query.ToListAsync(cancellationToken);
 
             if (!candidateStatuses.Any())
             {
@@ -126,6 +156,21 @@ public class PickerDispatcherService : IPickerDispatcherService
 
         try
         {
+            if (_identityService != null)
+            {
+                var user = await _identityService.GetUserByIdAsync(pickerUserId, cancellationToken);
+                if (user == null || !user.IsActive || !RoleHelper.HasPickerRole(user.Roles))
+                {
+                    _logger.LogWarning("El usuario {PickerId} no es un surtidor activo válido con rol Picker.", pickerUserId);
+                    return 0;
+                }
+
+                if (user.BranchId.HasValue && user.BranchId.Value != branchId)
+                {
+                    return 0;
+                }
+            }
+
             var pickerStatus = await _context.UserWorkStatuses
                 .FirstOrDefaultAsync(s => s.UserId == pickerUserId && s.BranchId == branchId, cancellationToken);
 
@@ -191,3 +236,4 @@ public class PickerDispatcherService : IPickerDispatcherService
         }
     }
 }
+

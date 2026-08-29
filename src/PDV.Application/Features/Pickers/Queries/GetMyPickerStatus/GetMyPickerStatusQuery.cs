@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PDV.Application.Common.Helpers;
 using PDV.Application.Common.Interfaces;
 using PDV.Application.Features.Pickers.Dtos;
 using PDV.Domain.Entities;
@@ -39,7 +40,7 @@ public class GetMyPickerStatusQueryHandler : IRequestHandler<GetMyPickerStatusQu
         string branchName = branch?.Name ?? "Sucursal";
 
         var user = await _identityService.GetUserByIdAsync(request.UserId, cancellationToken);
-        if (user == null) return null;
+        if (user == null || !RoleHelper.HasPickerRole(user.Roles)) return null;
 
         var workStatus = await _context.UserWorkStatuses
             .FirstOrDefaultAsync(s => s.UserId == request.UserId && s.BranchId == request.BranchId, cancellationToken);

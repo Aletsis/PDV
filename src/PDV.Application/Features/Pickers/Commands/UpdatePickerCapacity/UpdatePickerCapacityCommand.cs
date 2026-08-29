@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PDV.Application.Common.Helpers;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 using PDV.Domain.Enums;
@@ -21,15 +22,18 @@ public class UpdatePickerCapacityCommandHandler : IRequestHandler<UpdatePickerCa
 {
     private readonly IApplicationDbContext _context;
     private readonly IPickerDispatcherService _pickerDispatcher;
+    private readonly IIdentityService? _identityService;
     private readonly IRealTimeSyncNotifier? _syncNotifier;
 
     public UpdatePickerCapacityCommandHandler(
         IApplicationDbContext context,
         IPickerDispatcherService pickerDispatcher,
+        IIdentityService? identityService = null,
         IRealTimeSyncNotifier? syncNotifier = null)
     {
         _context = context;
         _pickerDispatcher = pickerDispatcher;
+        _identityService = identityService;
         _syncNotifier = syncNotifier;
     }
 
@@ -37,6 +41,15 @@ public class UpdatePickerCapacityCommandHandler : IRequestHandler<UpdatePickerCa
     {
         if (string.IsNullOrWhiteSpace(request.UserId))
             throw new DomainException("El ID de usuario es requerido.");
+
+        if (_identityService != null)
+        {
+            var user = await _identityService.GetUserByIdAsync(request.UserId, cancellationToken);
+            if (user == null || !RoleHelper.HasPickerRole(user.Roles))
+            {
+                throw new DomainException("El usuario seleccionado no cuenta con el rol de Surtidor (Picker).");
+            }
+        }
 
         var userStatus = await _context.UserWorkStatuses
             .FirstOrDefaultAsync(s => s.UserId == request.UserId, cancellationToken);

@@ -86,4 +86,33 @@ public static class RoleHelper
             _ => role
         };
     }
+
+    /// <summary>
+    /// Determina si un rol corresponde exclusivamente al rol de Surtidor (Picker).
+    /// </summary>
+    public static bool IsPickerRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+            return false;
+
+        return string.Equals(ToSystemRoleName(role), Picker, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Determina si una lista o colección de roles incluye el rol de Surtidor (Picker).
+    /// </summary>
+    public static bool HasPickerRole(IEnumerable<string>? roles)
+    {
+        if (roles == null)
+            return false;
+
+        foreach (var r in roles)
+        {
+            if (IsPickerRole(r))
+                return true;
+        }
+
+        return false;
+    }
 }
+

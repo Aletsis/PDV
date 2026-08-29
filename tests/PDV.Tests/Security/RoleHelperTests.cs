@@ -104,4 +104,49 @@ public class RoleHelperTests
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Picker" && r.DisplayName == "Surtidor");
         Assert.Contains(RoleHelper.StandardRoles, r => r.RoleName == "Verifier" && r.DisplayName == "Verificador");
     }
+
+    [Theory]
+    [InlineData("Picker", true)]
+    [InlineData("picker", true)]
+    [InlineData("Surtidor", true)]
+    [InlineData("surtidor", true)]
+    [InlineData("surtidora", true)]
+    [InlineData("Almacen", false)]
+    [InlineData("almacen", false)]
+    [InlineData("almacén", false)]
+    [InlineData("warehouse", false)]
+    [InlineData("Admin", false)]
+    [InlineData("Manager", false)]
+    [InlineData("Cashier", false)]
+    [InlineData("DeliveryMan", false)]
+    [InlineData("Telephonist", false)]
+    [InlineData("Compras", false)]
+    [InlineData("Verifier", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsPickerRole_ShouldCorrectlyIdentifyPickerRolesOnly(string? inputRole, bool expectedIsPicker)
+    {
+        // Act
+        var result = RoleHelper.IsPickerRole(inputRole);
+
+        // Assert
+        Assert.Equal(expectedIsPicker, result);
+    }
+
+    [Fact]
+    public void HasPickerRole_ShouldReturnTrue_WhenPickerIsInRolesList()
+    {
+        // Arrange
+        var rolesWithPicker = new[] { "Almacen", "Picker" };
+        var rolesWithSurtidor = new[] { "Cashier", "surtidor" };
+        var rolesWithoutPicker = new[] { "Almacen", "Compras", "Manager" };
+
+        // Act & Assert
+        Assert.True(RoleHelper.HasPickerRole(rolesWithPicker));
+        Assert.True(RoleHelper.HasPickerRole(rolesWithSurtidor));
+        Assert.False(RoleHelper.HasPickerRole(rolesWithoutPicker));
+        Assert.False(RoleHelper.HasPickerRole(null));
+        Assert.False(RoleHelper.HasPickerRole(new string[0]));
+    }
 }
+
