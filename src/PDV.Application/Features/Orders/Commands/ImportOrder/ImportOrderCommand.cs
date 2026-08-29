@@ -41,22 +41,7 @@ public class ImportOrderCommandHandler : IRequestHandler<ImportOrderCommand, boo
             }
         }
 
-        // 3. Resolve cash register
-        Guid? cashRegisterId = dto.ClientId; // Let's see if the DTO has CashRegisterId, wait, SaleDetailDto doesn't have CashRegisterId.
-        // Wait! Let's check: does SaleDetailDto have CashRegisterId? No.
-        // But we can check if there are any registers in the local DB.
-        var registers = await _context.CashRegisters.ToListAsync(cancellationToken);
-        Guid resolvedRegisterId;
-        if (registers.Any())
-        {
-            resolvedRegisterId = registers.FirstOrDefault(r => r.IsActive)?.Id ?? registers.First().Id;
-        }
-        else
-        {
-            throw new InvalidOperationException("No se encontraron cajas registradoras en la base de datos local.");
-        }
-
-        // 4. Resolve branch
+        // 3. Resolve branch
         Guid branchId = Guid.Empty;
         var branches = await _context.Branches.ToListAsync(cancellationToken);
         if (branches.Any())
@@ -68,15 +53,26 @@ public class ImportOrderCommandHandler : IRequestHandler<ImportOrderCommand, boo
             throw new InvalidOperationException("No se encontraron sucursales en la base de datos local.");
         }
 
-        // 5. Ensure the ShiftId exists locally to satisfy foreign key constraints
-        if (dto.ShiftId.HasValue)
+        // 4. Resolve cash register if provided
+        Guid? resolvedRegisterId = dto.CashRegisterId;
+        if (resolvedRegisterId.HasValue)
+        {
+            var regExists = await _context.CashRegisters.AnyAsync(r => r.Id == resolvedRegisterId.Value, cancellationToken);
+            if (!regExists)
+            {
+                resolvedRegisterId = null;
+            }
+        }
+
+        // 5. Ensure the ShiftId exists locally if provided
+        if (dto.ShiftId.HasValue && resolvedRegisterId.HasValue)
         {
             var shiftExists = await _context.Shifts.AnyAsync(s => s.Id == dto.ShiftId.Value, cancellationToken);
             if (!shiftExists)
             {
                 // Insert a closed stub shift record to satisfy FK
                 var stubShift = new Shift(
-                    cashRegisterId: resolvedRegisterId,
+                    cashRegisterId: resolvedRegisterId.Value,
                     userId: "Sync",
                     initialCash: 0m
                 );
@@ -99,20 +95,21 @@ public class ImportOrderCommandHandler : IRequestHandler<ImportOrderCommand, boo
             }
         }
 
-        // 6. Create the Sale
+        // 6. Create the Order
         var paymentMethod = Enum.TryParse<PaymentMethodType>(dto.PaymentMethod, true, out var pm) ? pm : PaymentMethodType.Cash;
 
         var order = new Order(
             branchId: branchId,
-            cashRegisterId: resolvedRegisterId,
-            shiftId: dto.ShiftId,
             clientId: clientId,
             paymentMethod: paymentMethod,
+            cashRegisterId: resolvedRegisterId,
+            shiftId: dto.ShiftId,
             deliveryZoneId: null,
             takenById: "Sync",
             capturedById: "Sync",
             series: dto.Series,
-            folio: dto.Folio
+            folio: dto.Folio,
+            channel: dto.Channel
         );
         order.SetId(dto.Id);
 

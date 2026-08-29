@@ -106,6 +106,7 @@ public class ListOrdersQueryHandler : IRequestHandler<ListOrdersQuery, List<Orde
                 ClientId = o.ClientId,
                 ClientName = o.Client != null ? o.Client.Name : "Público General",
                 Status = o.Status,
+                Channel = o.Channel,
                 ItemCount = o.Items.Count,
                 Series = o.Series,
                 Folio = o.Folio,

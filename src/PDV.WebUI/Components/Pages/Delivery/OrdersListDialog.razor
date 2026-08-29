@@ -111,6 +111,28 @@
                     <Columns>
                         <PropertyColumn Property="x => x.Series" Title="Serie" />
                         <PropertyColumn Property="x => x.Folio" Title="Folio" />
+                        <TemplateColumn Title="Canal">
+                            <CellTemplate>
+                                @switch (context.Item.Channel)
+                                {
+                                    case OrderChannel.WhatsApp:
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Custom.Brands.WhatsApp">WhatsApp</MudChip>
+                                        break;
+                                    case OrderChannel.Store:
+                                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Storefront">Mostrador</MudChip>
+                                        break;
+                                    case OrderChannel.Web:
+                                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Language">Web</MudChip>
+                                        break;
+                                    case OrderChannel.MobileApp:
+                                        <MudChip T="string" Color="Color.Tertiary" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Smartphone">App</MudChip>
+                                        break;
+                                    default:
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Phone">Teléfono</MudChip>
+                                        break;
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
                         <PropertyColumn Property="x => x.Date" Title="Fecha y Hora" Format="dd/MM/yyyy HH:mm" />
                         <PropertyColumn Property="x => x.ClientName" Title="Cliente" />
                         <PropertyColumn Property="x => x.PaymentMethod" Title="Método Pago" />

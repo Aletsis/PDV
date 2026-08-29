@@ -16,6 +16,7 @@ public class OrderDto
     public string? ClientPhone { get; set; }
     public bool IsCancelled { get; set; }
     public OrderStatus Status { get; set; }
+    public OrderChannel Channel { get; set; } = OrderChannel.Telephone;
     public int ItemCount { get; set; }
     public string? Series { get; set; }
     public int Folio { get; set; }

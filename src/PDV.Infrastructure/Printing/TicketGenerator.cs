@@ -440,6 +440,16 @@ public class TicketGenerator : ITicketGenerator
 
         decimal deliveryCost = client?.DeliveryZone?.DeliveryCost ?? 0m;
 
+        string channelText = order.Channel switch
+        {
+            OrderChannel.Telephone => "Teléfono",
+            OrderChannel.WhatsApp => "WhatsApp",
+            OrderChannel.Store => "Mostrador",
+            OrderChannel.Web => "Web / En Línea",
+            OrderChannel.MobileApp => "App Móvil",
+            _ => "Otro"
+        };
+
         var variables = new Dictionary<string, string>
         {
             { "{CompanyName}", config?.CompanyName ?? string.Empty },
@@ -448,6 +458,8 @@ public class TicketGenerator : ITicketGenerator
             { "{BranchAddress}", FormatAddress(order.Branch?.Address) },
             { "{BranchPhone}", order.Branch?.Phone ?? string.Empty },
             { "{Folio}", $"{order.Series}-{order.Folio}" },
+            { "{Channel}", channelText },
+            { "{Canal}", channelText },
             { "{Date}", order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm") },
             { "{CashRegisterName}", order.CashRegister?.Name ?? string.Empty },
             { "{UserFullName}", user?.FullName ?? cashierUserId ?? string.Empty },

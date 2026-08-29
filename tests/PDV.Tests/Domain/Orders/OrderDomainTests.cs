@@ -63,7 +63,7 @@ public class OrderDomainTests
     public void AddItem_WhenPending_AddsItemAndRecalculatesTotals()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: Guid.NewGuid(), paymentMethod: PaymentMethodType.Cash);
 
         var product = CreateProduct("Jabon", 15m);
         var item = new OrderItem(product, 2m, 15m, 16m);
@@ -87,7 +87,7 @@ public class OrderDomainTests
     public void AddItem_WhenNotEditable_ThrowsDomainException()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: Guid.NewGuid(), paymentMethod: PaymentMethodType.Cash);
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 1m, 15m, 16m));
         order.Confirm(); // status -> Confirmed
@@ -104,7 +104,7 @@ public class OrderDomainTests
     public void Confirm_UnderMinimumWithoutAuthorization_ThrowsDomainException()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: Guid.NewGuid(), paymentMethod: PaymentMethodType.Cash);
 
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 1m, 15m, 0m, isTaxExempt: true)); // TotalAmount = 15m
@@ -118,7 +118,7 @@ public class OrderDomainTests
     public void Confirm_UnderMinimumWithAuthorization_ConfirmsSuccessfully()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: Guid.NewGuid(), paymentMethod: PaymentMethodType.Cash);
 
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 1m, 15m, 0m, isTaxExempt: true)); // TotalAmount = 15m
@@ -136,7 +136,7 @@ public class OrderDomainTests
     public void RouteAndDeliveryWorkflow_TransitionsStateCorrectly()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: Guid.NewGuid(), paymentMethod: PaymentMethodType.Cash);
 
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 2m, 15m, 0m, isTaxExempt: true));
@@ -161,7 +161,7 @@ public class OrderDomainTests
     public void Cancel_DeliveredOrder_ThrowsDomainException()
     {
         // Arrange
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: Guid.NewGuid(), paymentMethod: PaymentMethodType.Cash);
 
         var product = CreateProduct("Jabon", 15m);
         order.AddItem(new OrderItem(product, 2m, 15m, 0m, isTaxExempt: true));
@@ -179,7 +179,7 @@ public class OrderDomainTests
     public void RequestInvoice_WithoutClient_ThrowsDomainException()
     {
         // Arrange - Sin cliente
-        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), clientId: null, PaymentMethodType.Cash);
+        var order = new Order(branchId: Guid.NewGuid(), clientId: null, paymentMethod: PaymentMethodType.Cash);
 
 
         // Act & Assert

@@ -99,18 +99,39 @@
                                                     @order.ClientName
                                                 </MudText>
                                             </div>
-                                            @if (isInProgress)
-                                            {
-                                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Timelapse">
-                                                    En Surtido
-                                                </MudChip>
-                                            }
-                                            else
-                                            {
-                                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule">
-                                                    Pendiente
-                                                </MudChip>
-                                            }
+                                            <div class="d-flex flex-column align-end gap-1">
+                                                @if (isInProgress)
+                                                {
+                                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Timelapse">
+                                                        En Surtido
+                                                    </MudChip>
+                                                }
+                                                else
+                                                {
+                                                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule">
+                                                        Pendiente
+                                                    </MudChip>
+                                                }
+
+                                                @switch (order.Channel)
+                                                {
+                                                    case OrderChannel.WhatsApp:
+                                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Custom.Brands.WhatsApp">WhatsApp</MudChip>
+                                                        break;
+                                                    case OrderChannel.Store:
+                                                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Storefront">Mostrador</MudChip>
+                                                        break;
+                                                    case OrderChannel.Web:
+                                                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Language">Web</MudChip>
+                                                        break;
+                                                    case OrderChannel.MobileApp:
+                                                        <MudChip T="string" Color="Color.Tertiary" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Smartphone">App</MudChip>
+                                                        break;
+                                                    default:
+                                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Phone">Teléfono</MudChip>
+                                                        break;
+                                                }
+                                            </div>
                                         </div>
 
                                         <div class="d-flex justify-space-between align-center mt-2 text-sm mud-text-secondary">
@@ -166,6 +187,25 @@
                                     else
                                     {
                                         <MudChip T="string" Color="Color.Info" Size="Size.Small">Por Iniciar</MudChip>
+                                    }
+
+                                    @switch (_selectedOrder.Channel)
+                                    {
+                                        case OrderChannel.WhatsApp:
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Custom.Brands.WhatsApp">WhatsApp</MudChip>
+                                            break;
+                                        case OrderChannel.Store:
+                                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Storefront">Mostrador</MudChip>
+                                            break;
+                                        case OrderChannel.Web:
+                                            <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Icon="@Icons.Material.Filled.Language">Web</MudChip>
+                                            break;
+                                        case OrderChannel.MobileApp:
+                                            <MudChip T="string" Color="Color.Tertiary" Size="Size.Small" Icon="@Icons.Material.Filled.Smartphone">App</MudChip>
+                                            break;
+                                        default:
+                                            <MudChip T="string" Color="Color.Primary" Size="Size.Small" Icon="@Icons.Material.Filled.Phone">Teléfono</MudChip>
+                                            break;
                                     }
                                 </div>
                                 <MudText Typo="Typo.body1" Color="Color.Secondary">

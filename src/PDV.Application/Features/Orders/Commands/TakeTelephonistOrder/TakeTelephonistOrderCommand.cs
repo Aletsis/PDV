@@ -25,6 +25,7 @@ public record TakeTelephonistOrderCommand : IRequest<Guid>
 {
     public Guid BranchId { get; set; }
     public Guid? ClientId { get; set; }
+    public OrderChannel Channel { get; set; } = OrderChannel.Telephone;
     public string PaymentMethod { get; set; } = "Cash";
     public string UserId { get; set; } = string.Empty;
     public Guid? DeliveryZoneId { get; set; }
@@ -38,13 +39,16 @@ public class TakeTelephonistOrderCommandHandler : IRequestHandler<TakeTelephonis
 {
     private readonly IApplicationDbContext _context;
     private readonly IProductRepository _productRepository;
+    private readonly IOrderRepository _orderRepository;
 
     public TakeTelephonistOrderCommandHandler(
         IApplicationDbContext context,
-        IProductRepository productRepository)
+        IProductRepository productRepository,
+        IOrderRepository orderRepository)
     {
         _context = context;
         _productRepository = productRepository;
+        _orderRepository = orderRepository;
     }
 
     public async Task<Guid> Handle(TakeTelephonistOrderCommand request, CancellationToken cancellationToken)
@@ -68,21 +72,21 @@ public class TakeTelephonistOrderCommandHandler : IRequestHandler<TakeTelephonis
                 : PaymentMethodType.Cash;
 
             var zoneId = request.DeliveryZoneId ?? client?.DeliveryZoneId;
+            int nextFolio = await _orderRepository.GetNextFolioAsync(request.BranchId, cancellationToken);
 
             var order = new Order(
                 branchId: request.BranchId,
-                cashRegisterId: null,
-                shiftId: null,
                 clientId: request.ClientId,
                 paymentMethod: paymentMethod,
                 deliveryZoneId: zoneId,
                 takenById: request.UserId,
                 capturedById: null,
-                series: "TEL",
-                folio: 0,
+                series: "PED",
+                folio: nextFolio,
                 generalNotes: request.GeneralNotes,
                 deliveryNotes: request.DeliveryNotes,
-                isOutOfZone: request.IsOutOfZone
+                isOutOfZone: request.IsOutOfZone,
+                channel: request.Channel
             );
 
             foreach (var item in request.Items)

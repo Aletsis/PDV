@@ -44,6 +44,7 @@
                 <MudTable Items="@_orders" Hover="true" Dense="true" Elevation="0" Height="380px" FixedHeader="true">
                     <HeaderContent>
                         <MudTh>Folio / Pedido</MudTh>
+                        <MudTh>Canal</MudTh>
                         <MudTh>Fecha / Hora</MudTh>
                         <MudTh>Cliente</MudTh>
                         <MudTh>Zona de Reparto</MudTh>
@@ -53,6 +54,26 @@
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd Class="font-weight-bold">@context.OrderNumber</MudTd>
+                        <MudTd>
+                            @switch (context.Channel)
+                            {
+                                case OrderChannel.WhatsApp:
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Custom.Brands.WhatsApp">WhatsApp</MudChip>
+                                    break;
+                                case OrderChannel.Store:
+                                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Storefront">Mostrador</MudChip>
+                                    break;
+                                case OrderChannel.Web:
+                                    <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Language">Web</MudChip>
+                                    break;
+                                case OrderChannel.MobileApp:
+                                    <MudChip T="string" Color="Color.Tertiary" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Smartphone">App</MudChip>
+                                    break;
+                                default:
+                                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.Phone">Teléfono</MudChip>
+                                    break;
+                            }
+                        </MudTd>
                         <MudTd>@context.Date.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
                         <MudTd>
                             <div class="d-flex flex-column">

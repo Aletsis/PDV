@@ -46,8 +46,6 @@ public class CreateDeliveryRouteCommandHandlerTests
         // Crear y confirmar el pedido
         var order = new Order(
             branchId: branch.Id,
-            cashRegisterId: Guid.NewGuid(),
-            shiftId: Guid.NewGuid(),
             clientId: Guid.NewGuid(),
             paymentMethod: PaymentMethodType.Cash
         );

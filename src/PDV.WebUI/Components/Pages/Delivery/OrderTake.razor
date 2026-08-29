@@ -258,17 +258,57 @@
                     }
                 </MudCardContent>
 
-                <!-- Pie de Pedido: Forma de pago, Notas de entrega y Botón de envío -->
+                <!-- Pie de Pedido: Forma de pago, Canal de Recepción, Notas de entrega y Botón de envío -->
                 <MudCardActions Class="flex-column gap-3 pa-4 border-t-1 mud-border-lines-default" Style="background: var(--mud-palette-background-grey);">
                     <MudGrid>
-                        <MudItem xs="12" sm="6">
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="OrderChannel" @bind-Value="_orderChannel" Label="Canal de Recepción" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelectItem Value="@OrderChannel.Telephone">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Phone" Color="Color.Primary" Size="Size.Small" />
+                                        <span>Teléfono</span>
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="@OrderChannel.WhatsApp">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Custom.Brands.WhatsApp" Color="Color.Success" Size="Size.Small" />
+                                        <span>WhatsApp</span>
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="@OrderChannel.Store">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Storefront" Color="Color.Info" Size="Size.Small" />
+                                        <span>Mostrador</span>
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="@OrderChannel.Web">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Language" Color="Color.Secondary" Size="Size.Small" />
+                                        <span>Sitio Web</span>
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="@OrderChannel.MobileApp">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Smartphone" Color="Color.Tertiary" Size="Size.Small" />
+                                        <span>App Móvil</span>
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="@OrderChannel.Other">
+                                    <div class="d-flex align-center gap-2">
+                                        <MudIcon Icon="@Icons.Material.Filled.MoreHoriz" Color="Color.Default" Size="Size.Small" />
+                                        <span>Otro</span>
+                                    </div>
+                                </MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
                             <MudSelect T="string" @bind-Value="_paymentMethod" Label="Forma de Pago Prevista" Variant="Variant.Outlined" Margin="Margin.Dense">
                                 <MudSelectItem Value="@("Cash")">Efectivo</MudSelectItem>
                                 <MudSelectItem Value="@("Card")">Tarjeta de Crédito / Débito</MudSelectItem>
                                 <MudSelectItem Value="@("Transfer")">Transferencia Electrónica</MudSelectItem>
                             </MudSelect>
                         </MudItem>
-                        <MudItem xs="12" sm="6" Class="d-flex flex-column align-end justify-center">
+                        <MudItem xs="12" sm="4" Class="d-flex flex-column align-end justify-center">
                             <MudText Typo="Typo.caption" Color="Color.Secondary">Total Estimado</MudText>
                             <MudText Typo="Typo.h4" Color="Color.Primary" Class="font-weight-bold">
                                 $@TotalAmount.ToString("F2")
@@ -322,6 +362,7 @@
     private string? _itemNotesToAdd;
 
     private List<CartItemDto> _items = new();
+    private OrderChannel _orderChannel = OrderChannel.Telephone;
     private string _paymentMethod = "Cash";
     private string? _deliveryNotes;
     private bool _isSubmitting = false;
@@ -469,6 +510,7 @@
             {
                 BranchId = _selectedBranchId,
                 ClientId = _selectedClient?.Id,
+                Channel = _orderChannel,
                 PaymentMethod = _paymentMethod,
                 UserId = _currentUserId,
                 DeliveryZoneId = _selectedClient?.DeliveryZoneId,

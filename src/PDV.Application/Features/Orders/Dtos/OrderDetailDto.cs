@@ -18,6 +18,7 @@ public class OrderDetailDto
     public string? ClientPhone { get; set; }
     public bool IsCancelled { get; set; }
     public OrderStatus Status { get; set; }
+    public OrderChannel Channel { get; set; } = OrderChannel.Telephone;
     public string? Series { get; set; }
     public int Folio { get; set; }
     public Guid? ShiftId { get; set; }

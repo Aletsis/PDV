@@ -420,7 +420,7 @@ else
     {
         if (currentCashRegister != null)
         {
-            var (series, nextFolio) = await Mediator.Send(new GetNextFolioQuery(currentCashRegister.Id));
+            var (series, nextFolio) = await Mediator.Send(new GetNextFolioQuery(currentCashRegister.BranchId));
             activeSeries = series;
             projectedFolio = nextFolio;
         }

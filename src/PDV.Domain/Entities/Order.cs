@@ -56,6 +56,7 @@ public class Order : BaseEntity, IAggregateRoot
     public DateTime? SettledAt { get; private set; }
 
     public OrderStatus Status { get; private set; } = OrderStatus.Pending;
+    public OrderChannel Channel { get; private set; } = OrderChannel.Telephone;
     public PaymentMethodType PaymentMethod { get; private set; }
     
     public decimal Subtotal { get; private set; }
@@ -77,10 +78,10 @@ public class Order : BaseEntity, IAggregateRoot
 
     public Order(
         Guid branchId,
-        Guid? cashRegisterId,
-        Guid? shiftId,
         Guid? clientId,
         PaymentMethodType paymentMethod,
+        Guid? cashRegisterId = null,
+        Guid? shiftId = null,
         Guid? deliveryZoneId = null,
         string? takenById = null,
         string? capturedById = null,
@@ -88,16 +89,16 @@ public class Order : BaseEntity, IAggregateRoot
         int folio = 0,
         string? generalNotes = null,
         string? deliveryNotes = null,
-        bool isOutOfZone = false)
+        bool isOutOfZone = false,
+        OrderChannel channel = OrderChannel.Telephone)
     {
         if (branchId == Guid.Empty) throw new DomainException("El ID de sucursal es requerido.");
 
         BranchId = branchId;
-        CashRegisterId = cashRegisterId;
-        ShiftId = shiftId;
-
         ClientId = clientId;
         PaymentMethod = paymentMethod;
+        CashRegisterId = cashRegisterId;
+        ShiftId = shiftId;
         DeliveryZoneId = deliveryZoneId;
         TakenById = takenById;
         CapturedById = capturedById;
@@ -106,6 +107,7 @@ public class Order : BaseEntity, IAggregateRoot
         GeneralNotes = generalNotes?.Trim();
         DeliveryNotes = deliveryNotes?.Trim();
         IsOutOfZone = isOutOfZone;
+        Channel = channel;
         
         OrderDate = DateTime.UtcNow;
         Status = OrderStatus.Pending;
@@ -318,6 +320,11 @@ public class Order : BaseEntity, IAggregateRoot
     {
         Series = series;
         Folio = folio;
+    }
+
+    public void SetChannel(OrderChannel channel)
+    {
+        Channel = channel;
     }
 
     private void RecalculateTotals()

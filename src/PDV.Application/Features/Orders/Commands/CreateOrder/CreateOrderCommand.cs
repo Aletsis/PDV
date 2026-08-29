@@ -16,6 +16,8 @@ namespace PDV.Application.Features.Orders.Commands.CreateOrder;
 
 public record CreateOrderCommand : IRequest<Guid>
 {
+    public Guid? BranchId { get; set; }
+    public OrderChannel Channel { get; set; } = OrderChannel.Store;
     public List<CartItemDto> Items { get; set; } = new();
     public string PaymentMethod { get; set; } = "Cash";
     public string UserId { get; set; } = string.Empty;
@@ -29,18 +31,15 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
 {
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
-    private readonly ITicketSequenceRepository _ticketSequenceRepository;
     private readonly IApplicationDbContext _context;
 
     public CreateOrderCommandHandler(
         IOrderRepository orderRepository,
         IProductRepository productRepository,
-        ITicketSequenceRepository ticketSequenceRepository,
         IApplicationDbContext context)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
-        _ticketSequenceRepository = ticketSequenceRepository;
         _context = context;
     }
 
@@ -62,19 +61,36 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
 
             try
             {
-                if (!request.CashRegisterId.HasValue)
+                Guid branchId = request.BranchId ?? Guid.Empty;
+                Guid? shiftId = null;
+
+                if (branchId == Guid.Empty && request.CashRegisterId.HasValue)
                 {
-                    throw new DomainException("La caja registradora es requerida para registrar un pedido.");
+                    var cashReg = await _context.CashRegisters.FindAsync(new object[] { request.CashRegisterId.Value }, cancellationToken);
+                    if (cashReg != null)
+                    {
+                        branchId = cashReg.BranchId;
+                    }
                 }
 
-                // Buscar turno activo
-                var activeShift = await _context.Shifts
-                    .Include(s => s.CashRegister)
-                    .FirstOrDefaultAsync(s => s.CashRegisterId == request.CashRegisterId.Value && s.Status == ShiftStatus.Open, cancellationToken);
-                
-                if (activeShift == null)
+                if (branchId == Guid.Empty)
                 {
-                    throw new DomainException("No se puede registrar un pedido si no hay un turno de caja activo.");
+                    var firstBranch = await _context.Branches.Select(b => b.Id).FirstOrDefaultAsync(cancellationToken);
+                    if (firstBranch != Guid.Empty)
+                    {
+                        branchId = firstBranch;
+                    }
+                    else
+                    {
+                        throw new DomainException("La sucursal es requerida para registrar un pedido.");
+                    }
+                }
+
+                if (request.CashRegisterId.HasValue)
+                {
+                    var activeShift = await _context.Shifts
+                        .FirstOrDefaultAsync(s => s.CashRegisterId == request.CashRegisterId.Value && s.Status == ShiftStatus.Open, cancellationToken);
+                    shiftId = activeShift?.Id;
                 }
 
                 var client = request.ClientId.HasValue
@@ -83,31 +99,23 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
 
                 var paymentMethod = Enum.TryParse<PaymentMethodType>(request.PaymentMethod, true, out var pm) ? pm : PaymentMethodType.Cash;
 
-                // Obtener secuencia de folios para pedido
-                var sequence = await _ticketSequenceRepository.GetWithLockAsync(request.CashRegisterId.Value, TicketSequenceType.Order, cancellationToken);
-                if (sequence == null)
-                {
-                    sequence = new TicketSequence(request.CashRegisterId.Value, TicketSequenceType.Order, "PED");
-                    await _ticketSequenceRepository.AddAsync(sequence, cancellationToken);
-                }
-
-                int nextFolio = sequence.GetNextTicketNumber();
-                string series = sequence.Series ?? "PED";
+                // Obtener secuencia de folios de pedido por sucursal
+                int nextFolio = await _orderRepository.GetNextFolioAsync(branchId, cancellationToken);
+                string series = "PED";
 
                 var order = new Order(
-                    branchId: activeShift.CashRegister!.BranchId,
-                    cashRegisterId: request.CashRegisterId.Value,
-                    shiftId: activeShift.Id,
+                    branchId: branchId,
+                    cashRegisterId: request.CashRegisterId,
+                    shiftId: shiftId,
                     clientId: request.ClientId,
                     paymentMethod: paymentMethod,
                     deliveryZoneId: client?.DeliveryZoneId,
                     takenById: request.UserId,
                     capturedById: request.UserId,
                     series: series,
-                    folio: nextFolio
+                    folio: nextFolio,
+                    channel: request.Channel
                 );
-
-                await _ticketSequenceRepository.UpdateAsync(sequence, cancellationToken);
 
                 // Agregar artículos
                 foreach (var item in request.Items)

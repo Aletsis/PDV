@@ -35,14 +35,14 @@ public record VerifyAndConfirmOrderCommand : IRequest<bool>
 public class VerifyAndConfirmOrderCommandHandler : IRequestHandler<VerifyAndConfirmOrderCommand, bool>
 {
     private readonly IApplicationDbContext _context;
-    private readonly ITicketSequenceRepository _ticketSequenceRepository;
+    private readonly IOrderRepository _orderRepository;
 
     public VerifyAndConfirmOrderCommandHandler(
         IApplicationDbContext context,
-        ITicketSequenceRepository ticketSequenceRepository)
+        IOrderRepository orderRepository)
     {
         _context = context;
-        _ticketSequenceRepository = ticketSequenceRepository;
+        _orderRepository = orderRepository;
     }
 
     public async Task<bool> Handle(VerifyAndConfirmOrderCommand request, CancellationToken cancellationToken)
@@ -58,20 +58,12 @@ public class VerifyAndConfirmOrderCommandHandler : IRequestHandler<VerifyAndConf
             if (order == null)
                 throw new DomainException("Pedido no encontrado.");
 
-            // Si el pedido no tenía folio o serie asignado (pedido telefónico), asignarlo desde la caja del verificador
+            // Si el pedido no tenía folio o serie asignado, asignarlo desde la secuencia de la sucursal
             if (order.Folio <= 0)
             {
-                var sequence = await _ticketSequenceRepository.GetWithLockAsync(request.CashRegisterId, TicketSequenceType.Order, cancellationToken);
-                if (sequence == null)
-                {
-                    sequence = new TicketSequence(request.CashRegisterId, TicketSequenceType.Order, "PED");
-                    await _ticketSequenceRepository.AddAsync(sequence, cancellationToken);
-                }
-
-                int nextFolio = sequence.GetNextTicketNumber();
-                string series = sequence.Series ?? "PED";
+                int nextFolio = await _orderRepository.GetNextFolioAsync(order.BranchId, cancellationToken);
+                string series = string.IsNullOrWhiteSpace(order.Series) || order.Series == "TEL" ? "PED" : order.Series;
                 order.SetFolio(series, nextFolio);
-                await _ticketSequenceRepository.UpdateAsync(sequence, cancellationToken);
             }
 
             // Actualizar pesos reales o cantidades ajustadas

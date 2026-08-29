@@ -39,6 +39,7 @@ public class GetOrderByTicketQueryHandler : IRequestHandler<GetOrderByTicketQuer
             ClientName = order.Client != null ? order.Client.Name : "Público General",
             IsCancelled = order.IsCancelled,
             Status = order.Status,
+            Channel = order.Channel,
             Series = order.Series,
             Folio = order.Folio,
             ShiftId = order.ShiftId,

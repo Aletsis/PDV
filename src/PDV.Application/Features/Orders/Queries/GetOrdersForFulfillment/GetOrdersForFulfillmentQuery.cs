@@ -65,6 +65,7 @@ public class GetOrdersForFulfillmentQueryHandler : IRequestHandler<GetOrdersForF
             ClientPhone = o.Client?.Phone,
             IsCancelled = o.IsCancelled,
             Status = o.Status,
+            Channel = o.Channel,
             Series = o.Series,
             Folio = o.Folio,
             ShiftId = o.ShiftId,

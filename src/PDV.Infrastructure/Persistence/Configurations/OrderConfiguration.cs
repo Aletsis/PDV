@@ -12,6 +12,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         entity.Property(e => e.TotalTax).HasPrecision(18, 2);
         entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
         
+        entity.Property(e => e.Channel).HasDefaultValue(PDV.Domain.Enums.OrderChannel.Telephone);
         entity.Property(e => e.Series).HasMaxLength(10);
         entity.Property(e => e.ReturnReason).HasMaxLength(250);
         entity.Property(e => e.CancellationReason).HasMaxLength(250);

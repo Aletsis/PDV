@@ -165,6 +165,17 @@ public class OrderRepository : IOrderRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<int> GetNextFolioAsync(Guid branchId, CancellationToken cancellationToken = default)
+    {
+        var maxFolio = await _context.Orders
+            .IgnoreQueryFilters()
+            .Where(o => o.BranchId == branchId)
+            .Select(o => (int?)o.Folio)
+            .MaxAsync(cancellationToken);
+
+        return (maxFolio ?? 0) + 1;
+    }
+
     public async Task<Order?> GetByFolioAsync(Guid? cashRegisterId, string series, int folio, CancellationToken cancellationToken = default)
     {
         return await _context.Orders

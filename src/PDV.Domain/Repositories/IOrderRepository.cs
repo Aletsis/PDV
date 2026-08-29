@@ -57,6 +57,9 @@ public interface IOrderRepository : ICrudRepository<Order>
     /// <summary>Obtiene pedidos asociados a una sucursal específica.</summary>
     Task<List<Order>> GetByBranchIdAsync(Guid branchId, CancellationToken cancellationToken = default);
 
+    /// <summary>Obtiene el siguiente folio consecutivo para pedidos de una sucursal.</summary>
+    Task<int> GetNextFolioAsync(Guid branchId, CancellationToken cancellationToken = default);
+
     /// <summary>Obtiene un pedido específico por su caja registradora, serie y folio.</summary>
     Task<Order?> GetByFolioAsync(Guid? cashRegisterId, string series, int folio, CancellationToken cancellationToken = default);
 

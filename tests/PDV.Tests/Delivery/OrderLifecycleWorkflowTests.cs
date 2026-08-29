@@ -80,10 +80,11 @@ public class OrderLifecycleWorkflowTests
         // 1. Setup
         var (context, branchId, pieceProduct, bulkProduct, registerId, shiftId, clientId, zoneId) = await SetupEnvironmentAsync();
         var productRepository = new ProductRepository(context);
+        var orderRepo = new OrderRepository(context);
         var ticketSeqRepo = new TicketSequenceRepository(context);
 
         // 2. Telefonista: Toma el pedido
-        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository);
+        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository, orderRepo);
         var takeCommand = new TakeTelephonistOrderCommand
         {
             BranchId = branchId,
@@ -109,6 +110,9 @@ public class OrderLifecycleWorkflowTests
         Assert.Equal("telefonista1", savedOrder.TakenById);
         Assert.Null(savedOrder.CashRegisterId);
         Assert.Null(savedOrder.ShiftId);
+        Assert.Equal("PED", savedOrder.Series);
+        Assert.Equal(1, savedOrder.Folio);
+        Assert.Equal(OrderChannel.Telephone, savedOrder.Channel);
         Assert.Equal(2, savedOrder.Items.Count);
 
         // 3. Surtidor: Consulta pedidos por surtir y toma el pedido
@@ -137,7 +141,7 @@ public class OrderLifecycleWorkflowTests
         Assert.Contains(verificationOrders, o => o.Id == orderId);
 
         var bulkItem = filledOrder.Items.First(i => i.ProductId == bulkProduct.Id);
-        var verifyHandler = new VerifyAndConfirmOrderCommandHandler(context, ticketSeqRepo);
+        var verifyHandler = new VerifyAndConfirmOrderCommandHandler(context, orderRepo);
         var verifyCommand = new VerifyAndConfirmOrderCommand
         {
             OrderId = orderId,
@@ -188,7 +192,6 @@ public class OrderLifecycleWorkflowTests
 
         // 6. Liquidación de la ruta en caja
         var routeRepo = new DeliveryRouteRepository(context);
-        var orderRepo = new OrderRepository(context);
         var saleRepo = new SaleRepository(context);
 
         var settleHandler = new SettleDeliveryRouteCommandHandler(routeRepo, orderRepo, saleRepo, ticketSeqRepo, context);
@@ -211,5 +214,58 @@ public class OrderLifecycleWorkflowTests
         var generatedSale = await context.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.ShiftId == shiftId);
         Assert.NotNull(generatedSale);
         Assert.Equal(settledOrder.TotalAmount, generatedSale!.TotalAmount);
+    }
+
+    [Fact]
+    public async Task CreateOrderCommand_WithoutCashRegister_AssignsBranchFolioAndSucceeds()
+    {
+        var (context, branchId, pieceProduct, _, _, _, clientId, _) = await SetupEnvironmentAsync();
+        var productRepository = new ProductRepository(context);
+        var orderRepo = new OrderRepository(context);
+
+        var createHandler = new PDV.Application.Features.Orders.Commands.CreateOrder.CreateOrderCommandHandler(orderRepo, productRepository, context);
+
+        var command1 = new PDV.Application.Features.Orders.Commands.CreateOrder.CreateOrderCommand
+        {
+            BranchId = branchId,
+            ClientId = clientId,
+            PaymentMethod = "Cash",
+            UserId = "user1",
+            CashRegisterId = null,
+            Items = new List<PDV.Application.Features.Orders.Dtos.CartItemDto>
+            {
+                new() { Product = pieceProduct, Quantity = 1, RequestedQuantity = 1 }
+            }
+        };
+
+        var orderId1 = await createHandler.Handle(command1, CancellationToken.None);
+        var order1 = await context.Orders.FindAsync(orderId1);
+        Assert.NotNull(order1);
+        Assert.Null(order1.CashRegisterId);
+        Assert.Null(order1.ShiftId);
+        Assert.Equal("PED", order1.Series);
+        Assert.Equal(1, order1.Folio);
+        Assert.Equal(OrderChannel.Store, order1.Channel);
+
+        var command2 = new PDV.Application.Features.Orders.Commands.CreateOrder.CreateOrderCommand
+        {
+            BranchId = branchId,
+            ClientId = clientId,
+            Channel = OrderChannel.WhatsApp,
+            PaymentMethod = "Cash",
+            UserId = "user1",
+            CashRegisterId = null,
+            Items = new List<PDV.Application.Features.Orders.Dtos.CartItemDto>
+            {
+                new() { Product = pieceProduct, Quantity = 2, RequestedQuantity = 2 }
+            }
+        };
+
+        var orderId2 = await createHandler.Handle(command2, CancellationToken.None);
+        var order2 = await context.Orders.FindAsync(orderId2);
+        Assert.NotNull(order2);
+        Assert.Equal("PED", order2.Series);
+        Assert.Equal(2, order2.Folio);
+        Assert.Equal(OrderChannel.WhatsApp, order2.Channel);
     }
 }
