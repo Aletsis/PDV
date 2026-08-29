@@ -1,5 +1,6 @@
 @page "/orders/zones"
 @using MediatR
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.DeliveryZones.Commands.CreateDeliveryZone
 @using PDV.Application.Features.DeliveryZones.Commands.DeleteDeliveryZone
 @using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
@@ -9,6 +10,7 @@
 @inject IMediator Mediator
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
+@inject IGeocodingService GeocodingService
 @inject PDV.WebUI.Services.ShiftSessionService ShiftSession
 @inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 @attribute [Authorize(Roles = "Admin,Manager")]
@@ -27,12 +29,12 @@
 else
 {
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <div class="d-flex justify-space-between align-center mb-4">
+    <div class="d-flex justify-space-between align-center mb-4 flex-wrap gap-3">
         <div>
             <MudText Typo="Typo.h4" GutterBottom="true">Zonas de Reparto</MudText>
             <MudText Typo="Typo.body1">Configure las zonas de reparto geográficas dibujando polígonos sobre el mapa asignados a cada sucursal.</MudText>
         </div>
-        <div style="min-width: 250px;">
+        <div style="min-width: 280px;">
             <MudSelect T="Guid?" Label="Filtrar por Sucursal" Value="_filterBranchId" ValueChanged="OnFilterBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
                 <MudSelectItem Value="@((Guid?)null)">Todas las Sucursales</MudSelectItem>
                 @foreach (var branch in _branches)
@@ -45,9 +47,32 @@ else
 
     <MudGrid>
         <MudItem xs="12" md="8">
-            <MudCard Elevation="3" Style="height: 580px; position: relative;">
-                <MudCardContent Style="height: 100%; padding: 0;">
-                    <div id="zone-map" style="height: 100%; width: 100%; border-radius: 4px;"></div>
+            <MudCard Elevation="3" Style="height: 580px; position: relative; display: flex; flex-direction: column;">
+                <div class="d-flex align-center justify-space-between px-3 py-2 border-b" style="background-color: var(--mud-palette-background-grey);">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Store" Size="Size.Small" Color="Color.Primary" />
+                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold">
+                            @(CurrentSelectedBranch?.Name != null ? $"Sucursal: {CurrentSelectedBranch.Name}" : "Todas las Sucursales")
+                        </MudText>
+                        @if (_isLocatingBranch)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" Class="ml-2" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Ubicando en mapa...</MudText>
+                        }
+                    </div>
+                    <div>
+                        <MudButton Size="Size.Small" 
+                                   StartIcon="@Icons.Material.Filled.MyLocation" 
+                                   Variant="Variant.Filled" 
+                                   Color="Color.Primary" 
+                                   OnClick="CenterOnCurrentBranch"
+                                   Disabled="@(!_selectedBranchId.HasValue || _isLocatingBranch)">
+                            Centrar en Sucursal
+                        </MudButton>
+                    </div>
+                </div>
+                <MudCardContent Style="flex-grow: 1; height: 100%; padding: 0; position: relative;">
+                    <div id="zone-map" style="height: 100%; width: 100%; border-radius: 0 0 4px 4px;"></div>
                 </MudCardContent>
             </MudCard>
         </MudItem>
@@ -60,7 +85,7 @@ else
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent>
-                    <MudSelect T="Guid?" Label="Sucursal Responsable" @bind-Value="_selectedBranchId" Variant="Variant.Outlined" Class="mb-3" Required="true" AnchorOrigin="Origin.BottomCenter" HelperText="Seleccione a qué sucursal pertenece esta zona">
+                    <MudSelect T="Guid?" Label="Sucursal Responsable" Value="_selectedBranchId" ValueChanged="OnSelectedBranchChanged" Variant="Variant.Outlined" Class="mb-3" Required="true" AnchorOrigin="Origin.BottomCenter" HelperText="@GetBranchAddressHelperText()">
                         @foreach (var branch in _branches)
                         {
                             <MudSelectItem Value="@((Guid?)branch.Id)">@branch.Name</MudSelectItem>
@@ -139,6 +164,11 @@ else
     private List<double[]> _currentCoords = new();
     private List<DeliveryZone> _zones = new();
     private DotNetObjectReference<DeliveryZonesMap>? _dotNetRef;
+    private bool _isMapInitialized = false;
+    private bool _isLocatingBranch = false;
+    private readonly Dictionary<Guid, (double? Lat, double? Lng)> _branchCoordsCache = new();
+
+    private BranchDto? CurrentSelectedBranch => _branches.FirstOrDefault(b => b.Id == _selectedBranchId);
 
     private bool IsSaveEnabled => !string.IsNullOrWhiteSpace(_zoneName) && _currentCoords.Count >= 3 && _selectedBranchId.HasValue && _selectedBranchId.Value != Guid.Empty;
 
@@ -153,10 +183,12 @@ else
         if (ShiftSession.BranchId.HasValue && _branches.Any(b => b.Id == ShiftSession.BranchId.Value))
         {
             _selectedBranchId = ShiftSession.BranchId.Value;
+            _filterBranchId = ShiftSession.BranchId.Value;
         }
         else if (_branches.Count > 0)
         {
             _selectedBranchId = _branches[0].Id;
+            _filterBranchId = _branches[0].Id;
         }
 
         await LoadZonesAsync();
@@ -168,9 +200,121 @@ else
 
         if (firstRender)
         {
-            // Guadalajara, Jalisco por defecto
+            _isMapInitialized = true;
+            // Guadalajara por defecto en primera carga hasta ubicar la sucursal
             await JS.InvokeVoidAsync("leafletHelper.initMap", "zone-map", _dotNetRef, 20.659698, -103.349609, 12);
-            await RefreshMapZonesAsync();
+            await UpdateMapForSelectedBranchAsync();
+        }
+    }
+
+    private string GetBranchAddressHelperText()
+    {
+        var branch = CurrentSelectedBranch;
+        if (branch == null) return "Seleccione a qué sucursal pertenece esta zona";
+        var address = branch.Address?.ToFullAddressString() ?? branch.Address?.Street;
+        return !string.IsNullOrWhiteSpace(address) ? $"Ubicación: {address}" : "Sin dirección registrada";
+    }
+
+    private async Task<(double? Lat, double? Lng)> ResolveBranchCoordinatesAsync(BranchDto? branch)
+    {
+        if (branch == null) return (null, null);
+
+        if (_branchCoordsCache.TryGetValue(branch.Id, out var cachedCoords))
+        {
+            return cachedCoords;
+        }
+
+        if (branch.Address != null)
+        {
+            // 1. Intentar geocodificar dirección formateada completa
+            var fullAddress = branch.Address.ToFullAddressString();
+            if (!string.IsNullOrWhiteSpace(fullAddress))
+            {
+                var (lat, lon) = await GeocodingService.GeocodeAddressQueryAsync(fullAddress);
+                if (lat.HasValue && lon.HasValue)
+                {
+                    var result = (lat, lon);
+                    _branchCoordsCache[branch.Id] = result;
+                    return result;
+                }
+            }
+
+            // 2. Intentar directamente con la propiedad Street
+            if (!string.IsNullOrWhiteSpace(branch.Address.Street) && branch.Address.Street != fullAddress)
+            {
+                var (lat, lon) = await GeocodingService.GeocodeAddressQueryAsync(branch.Address.Street);
+                if (lat.HasValue && lon.HasValue)
+                {
+                    var result = (lat, lon);
+                    _branchCoordsCache[branch.Id] = result;
+                    return result;
+                }
+            }
+
+            // 3. Intentar con Ciudad, Estado y País
+            if (!string.IsNullOrWhiteSpace(branch.Address.City) && branch.Address.City != "N/A")
+            {
+                var cityQuery = $"{branch.Address.City}, {branch.Address.State}, {branch.Address.Country}";
+                var (lat, lon) = await GeocodingService.GeocodeAddressQueryAsync(cityQuery);
+                if (lat.HasValue && lon.HasValue)
+                {
+                    var result = (lat, lon);
+                    _branchCoordsCache[branch.Id] = result;
+                    return result;
+                }
+            }
+        }
+
+        _branchCoordsCache[branch.Id] = (null, null);
+        return (null, null);
+    }
+
+    private async Task UpdateMapForSelectedBranchAsync()
+    {
+        if (!_isMapInitialized) return;
+
+        _isLocatingBranch = true;
+        StateHasChanged();
+
+        try
+        {
+            var branch = CurrentSelectedBranch;
+            double? lat = null;
+            double? lng = null;
+
+            if (branch != null)
+            {
+                var coords = await ResolveBranchCoordinatesAsync(branch);
+                lat = coords.Lat;
+                lng = coords.Lng;
+            }
+
+            await JS.InvokeVoidAsync("leafletHelper.showZonesAndFocus", "zone-map", _zones, branch?.Name, lat, lng);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error al enfocar sucursal en mapa: {ex.Message}");
+        }
+        finally
+        {
+            _isLocatingBranch = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CenterOnCurrentBranch()
+    {
+        var branch = CurrentSelectedBranch;
+        if (branch == null) return;
+
+        var coords = await ResolveBranchCoordinatesAsync(branch);
+        if (coords.Lat.HasValue && coords.Lng.HasValue)
+        {
+            await JS.InvokeVoidAsync("leafletHelper.centerOnBranch", "zone-map", coords.Lat.Value, coords.Lng.Value, 15);
+        }
+        else
+        {
+            await UpdateMapForSelectedBranchAsync();
         }
     }
 
@@ -181,18 +325,23 @@ else
         {
             _selectedBranchId = branchId.Value;
         }
+        _currentCoords.Clear();
         await LoadZonesAsync();
-        await RefreshMapZonesAsync();
+        await UpdateMapForSelectedBranchAsync();
+    }
+
+    private async Task OnSelectedBranchChanged(Guid? branchId)
+    {
+        _selectedBranchId = branchId;
+        _filterBranchId = branchId;
+        _currentCoords.Clear();
+        await LoadZonesAsync();
+        await UpdateMapForSelectedBranchAsync();
     }
 
     private async Task LoadZonesAsync()
     {
         _zones = await Mediator.Send(new GetDeliveryZonesQuery { OnlyActive = true, BranchId = _filterBranchId });
-    }
-
-    private async Task RefreshMapZonesAsync()
-    {
-        await JS.InvokeVoidAsync("leafletHelper.showZones", "zone-map", _zones);
     }
 
     [JSInvokable]
@@ -240,7 +389,7 @@ else
 
             await JS.InvokeVoidAsync("leafletHelper.updateDrawPolygon", "zone-map", _currentCoords);
             await LoadZonesAsync();
-            await RefreshMapZonesAsync();
+            await UpdateMapForSelectedBranchAsync();
         }
         catch (Exception ex)
         {
@@ -255,7 +404,7 @@ else
             await Mediator.Send(new DeleteDeliveryZoneCommand(id));
             Snackbar.Add("Zona de reparto eliminada.", Severity.Success);
             await LoadZonesAsync();
-            await RefreshMapZonesAsync();
+            await UpdateMapForSelectedBranchAsync();
         }
         catch (Exception ex)
         {

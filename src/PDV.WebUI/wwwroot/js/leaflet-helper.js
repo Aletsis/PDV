@@ -2,6 +2,7 @@ let maps = {};
 let polygons = {};
 let drawMarkers = {};
 let clientMarkers = {};
+let branchMarkers = {};
 let zonePolygons = {};
 
 window.leafletHelper = {
@@ -24,6 +25,7 @@ window.leafletHelper = {
         maps[elementId] = map;
         polygons[elementId] = null;
         drawMarkers[elementId] = [];
+        branchMarkers[elementId] = null;
         zonePolygons[elementId] = [];
 
         map.on('click', function (e) {
@@ -92,6 +94,34 @@ window.leafletHelper = {
         }
     },
 
+    showBranchLocation: function (elementId, lat, lng, branchName) {
+        let map = maps[elementId];
+        if (!map) return;
+
+        if (branchMarkers[elementId]) {
+            map.removeLayer(branchMarkers[elementId]);
+            branchMarkers[elementId] = null;
+        }
+
+        if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+            let branchIcon = L.divIcon({
+                className: 'custom-branch-marker',
+                html: `<div style="background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%); color: white; border: 2px solid #ffffff; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.35); cursor: pointer;"><svg style="width: 20px; height: 20px; fill: white;" viewBox="0 0 24 24"><path d="M20 4H4v2h16V4zm1 10v-2l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6h1zm-9 4H6v-4h6v4z"/></svg></div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18],
+                popupAnchor: [0, -20]
+            });
+
+            let marker = L.marker([lat, lng], {
+                icon: branchIcon,
+                zIndexOffset: 1000
+            }).addTo(map);
+
+            marker.bindPopup(`<strong>Sucursal:</strong> ${branchName || 'Sucursal'}`);
+            branchMarkers[elementId] = marker;
+        }
+    },
+
     showZones: function (elementId, zones) {
         let map = maps[elementId];
         if (!map) return;
@@ -118,5 +148,67 @@ window.leafletHelper = {
                 console.error("Error cargando polígono de zona:", e);
             }
         });
+    },
+
+    showZonesAndFocus: function (elementId, zones, branchName, branchLat, branchLng) {
+        let map = maps[elementId];
+        if (!map) return;
+
+        // 1. Mostrar zonas existentes
+        window.leafletHelper.showZones(elementId, zones);
+
+        // 2. Colocar marcador de sucursal
+        window.leafletHelper.showBranchLocation(elementId, branchLat, branchLng, branchName);
+
+        // 3. Recolectar puntos para encuadrar vista
+        let allPoints = [];
+
+        if (branchLat != null && branchLng != null && !isNaN(branchLat) && !isNaN(branchLng)) {
+            allPoints.push([branchLat, branchLng]);
+        }
+
+        if (zones && zones.length > 0) {
+            zones.forEach(zone => {
+                try {
+                    let coords = JSON.parse(zone.polygonCoordinatesJson);
+                    if (coords && Array.isArray(coords)) {
+                        coords.forEach(pt => {
+                            if (Array.isArray(pt) && pt.length >= 2 && !isNaN(pt[0]) && !isNaN(pt[1])) {
+                                allPoints.push([pt[0], pt[1]]);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error("Error procesando puntos para enfoque:", e);
+                }
+            });
+        }
+
+        // 4. Enfocar mapa según puntos disponibles
+        if (allPoints.length > 1) {
+            let bounds = L.latLngBounds(allPoints);
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        } else if (allPoints.length === 1) {
+            map.setView(allPoints[0], 15);
+        } else {
+            // Sin coordenadas ni zonas, mantener vista o centrar por defecto
+            map.invalidateSize();
+        }
+
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 200);
+    },
+
+    centerOnBranch: function (elementId, branchLat, branchLng, zoom) {
+        let map = maps[elementId];
+        if (!map) return;
+
+        if (branchLat != null && branchLng != null && !isNaN(branchLat) && !isNaN(branchLng)) {
+            map.setView([branchLat, branchLng], zoom || 15);
+            if (branchMarkers[elementId]) {
+                branchMarkers[elementId].openPopup();
+            }
+        }
     }
 };
