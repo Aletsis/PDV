@@ -83,6 +83,12 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
     public TimeSpan? AutoBackupTime { get; private set; }
 
     // ──────────────────────────────────────────────
+    // Configuración de Surtido y Pedidos
+    // ──────────────────────────────────────────────
+    /// <summary>Capacidad máxima predeterminada de pedidos simultáneos por surtidor.</summary>
+    public int DefaultMaxPickingOrdersPerPicker { get; private set; } = 1;
+
+    // ──────────────────────────────────────────────
     // Integración API Comercial
     // ──────────────────────────────────────────────
     /// <summary>URL base de la API del sistema Comercial (ej. https://api.comercial.com).</summary>
@@ -113,8 +119,9 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         Phone = phone?.Trim();
         Email = email?.Trim();
 
-        // Defaults para tickets
+        // Defaults para tickets y surtido
         TicketCopies = 1;
+        DefaultMaxPickingOrdersPerPicker = 1;
 
         AddDomainEvent(new SystemConfigurationUpdatedEvent(Id, CompanyName, TaxId));
     }
@@ -248,6 +255,17 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         AutoReportTime = autoReportTime;
         AutoBackupEnabled = autoBackupEnabled;
         AutoBackupTime = autoBackupTime;
+    }
+
+    // ──────────────────────────────────────────────
+    // Configuración de Surtido y Pedidos
+    // ──────────────────────────────────────────────
+    public void UpdatePickingSettings(int defaultMaxPickingOrdersPerPicker)
+    {
+        if (defaultMaxPickingOrdersPerPicker < 1)
+            throw new DomainException("La capacidad máxima de surtido predeterminada debe ser al menos 1.");
+
+        DefaultMaxPickingOrdersPerPicker = defaultMaxPickingOrdersPerPicker;
     }
 
     // ──────────────────────────────────────────────

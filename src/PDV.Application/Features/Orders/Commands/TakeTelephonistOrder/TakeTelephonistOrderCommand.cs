@@ -40,15 +40,18 @@ public class TakeTelephonistOrderCommandHandler : IRequestHandler<TakeTelephonis
     private readonly IApplicationDbContext _context;
     private readonly IProductRepository _productRepository;
     private readonly IOrderRepository _orderRepository;
+    private readonly IPickerDispatcherService _pickerDispatcher;
 
     public TakeTelephonistOrderCommandHandler(
         IApplicationDbContext context,
         IProductRepository productRepository,
-        IOrderRepository orderRepository)
+        IOrderRepository orderRepository,
+        IPickerDispatcherService pickerDispatcher)
     {
         _context = context;
         _productRepository = productRepository;
         _orderRepository = orderRepository;
+        _pickerDispatcher = pickerDispatcher;
     }
 
     public async Task<Guid> Handle(TakeTelephonistOrderCommand request, CancellationToken cancellationToken)
@@ -159,6 +162,8 @@ public class TakeTelephonistOrderCommandHandler : IRequestHandler<TakeTelephonis
             _context.Orders.Add(order);
             await _context.SaveChangesAsync(cancellationToken);
             await _context.CommitTransactionAsync(cancellationToken);
+
+            await _pickerDispatcher.TryAssignPendingOrderAsync(order.Id, cancellationToken);
 
             return order.Id;
         }

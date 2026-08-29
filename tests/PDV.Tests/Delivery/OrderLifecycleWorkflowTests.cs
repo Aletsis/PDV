@@ -82,9 +82,10 @@ public class OrderLifecycleWorkflowTests
         var productRepository = new ProductRepository(context);
         var orderRepo = new OrderRepository(context);
         var ticketSeqRepo = new TicketSequenceRepository(context);
+        var pickerDispatcher = new PDV.Application.Common.Services.PickerDispatcherService(context, Mock.Of<Microsoft.Extensions.Logging.ILogger<PDV.Application.Common.Services.PickerDispatcherService>>());
 
         // 2. Telefonista: Toma el pedido
-        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository, orderRepo);
+        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository, orderRepo, pickerDispatcher);
         var takeCommand = new TakeTelephonistOrderCommand
         {
             BranchId = branchId,
@@ -128,7 +129,7 @@ public class OrderLifecycleWorkflowTests
         Assert.Equal("surtidor1", inProgressOrder.FilledById);
 
         // Surtidor marca como surtido
-        var completeFulfillmentHandler = new CompleteOrderFulfillmentCommandHandler(context);
+        var completeFulfillmentHandler = new CompleteOrderFulfillmentCommandHandler(context, pickerDispatcher);
         await completeFulfillmentHandler.Handle(new CompleteOrderFulfillmentCommand(orderId, "surtidor1"), CancellationToken.None);
 
         var filledOrder = await context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == orderId);
@@ -222,8 +223,9 @@ public class OrderLifecycleWorkflowTests
         var (context, branchId, pieceProduct, _, _, _, clientId, _) = await SetupEnvironmentAsync();
         var productRepository = new ProductRepository(context);
         var orderRepo = new OrderRepository(context);
+        var pickerDispatcher = new PDV.Application.Common.Services.PickerDispatcherService(context, Mock.Of<Microsoft.Extensions.Logging.ILogger<PDV.Application.Common.Services.PickerDispatcherService>>());
 
-        var createHandler = new PDV.Application.Features.Orders.Commands.CreateOrder.CreateOrderCommandHandler(orderRepo, productRepository, context);
+        var createHandler = new PDV.Application.Features.Orders.Commands.CreateOrder.CreateOrderCommandHandler(orderRepo, productRepository, context, pickerDispatcher);
 
         var command1 = new PDV.Application.Features.Orders.Commands.CreateOrder.CreateOrderCommand
         {
@@ -281,7 +283,8 @@ public class OrderLifecycleWorkflowTests
 
         var productRepository = new ProductRepository(context);
         var orderRepo = new OrderRepository(context);
-        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository, orderRepo);
+        var pickerDispatcher = new PDV.Application.Common.Services.PickerDispatcherService(context, Mock.Of<Microsoft.Extensions.Logging.ILogger<PDV.Application.Common.Services.PickerDispatcherService>>());
+        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository, orderRepo, pickerDispatcher);
 
         var takeCommand = new TakeTelephonistOrderCommand
         {

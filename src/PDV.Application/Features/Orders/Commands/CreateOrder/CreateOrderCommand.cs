@@ -32,15 +32,18 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
     private readonly IApplicationDbContext _context;
+    private readonly IPickerDispatcherService _pickerDispatcher;
 
     public CreateOrderCommandHandler(
         IOrderRepository orderRepository,
         IProductRepository productRepository,
-        IApplicationDbContext context)
+        IApplicationDbContext context,
+        IPickerDispatcherService pickerDispatcher)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
         _context = context;
+        _pickerDispatcher = pickerDispatcher;
     }
 
     public async Task<Guid> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -192,6 +195,11 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                 await _orderRepository.AddAsync(order, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
                 await _context.CommitTransactionAsync(cancellationToken);
+
+                if (order.Status == OrderStatus.Pending)
+                {
+                    await _pickerDispatcher.TryAssignPendingOrderAsync(order.Id, cancellationToken);
+                }
 
                 return order.Id;
             }

@@ -9,6 +9,9 @@
 @using PDV.Application.Features.Orders.Queries.GetOrdersForFulfillment
 @using PDV.Application.Features.Orders.Commands.StartOrderFulfillment
 @using PDV.Application.Features.Orders.Commands.CompleteOrderFulfillment
+@using PDV.Application.Features.Pickers.Dtos
+@using PDV.Application.Features.Pickers.Queries.GetMyPickerStatus
+@using PDV.Application.Features.Pickers.Commands.SetPickerStatus
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -19,28 +22,87 @@
 <PageTitle>Surtido de Pedidos</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-6">
-    <div class="d-flex justify-space-between align-center mb-4">
+    <!-- Header Principal -->
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-4">
         <div>
             <MudText Typo="Typo.h4" Class="font-weight-bold d-flex align-center gap-2">
                 <MudIcon Icon="@Icons.Material.Filled.Checklist" Color="Color.Primary" Size="Size.Large" />
                 Panel de Surtido de Pedidos
             </MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary">
-                Seleccione pedidos de la cola para recolectar productos en almacén y prepararlos para verificación.
+                Recolecte productos en almacén y prepare los pedidos asignados para verificación física.
             </MudText>
         </div>
-        <div class="d-flex align-center gap-3">
-            <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 200px;">
+        
+        <div class="d-flex align-center flex-wrap gap-3">
+            <!-- Selector de Sucursal -->
+            <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 180px;">
                 @foreach (var b in _branches)
                 {
                     <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
                 }
             </MudSelect>
+
+            <!-- Control de Disponibilidad del Surtidor -->
+            @if (_myPickerStatus != null)
+            {
+                <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="@GetStatusColor(_myPickerStatus.Status)"
+                                   StartIcon="@GetStatusIcon(_myPickerStatus.Status)"
+                                   EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                                   Size="Size.Medium">
+                            @GetStatusLabel(_myPickerStatus.Status)
+                        </MudButton>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.Available))">
+                            <strong>Disponible</strong> (Recibir pedidos automáticos)
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Restaurant" IconColor="Color.Warning" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.MealBreak))">
+                            <strong>Hora de Comida</strong> (Pausar asignación)
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.PauseCircle" IconColor="Color.Info" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.OperationalBreak))">
+                            <strong>Pausa Operativa</strong> (Baño / Almacén / Carga)
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Cancel" IconColor="Color.Error" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.OffDuty))">
+                            <strong>Fuera de Turno</strong> (Fin de jornada / Descanso)
+                        </MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+
+                <!-- Chips Informativos de Capacidad -->
+                <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.Layers">
+                    Carga: @_myPickerStatus.ActiveOrdersCount / @_myPickerStatus.EffectiveMaxCapacity
+                </MudChip>
+
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.TaskAlt">
+                    @_myPickerStatus.OrdersCompletedToday listos hoy
+                </MudChip>
+            }
+
             <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadOrdersAsync">
                 Actualizar
             </MudButton>
         </div>
     </div>
+
+    <!-- Alerta de Estado No Disponible -->
+    @if (_myPickerStatus != null && _myPickerStatus.Status != PickerAvailabilityStatus.Available)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4 d-flex justify-space-between align-center">
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@GetStatusIcon(_myPickerStatus.Status)" />
+                <span>
+                    Tu estado actual es <strong>@GetStatusLabel(_myPickerStatus.Status)</strong>. El sistema no te asignará nuevos pedidos automáticamente mientras estés en pausa.
+                </span>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow" Class="ml-4" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.Available))">
+                Ponerme Disponible
+            </MudButton>
+        </MudAlert>
+    }
 
     @if (_isLoading)
     {
@@ -84,17 +146,26 @@
                             {
                                 var isSelected = _selectedOrder?.Id == order.Id;
                                 var isInProgress = order.Status == OrderStatus.InFulfillment;
+                                var isAssignedToMe = order.FilledById == _currentUserId;
 
                                 <MudCard Elevation="@(isSelected ? 6 : 1)"
                                          Class="@($"cursor-pointer transition-all border-solid {(isSelected ? "border-2 mud-border-primary" : "border-1 mud-border-lines-default")}")"
-                                         Style="@(isSelected ? "background: rgba(33, 150, 243, 0.08);" : "")"
+                                         Style="@(isAssignedToMe ? (isSelected ? "background: rgba(76, 175, 80, 0.15);" : "background: rgba(76, 175, 80, 0.06);") : (isSelected ? "background: rgba(33, 150, 243, 0.08);" : ""))"
                                          @onclick="@(() => SelectOrder(order))">
                                     <MudCardContent Class="pa-3">
                                         <div class="d-flex justify-space-between align-start mb-1">
                                             <div>
-                                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
-                                                    @order.OrderNumber
-                                                </MudText>
+                                                <div class="d-flex align-center gap-2">
+                                                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                                                        @order.OrderNumber
+                                                    </MudText>
+                                                    @if (isAssignedToMe)
+                                                    {
+                                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Style="font-size: 0.7rem; height: 20px;">
+                                                            Asignado a ti
+                                                        </MudChip>
+                                                    }
+                                                </div>
                                                 <MudText Typo="Typo.body2" Color="Color.Secondary">
                                                     @order.ClientName
                                                 </MudText>
@@ -109,7 +180,7 @@
                                                 else
                                                 {
                                                     <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule">
-                                                        Pendiente
+                                                        En Espera
                                                     </MudChip>
                                                 }
 
@@ -186,7 +257,7 @@
                                     }
                                     else
                                     {
-                                        <MudChip T="string" Color="Color.Info" Size="Size.Small">Por Iniciar</MudChip>
+                                        <MudChip T="string" Color="Color.Info" Size="Size.Small">En Espera</MudChip>
                                     }
 
                                     @switch (_selectedOrder.Channel)
@@ -313,6 +384,7 @@
     private Guid _selectedBranchId = Guid.Empty;
     private List<OrderDetailDto> _orders = new();
     private OrderDetailDto? _selectedOrder;
+    private PickerStatusDto? _myPickerStatus;
     private string _searchTerm = string.Empty;
     private bool _isLoading = false;
     private bool _isSubmitting = false;
@@ -329,7 +401,7 @@
         {
             _branches = branchesResult.ToList();
             _selectedBranchId = _branches.First().Id;
-            await LoadOrdersAsync();
+            await LoadDataAsync();
         }
     }
 
@@ -337,7 +409,27 @@
     {
         _selectedBranchId = branchId;
         _selectedOrder = null;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        await LoadPickerStatusAsync();
         await LoadOrdersAsync();
+    }
+
+    private async Task LoadPickerStatusAsync()
+    {
+        if (_selectedBranchId == Guid.Empty || string.IsNullOrWhiteSpace(_currentUserId)) return;
+
+        try
+        {
+            _myPickerStatus = await Mediator.Send(new GetMyPickerStatusQuery(_currentUserId, _selectedBranchId));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar estado del surtidor: {ex.Message}");
+        }
     }
 
     private async Task LoadOrdersAsync()
@@ -353,7 +445,13 @@
                 SearchTerm = _searchTerm
             });
 
-            if (_selectedOrder != null)
+            // Si hay un pedido asignado al surtidor actual, seleccionarlo automáticamente si no hay selección
+            if (_selectedOrder == null)
+            {
+                _selectedOrder = _orders.FirstOrDefault(o => o.FilledById == _currentUserId && o.Status == OrderStatus.InFulfillment)
+                                ?? _orders.FirstOrDefault(o => o.Status == OrderStatus.InFulfillment);
+            }
+            else
             {
                 _selectedOrder = _orders.FirstOrDefault(o => o.Id == _selectedOrder.Id);
             }
@@ -365,6 +463,26 @@
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task ChangeMyStatus(PickerAvailabilityStatus newStatus)
+    {
+        try
+        {
+            await Mediator.Send(new SetPickerStatusCommand
+            {
+                UserId = _currentUserId,
+                BranchId = _selectedBranchId,
+                Status = newStatus
+            });
+
+            Snackbar.Add($"Tu estado se actualizó a: {GetStatusLabel(newStatus)}", Severity.Info);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cambiar estado: {ex.Message}", Severity.Error);
         }
     }
 
@@ -389,7 +507,7 @@
         {
             await Mediator.Send(new StartOrderFulfillmentCommand(_selectedOrder.Id, _currentUserId));
             Snackbar.Add("Pedido tomado para surtido.", Severity.Info);
-            await LoadOrdersAsync();
+            await LoadDataAsync();
         }
         catch (Exception ex)
         {
@@ -412,7 +530,7 @@
             await Mediator.Send(new CompleteOrderFulfillmentCommand(_selectedOrder.Id, _currentUserId));
             Snackbar.Add("¡Pedido surtido exitosamente! Pasó a la estación de verificación.", Severity.Success);
             _selectedOrder = null;
-            await LoadOrdersAsync();
+            await LoadDataAsync();
         }
         catch (Exception ex)
         {
@@ -423,4 +541,31 @@
             _isSubmitting = false;
         }
     }
+
+    private Color GetStatusColor(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Color.Success,
+        PickerAvailabilityStatus.MealBreak => Color.Warning,
+        PickerAvailabilityStatus.OperationalBreak => Color.Info,
+        PickerAvailabilityStatus.OffDuty => Color.Error,
+        _ => Color.Default
+    };
+
+    private string GetStatusIcon(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Icons.Material.Filled.CheckCircle,
+        PickerAvailabilityStatus.MealBreak => Icons.Material.Filled.Restaurant,
+        PickerAvailabilityStatus.OperationalBreak => Icons.Material.Filled.PauseCircle,
+        PickerAvailabilityStatus.OffDuty => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private string GetStatusLabel(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => "Disponible",
+        PickerAvailabilityStatus.MealBreak => "En Comida",
+        PickerAvailabilityStatus.OperationalBreak => "En Pausa",
+        PickerAvailabilityStatus.OffDuty => "Fuera de Turno",
+        _ => "Desconocido"
+    };
 }

@@ -86,6 +86,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     public DbSet<InventoryDocument> InventoryDocuments { get; set; }
     public DbSet<InventoryDocumentItem> InventoryDocumentItems { get; set; }
     public DbSet<InventoryConceptMapping> InventoryConceptMappings { get; set; }
+    public DbSet<UserWorkStatus> UserWorkStatuses { get; set; }
 
     // ──────────────────────────────────────────────
     // Configuración del modelo

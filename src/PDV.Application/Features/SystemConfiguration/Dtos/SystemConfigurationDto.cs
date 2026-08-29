@@ -39,6 +39,9 @@ public class SystemConfigurationDto
     public bool AutoBackupEnabled { get; set; }
     public TimeSpan? AutoBackupTime { get; set; }
 
+    // Surtido y Pedidos
+    public int DefaultMaxPickingOrdersPerPicker { get; set; } = 1;
+
     // Integración API Comercial
     public string? ComercialApiUrl { get; set; }
     public string? ComercialApiKey { get; set; }

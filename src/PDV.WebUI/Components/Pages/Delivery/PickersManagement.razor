@@ -1,0 +1,413 @@
+@page "/orders/pickers-management"
+@page "/admin/pickers"
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Pickers.Dtos
+@using PDV.Application.Features.Pickers.Queries.GetPickersStatus
+@using PDV.Application.Features.Pickers.Commands.SetPickerStatus
+@using PDV.Application.Features.Pickers.Commands.UpdatePickerCapacity
+@using PDV.WebUI.Components.Shared
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@attribute [Authorize(Roles = "Admin,Manager")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Monitor de Surtidores</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Header Principal -->
+    <PdvHeader Title="Monitor y Control de Surtidores"
+               Subtitle="Supervise en tiempo real la disponibilidad, estado de turno y capacidad de carga de los surtidores de cada sucursal."
+               Icon="@Icons.Material.Filled.Checklist"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            <div class="d-flex align-center gap-3 px-4 py-2 border-solid border mud-border-secondary" style="border-radius: 12px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.Bolt" Color="Color.Success" Size="Size.Small" />
+                <div class="d-flex flex-column">
+                    <span style="font-size: 0.72rem; color: rgba(255,255,255,0.5); text-transform: uppercase;">Despacho</span>
+                    <strong style="font-size: 0.82rem; color: #ffffff;">Auto-Asignación Activa</strong>
+                </div>
+            </div>
+        </StatusAlert>
+        <Actions>
+            <div style="min-width: 220px;">
+                <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var b in _branches)
+                    {
+                        <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadPickersAsync">
+                Actualizar
+            </MudButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Métricas Rápidas -->
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Total Surtidores"
+                        Value="@_pickers.Count.ToString()"
+                        Icon="@Icons.Material.Filled.People"
+                        IconColor="Color.Primary"
+                        IsLoading="@_isLoading" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Disponibles"
+                        Value="@_pickers.Count(p => p.Status == PickerAvailabilityStatus.Available).ToString()"
+                        Icon="@Icons.Material.Filled.CheckCircle"
+                        IconColor="Color.Success"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="En Comida / Pausa"
+                        Value="@_pickers.Count(p => p.Status == PickerAvailabilityStatus.MealBreak || p.Status == PickerAvailabilityStatus.OperationalBreak).ToString()"
+                        Icon="@Icons.Material.Filled.Restaurant"
+                        IconColor="Color.Warning"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Fuera de Turno"
+                        Value="@_pickers.Count(p => p.Status == PickerAvailabilityStatus.OffDuty).ToString()"
+                        Icon="@Icons.Material.Filled.PersonOff"
+                        IconColor="Color.Error"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Tabla Principal de Surtidores -->
+    <MudPaper Class="pa-4" Style="border-radius: 14px;">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <MudTextField @bind-Value="_searchString"
+                           Placeholder="Buscar por nombre, usuario o n° de empleado..."
+                           Adornment="Adornment.Start"
+                           AdornmentIcon="@Icons.Material.Filled.Search"
+                           Immediate="true"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           Style="max-width: 400px;" />
+
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Mostrando @_filteredPickers.Count() de @_pickers.Count surtidores registrados en la sucursal.
+            </MudText>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center align-center py-12">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            </div>
+        }
+        else if (!_pickers.Any())
+        {
+            <div class="d-flex flex-column align-center justify-center py-16 text-center mud-text-secondary">
+                <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Style="font-size: 4rem;" Color="Color.Default" Class="mb-3" />
+                <MudText Typo="Typo.h6">No hay usuarios con rol de Surtidor en esta sucursal</MudText>
+                <MudText Typo="Typo.body2">Asigne el rol "Picker" o "Surtidor" a usuarios en el módulo de Administración de Usuarios.</MudText>
+            </div>
+        }
+        else
+        {
+            <MudTable Items="@_filteredPickers" Hover="true" Striped="true" Dense="false" Elevation="0" Class="border border-solid rounded-lg">
+                <HeaderContent>
+                    <MudTh>Surtidor</MudTh>
+                    <MudTh>N° Empleado</MudTh>
+                    <MudTh>Estado de Disponibilidad</MudTh>
+                    <MudTh Style="text-align: center;">Carga Activa</MudTh>
+                    <MudTh Style="text-align: center;">Capacidad Máx.</MudTh>
+                    <MudTh Style="text-align: center;">Surtidos Hoy</MudTh>
+                    <MudTh Style="text-align: right;">Acciones del Supervisor</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">
+                                @GetInitials(context.FullName, context.UserName)
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body1" Class="font-weight-bold">@context.FullName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@@@context.UserName</MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        @if (!string.IsNullOrWhiteSpace(context.EmployeeNumber))
+                        {
+                            <span class="font-weight-medium">@context.EmployeeNumber</span>
+                        }
+                        else
+                        {
+                            <span class="mud-text-secondary">—</span>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-column gap-1">
+                            <MudChip T="string" Color="@GetStatusColor(context.Status)"
+                                     Icon="@GetStatusIcon(context.Status)"
+                                     Size="Size.Small"
+                                     Variant="Variant.Filled"
+                                     Class="font-weight-bold">
+                                @GetStatusLabel(context.Status)
+                            </MudChip>
+                            @if (context.LastStatusChangeAt != DateTime.MinValue)
+                            {
+                                <span class="mud-text-secondary" style="font-size: 0.75rem;">
+                                    Desde @context.LastStatusChangeAt.ToLocalTime().ToString("HH:mm") (@GetTimeAgo(context.LastStatusChangeAt))
+                                </span>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudChip T="string" Color="@(context.ActiveOrdersCount >= context.EffectiveMaxCapacity ? Color.Error : (context.ActiveOrdersCount > 0 ? Color.Warning : Color.Success))"
+                                 Variant="Variant.Outlined"
+                                 Size="Size.Small"
+                                 Class="font-weight-bold">
+                            @context.ActiveOrdersCount pedidos
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <div class="d-flex align-center justify-center gap-1">
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">
+                                @context.EffectiveMaxCapacity
+                            </MudText>
+                            @if (context.CustomMaxCapacity.HasValue)
+                            {
+                                <MudTooltip Text="Capacidad personalizada para este surtidor">
+                                    <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Small" Color="Color.Warning" Style="font-size: 0.9rem;" />
+                                </MudTooltip>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text" Class="font-weight-bold">
+                            @context.OrdersCompletedToday
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align: right;">
+                        <div class="d-flex justify-end gap-2">
+                            <!-- Menú Cambiar Estado -->
+                            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Filled.ArrowDropDown">
+                                        Cambiar Estado
+                                    </MudButton>
+                                </ActivatorContent>
+                                <ChildContent>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success" OnClick="@(() => SetPickerStatus(context, PickerAvailabilityStatus.Available))">
+                                        Marcar como <strong>Disponible</strong>
+                                    </MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.Restaurant" IconColor="Color.Warning" OnClick="@(() => SetPickerStatus(context, PickerAvailabilityStatus.MealBreak))">
+                                        Enviar a <strong>Hora de Comida</strong>
+                                    </MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.PauseCircle" IconColor="Color.Info" OnClick="@(() => SetPickerStatus(context, PickerAvailabilityStatus.OperationalBreak))">
+                                        Poner en <strong>Pausa Operativa</strong>
+                                    </MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.Cancel" IconColor="Color.Error" OnClick="@(() => SetPickerStatus(context, PickerAvailabilityStatus.OffDuty))">
+                                        Marcar como <strong>Fuera de Turno</strong>
+                                    </MudMenuItem>
+                                </ChildContent>
+                            </MudMenu>
+
+                            <!-- Editar Capacidad -->
+                            <MudTooltip Text="Ajustar capacidad máxima de pedidos simultáneos">
+                                <MudIconButton Icon="@Icons.Material.Filled.Tune" Color="Color.Secondary" Size="Size.Small" OnClick="@(() => OpenCapacityDialog(context))" />
+                            </MudTooltip>
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+</div>
+
+<!-- Diálogo para Configuración de Capacidad -->
+<MudDialog @bind-Visible="_isCapacityDialogOpen" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" />
+            Capacidad de Surtido: @_selectedPicker?.FullName
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">
+            Ajuste el número máximo de pedidos simultáneos que el sistema puede auto-asignar a este surtidor en específico.
+        </MudText>
+
+        <MudNumericField @bind-Value="_editCapacityValue"
+                         Label="Capacidad Máxima de Pedidos Simultáneos"
+                         Min="1"
+                         Max="10"
+                         Variant="Variant.Outlined"
+                         HelperText="Deje en blanco para usar la capacidad global del sistema."
+                         Clearable="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _isCapacityDialogOpen = false)">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCapacityAsync">Guardar Capacidad</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<BranchDto> _branches = new();
+    private Guid _selectedBranchId = Guid.Empty;
+    private List<PickerStatusDto> _pickers = new();
+    private string _searchString = string.Empty;
+    private bool _isLoading = false;
+
+    // Diálogo de capacidad
+    private bool _isCapacityDialogOpen = false;
+    private PickerStatusDto? _selectedPicker;
+    private int? _editCapacityValue;
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true };
+
+    private IEnumerable<PickerStatusDto> _filteredPickers => _pickers.Where(p =>
+        string.IsNullOrWhiteSpace(_searchString) ||
+        p.FullName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+        p.UserName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+        (p.EmployeeNumber != null && p.EmployeeNumber.Contains(_searchString, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var branchesResult = await Mediator.Send(new GetBranchesQuery());
+        if (branchesResult != null && branchesResult.Any())
+        {
+            _branches = branchesResult.ToList();
+            _selectedBranchId = _branches.First().Id;
+            await LoadPickersAsync();
+        }
+    }
+
+    private async Task OnBranchChanged(Guid branchId)
+    {
+        _selectedBranchId = branchId;
+        await LoadPickersAsync();
+    }
+
+    private async Task LoadPickersAsync()
+    {
+        if (_selectedBranchId == Guid.Empty) return;
+
+        _isLoading = true;
+        try
+        {
+            _pickers = await Mediator.Send(new GetPickersStatusQuery(_selectedBranchId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar surtidores: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SetPickerStatus(PickerStatusDto picker, PickerAvailabilityStatus status)
+    {
+        try
+        {
+            await Mediator.Send(new SetPickerStatusCommand
+            {
+                UserId = picker.UserId,
+                BranchId = _selectedBranchId,
+                Status = status
+            });
+
+            Snackbar.Add($"Estado de '{picker.FullName}' actualizado a {GetStatusLabel(status)}.", Severity.Success);
+            await LoadPickersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cambiar estado: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void OpenCapacityDialog(PickerStatusDto picker)
+    {
+        _selectedPicker = picker;
+        _editCapacityValue = picker.CustomMaxCapacity;
+        _isCapacityDialogOpen = true;
+    }
+
+    private async Task SaveCapacityAsync()
+    {
+        if (_selectedPicker == null) return;
+
+        try
+        {
+            await Mediator.Send(new UpdatePickerCapacityCommand
+            {
+                UserId = _selectedPicker.UserId,
+                BranchId = _selectedBranchId,
+                MaxConcurrentOrders = _editCapacityValue
+            });
+
+            Snackbar.Add($"Capacidad de '{_selectedPicker.FullName}' guardada correctamente.", Severity.Success);
+            _isCapacityDialogOpen = false;
+            await LoadPickersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar capacidad: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static string GetInitials(string fullName, string userName)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2
+                ? $"{parts[0][0]}{parts[1][0]}".ToUpper()
+                : fullName[0].ToString().ToUpper();
+        }
+        return userName.Length > 0 ? userName[0].ToString().ToUpper() : "P";
+    }
+
+    private Color GetStatusColor(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Color.Success,
+        PickerAvailabilityStatus.MealBreak => Color.Warning,
+        PickerAvailabilityStatus.OperationalBreak => Color.Info,
+        PickerAvailabilityStatus.OffDuty => Color.Error,
+        _ => Color.Default
+    };
+
+    private string GetStatusIcon(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Icons.Material.Filled.CheckCircle,
+        PickerAvailabilityStatus.MealBreak => Icons.Material.Filled.Restaurant,
+        PickerAvailabilityStatus.OperationalBreak => Icons.Material.Filled.PauseCircle,
+        PickerAvailabilityStatus.OffDuty => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private string GetStatusLabel(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => "Disponible",
+        PickerAvailabilityStatus.MealBreak => "En Comida",
+        PickerAvailabilityStatus.OperationalBreak => "En Pausa",
+        PickerAvailabilityStatus.OffDuty => "Fuera de Turno",
+        _ => "Desconocido"
+    };
+
+    private string GetTimeAgo(DateTime dt)
+    {
+        var span = DateTime.UtcNow - dt;
+        if (span.TotalMinutes < 1) return "hace un momento";
+        if (span.TotalMinutes < 60) return $"hace {(int)span.TotalMinutes} min";
+        if (span.TotalHours < 24) return $"hace {(int)span.TotalHours} h";
+        return $"hace {(int)span.TotalDays} d";
+    }
+}

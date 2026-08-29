@@ -91,6 +91,9 @@ public class GetSystemConfigurationQueryHandler : IRequestHandler<GetSystemConfi
             AutoBackupEnabled = config.AutoBackupEnabled,
             AutoBackupTime = config.AutoBackupTime,
 
+            // Surtido y Pedidos
+            DefaultMaxPickingOrdersPerPicker = config.DefaultMaxPickingOrdersPerPicker > 0 ? config.DefaultMaxPickingOrdersPerPicker : 1,
+
             // API Comercial
             ComercialApiUrl = config.ComercialApiUrl,
             ComercialApiKey = config.ComercialApiKey,

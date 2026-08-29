@@ -13,6 +13,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IPickerDispatcherService, PickerDispatcherService>();
 
         services.AddMediatR(cfg =>
         {

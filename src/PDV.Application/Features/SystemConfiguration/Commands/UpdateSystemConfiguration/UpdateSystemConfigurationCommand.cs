@@ -45,6 +45,9 @@ public record UpdateSystemConfigurationCommand(
     byte[]? LogoCfdiImage = null,
     byte[]? LogoAppImage = null,
 
+    // Surtido y Pedidos
+    int DefaultMaxPickingOrdersPerPicker = 1,
+
     // API Comercial
     string? ComercialApiUrl = null,
     string? ComercialApiKey = null
@@ -82,6 +85,7 @@ public class UpdateSystemConfigurationCommandHandler : IRequestHandler<UpdateSys
             }
 
             config.UpdateTicketSettings(1);
+            config.UpdatePickingSettings(request.DefaultMaxPickingOrdersPerPicker);
             config.UpdateSmtpSettings(request.SmtpServer, request.SmtpPort, request.SmtpUser, request.SmtpPassword);
             config.UpdateAlertSettings(request.AlertCashLimit, request.AlertLateOpening, request.AlertSystemFailure, request.AlertLateOrder);
             config.UpdateBackupSettings(request.BackupDirectory);
@@ -105,6 +109,7 @@ public class UpdateSystemConfigurationCommandHandler : IRequestHandler<UpdateSys
             }
             
             config.UpdateTicketSettings(1);
+            config.UpdatePickingSettings(request.DefaultMaxPickingOrdersPerPicker);
             config.UpdateSmtpSettings(request.SmtpServer, request.SmtpPort, request.SmtpUser, request.SmtpPassword);
             config.UpdateAlertSettings(request.AlertCashLimit, request.AlertLateOpening, request.AlertSystemFailure, request.AlertLateOrder);
             config.UpdateBackupSettings(request.BackupDirectory);

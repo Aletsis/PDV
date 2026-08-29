@@ -24,6 +24,9 @@
             <AuthorizeView Roles="Admin,Manager,DeliveryMan" Context="driverCtx">
                 <MudNavLink Href="orders/my-route" Icon="@Icons.Material.Filled.TwoWheeler">Mi Ruta</MudNavLink>
             </AuthorizeView>
+            <AuthorizeView Roles="Admin,Manager" Context="adminManagerPickersCtx">
+                <MudNavLink Href="orders/pickers-management" Icon="@Icons.Material.Filled.AssignmentInd">Monitor de Surtidores</MudNavLink>
+            </AuthorizeView>
             <AuthorizeView Roles="Admin,Manager,Cashier" Context="routesContext">
                 <MudNavLink Href="orders/routes" Icon="@Icons.Material.Filled.Map">Gestión de Rutas</MudNavLink>
                 <MudNavLink Href="orders/settlement" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Liquidación de Rutas</MudNavLink>

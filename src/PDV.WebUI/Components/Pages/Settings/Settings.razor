@@ -431,6 +431,30 @@ else
             </div>
         </MudTabPanel>
 
+        @* ── Surtido y Pedidos Panel ───────────────────────────── *@
+        <MudTabPanel Text="Surtido y Pedidos" Icon="@Icons.Material.Filled.Checklist">
+            <div class="settings-card">
+                <div class="settings-section-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Checklist" />
+                    Asignación y Capacidad de Surtidores
+                </div>
+                <MudText Typo="Typo.body2" Class="mb-4" Style="color: rgba(255,255,255,0.7);">
+                    Configure la capacidad predeterminada de pedidos simultáneos que el sistema auto-asignará a los surtidores disponibles.
+                </MudText>
+                
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudNumericField @bind-Value="config.DefaultMaxPickingOrdersPerPicker" 
+                                         Label="Capacidad Máxima Predeterminada por Surtidor" 
+                                         Min="1" 
+                                         Max="10" 
+                                         Variant="Variant.Outlined" 
+                                         HelperText="Número de pedidos simultáneos asignados a cada surtidor por defecto (puede personalizarse individualmente en el Monitor de Surtidores)." />
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudTabPanel>
+
         @* ── API Comercial Panel ───────────────────────────────────── *@
         <MudTabPanel Text="API Comercial (PAC)" Icon="@Icons.Material.Filled.Hub">
             <div class="settings-card">
@@ -821,6 +845,8 @@ else
                 newLogoBytesTicket,
                 newLogoBytesCfdi,
                 newLogoBytesApp,
+
+                config.DefaultMaxPickingOrdersPerPicker,
 
                 config.ComercialApiUrl,
                 config.ComercialApiKey

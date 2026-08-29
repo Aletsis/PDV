@@ -48,6 +48,7 @@ public interface IApplicationDbContext
     DbSet<InventoryDocument> InventoryDocuments { get; }
     DbSet<InventoryDocumentItem> InventoryDocumentItems { get; }
     DbSet<InventoryConceptMapping> InventoryConceptMappings { get; }
+    DbSet<UserWorkStatus> UserWorkStatuses { get; }
     DbSet<TEntity> Set<TEntity>() where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     Task BeginTransactionAsync(CancellationToken cancellationToken);
