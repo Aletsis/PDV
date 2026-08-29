@@ -24,7 +24,8 @@ public record UpdateBranchCommand(
     string? Email = null,
     double? Latitude = null,
     double? Longitude = null,
-    string? Address = null
+    string? Address = null,
+    string? OrderSeries = null
 ) : IRequest;
 
 public class UpdateBranchCommandHandler : IRequestHandler<UpdateBranchCommand>
@@ -87,7 +88,7 @@ public class UpdateBranchCommandHandler : IRequestHandler<UpdateBranchCommand>
             }
         }
 
-        branch.Update(request.Name, addressObj, request.Phone, request.Email, latitude, longitude);
+        branch.Update(request.Name, addressObj, request.Phone, request.Email, latitude, longitude, request.OrderSeries);
         await _repository.UpdateAsync(branch, cancellationToken);
     }
 }

@@ -139,7 +139,18 @@ else
             <MudDataGrid T="BranchDto" Items="@filteredBranches" Filterable="false" Hover="true" Striped="true" 
                          Dense="false" Elevation="0" Class="border border-solid rounded-lg">
                 <Columns>
-                    <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
+                    <TemplateColumn Title="Código / Serie">
+                        <CellTemplate>
+                            <div class="d-flex flex-column">
+                                <MudText Typo="Typo.body2" Style="font-weight: 600; color: var(--mud-palette-text-primary);">
+                                    @context.Item.Code
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-family: 'Roboto Mono', monospace;">
+                                    @(!string.IsNullOrWhiteSpace(context.Item.OrderSeries) ? context.Item.OrderSeries : $"PED-{context.Item.Code}")
+                                </MudText>
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
                     <PropertyColumn Property="x => x.Name" Title="Nombre" />
                     <TemplateColumn Title="Dirección">
                         <CellTemplate>
@@ -300,6 +311,7 @@ else
             query = query.Where(b => 
                 b.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
                 b.Code.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(b.OrderSeries) && b.OrderSeries.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
                 (b.Address?.Street != null && b.Address.Street.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
                 (b.Phone != null && b.Phone.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
                 (b.Email != null && b.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase))
@@ -370,6 +382,7 @@ else
             Id = branch.Id,
             Code = branch.Code,
             Name = branch.Name,
+            OrderSeries = branch.OrderSeries,
             Street = branch.Address?.Street ?? string.Empty,
             ExteriorNumber = branch.Address?.ExteriorNumber,
             InteriorNumber = branch.Address?.InteriorNumber,

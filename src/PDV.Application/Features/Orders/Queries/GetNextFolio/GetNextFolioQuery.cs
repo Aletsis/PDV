@@ -11,15 +11,19 @@ public record GetNextFolioQuery(Guid BranchId) : IRequest<(string Series, int Ne
 public class GetNextFolioQueryHandler : IRequestHandler<GetNextFolioQuery, (string Series, int NextFolio)>
 {
     private readonly IOrderRepository _orderRepository;
+    private readonly IBranchRepository _branchRepository;
 
-    public GetNextFolioQueryHandler(IOrderRepository orderRepository)
+    public GetNextFolioQueryHandler(IOrderRepository orderRepository, IBranchRepository branchRepository)
     {
         _orderRepository = orderRepository;
+        _branchRepository = branchRepository;
     }
 
     public async Task<(string Series, int NextFolio)> Handle(GetNextFolioQuery request, CancellationToken cancellationToken)
     {
+        var branch = await _branchRepository.GetByIdAsync(request.BranchId, cancellationToken);
+        string series = branch?.GetEffectiveOrderSeries() ?? "PED";
         int nextFolio = await _orderRepository.GetNextFolioAsync(request.BranchId, cancellationToken);
-        return ("PED", nextFolio);
+        return (series, nextFolio);
     }
 }

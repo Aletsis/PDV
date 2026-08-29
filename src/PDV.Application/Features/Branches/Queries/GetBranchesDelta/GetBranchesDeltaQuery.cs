@@ -30,6 +30,7 @@ public class BranchSyncDto
     public string? Email { get; set; }
     public bool IsActive { get; set; }
     public bool IsMainBranch { get; set; }
+    public string? OrderSeries { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastModifiedAt { get; set; }
@@ -72,6 +73,7 @@ public class GetBranchesDeltaQueryHandler : IRequestHandler<GetBranchesDeltaQuer
                 Email = b.Email,
                 IsActive = b.IsActive,
                 IsMainBranch = b.IsMainBranch,
+                OrderSeries = b.OrderSeries,
                 IsDeleted = b.IsDeleted,
                 CreatedAt = b.CreatedAt,
                 LastModifiedAt = b.LastModifiedAt

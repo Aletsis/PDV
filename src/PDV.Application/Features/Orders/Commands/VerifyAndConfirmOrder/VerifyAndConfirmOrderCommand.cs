@@ -62,7 +62,9 @@ public class VerifyAndConfirmOrderCommandHandler : IRequestHandler<VerifyAndConf
             if (order.Folio <= 0)
             {
                 int nextFolio = await _orderRepository.GetNextFolioAsync(order.BranchId, cancellationToken);
-                string series = string.IsNullOrWhiteSpace(order.Series) || order.Series == "TEL" ? "PED" : order.Series;
+                var branch = await _context.Branches.FindAsync(new object[] { order.BranchId }, cancellationToken);
+                string defaultBranchSeries = branch?.GetEffectiveOrderSeries() ?? "PED";
+                string series = string.IsNullOrWhiteSpace(order.Series) || order.Series == "TEL" ? defaultBranchSeries : order.Series;
                 order.SetFolio(series, nextFolio);
             }
 

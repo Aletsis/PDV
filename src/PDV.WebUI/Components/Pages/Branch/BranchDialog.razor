@@ -46,6 +46,15 @@
                                               Variant="Variant.Outlined" Margin="Margin.Dense" Required="false"
                                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
                             </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="Model.OrderSeries" Label="Serie para Pedidos (Opcional)" 
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Placeholder="Ej: PED-SUR o dejar vacío para auto-asignar"
+                                              HelperText="Si se deja vacío, el sistema utilizará automáticamente PED-[Código]"
+                                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.ReceiptLong"
+                                              MaxLength="20"
+                                              Style="text-transform: uppercase;" />
+                            </MudItem>
                         </MudGrid>
 
                         @if (!IsEdit)
@@ -339,7 +348,8 @@
                     Country: Model.Country,
                     Email: Model.Email,
                     Latitude: Model.Latitude,
-                    Longitude: Model.Longitude
+                    Longitude: Model.Longitude,
+                    OrderSeries: Model.OrderSeries
                 ));
             }
             else
@@ -359,7 +369,8 @@
                     Email: Model.Email,
                     IsMainBranch: Model.IsMainBranch,
                     Latitude: Model.Latitude,
-                    Longitude: Model.Longitude
+                    Longitude: Model.Longitude,
+                    OrderSeries: Model.OrderSeries
                 ));
             }
             MudDialog.Close(DialogResult.Ok(true));
@@ -384,6 +395,7 @@
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public string? OrderSeries { get; set; }
         public string Street { get; set; } = string.Empty;
         public string? ExteriorNumber { get; set; }
         public string? InteriorNumber { get; set; }

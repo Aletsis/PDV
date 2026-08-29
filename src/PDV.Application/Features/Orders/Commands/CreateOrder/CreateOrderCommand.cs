@@ -100,8 +100,9 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Gui
                 var paymentMethod = Enum.TryParse<PaymentMethodType>(request.PaymentMethod, true, out var pm) ? pm : PaymentMethodType.Cash;
 
                 // Obtener secuencia de folios de pedido por sucursal
+                var branch = await _context.Branches.FindAsync(new object[] { branchId }, cancellationToken);
+                string series = branch?.GetEffectiveOrderSeries() ?? "PED";
                 int nextFolio = await _orderRepository.GetNextFolioAsync(branchId, cancellationToken);
-                string series = "PED";
 
                 var order = new Order(
                     branchId: branchId,

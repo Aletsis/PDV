@@ -158,4 +158,40 @@ public class BranchesCommandHandlerTests
         Assert.Equal(20.6740, updated.Latitude);
         Assert.Equal(-103.3700, updated.Longitude);
     }
+
+    [Fact]
+    public async Task Handle_CreateBranch_WithOrderSeries_SavesAndCalculatesEffectiveSeries()
+    {
+        // Arrange
+        var options = CreateNewContextOptions();
+        await using var context = new AppDbContext(options);
+        var repository = new BranchRepository(context);
+        var mockGeocodingService = new Mock<IGeocodingService>();
+
+        var handler = new CreateBranchCommandHandler(repository, context, mockGeocodingService.Object);
+        var command = new CreateBranchCommand(
+            Name: "Sucursal Periférico",
+            Code: "SUC-PERI",
+            Street: "Periférico Sur",
+            Phone: "3331112233",
+            OrderSeries: "PED-SUR"
+        );
+
+        // Act
+        var branchId = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        var branch = await context.Branches.FindAsync(new object[] { branchId }, CancellationToken.None);
+        Assert.NotNull(branch);
+        Assert.Equal("PED-SUR", branch!.OrderSeries);
+        Assert.Equal("PED-SUR", branch.GetEffectiveOrderSeries());
+    }
+
+    [Fact]
+    public void Branch_WithoutExplicitOrderSeries_ReturnsDefaultPrefixedCode()
+    {
+        var branch = new Branch("Sucursal Norte", "NOR01", null, "3331112233");
+        Assert.Null(branch.OrderSeries);
+        Assert.Equal("PED-NOR01", branch.GetEffectiveOrderSeries());
+    }
 }

@@ -72,6 +72,11 @@ public class TakeTelephonistOrderCommandHandler : IRequestHandler<TakeTelephonis
                 : PaymentMethodType.Cash;
 
             var zoneId = request.DeliveryZoneId ?? client?.DeliveryZoneId;
+            var branch = await _context.Branches.FindAsync(new object[] { request.BranchId }, cancellationToken);
+            if (branch == null)
+                throw new DomainException($"Sucursal con ID {request.BranchId} no encontrada.");
+
+            string series = branch.GetEffectiveOrderSeries();
             int nextFolio = await _orderRepository.GetNextFolioAsync(request.BranchId, cancellationToken);
 
             var order = new Order(
@@ -81,7 +86,7 @@ public class TakeTelephonistOrderCommandHandler : IRequestHandler<TakeTelephonis
                 deliveryZoneId: zoneId,
                 takenById: request.UserId,
                 capturedById: null,
-                series: "PED",
+                series: series,
                 folio: nextFolio,
                 generalNotes: request.GeneralNotes,
                 deliveryNotes: request.DeliveryNotes,

@@ -31,7 +31,8 @@ public class GetBranchesQueryHandler : IRequestHandler<GetBranchesQuery, List<Br
             b.IsActive,
             b.IsMainBranch,
             b.Latitude,
-            b.Longitude
+            b.Longitude,
+            b.OrderSeries
         )).ToList();
     }
 }

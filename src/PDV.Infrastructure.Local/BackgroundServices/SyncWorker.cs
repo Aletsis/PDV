@@ -842,7 +842,8 @@ public class SyncWorker : BackgroundService
                         email: dto.Email,
                         isMainBranch: dto.IsMainBranch,
                         latitude: dto.Latitude,
-                        longitude: dto.Longitude
+                        longitude: dto.Longitude,
+                        orderSeries: dto.OrderSeries
                     );
                     branch.SetId(dto.Id);
 
@@ -886,7 +887,7 @@ public class SyncWorker : BackgroundService
                         {
                             existing.Restore();
                         }
-                        existing.Update(dto.Name, address, dto.Phone, dto.Email, dto.Latitude, dto.Longitude);
+                        existing.Update(dto.Name, address, dto.Phone, dto.Email, dto.Latitude, dto.Longitude, dto.OrderSeries);
 
                         if (dto.IsMainBranch && !existing.IsMainBranch)
                         {

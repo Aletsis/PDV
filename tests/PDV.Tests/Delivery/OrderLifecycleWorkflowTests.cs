@@ -110,7 +110,7 @@ public class OrderLifecycleWorkflowTests
         Assert.Equal("telefonista1", savedOrder.TakenById);
         Assert.Null(savedOrder.CashRegisterId);
         Assert.Null(savedOrder.ShiftId);
-        Assert.Equal("PED", savedOrder.Series);
+        Assert.Equal("PED-MAT01", savedOrder.Series);
         Assert.Equal(1, savedOrder.Folio);
         Assert.Equal(OrderChannel.Telephone, savedOrder.Channel);
         Assert.Equal(2, savedOrder.Items.Count);
@@ -243,7 +243,7 @@ public class OrderLifecycleWorkflowTests
         Assert.NotNull(order1);
         Assert.Null(order1.CashRegisterId);
         Assert.Null(order1.ShiftId);
-        Assert.Equal("PED", order1.Series);
+        Assert.Equal("PED-MAT01", order1.Series);
         Assert.Equal(1, order1.Folio);
         Assert.Equal(OrderChannel.Store, order1.Channel);
 
@@ -264,8 +264,43 @@ public class OrderLifecycleWorkflowTests
         var orderId2 = await createHandler.Handle(command2, CancellationToken.None);
         var order2 = await context.Orders.FindAsync(orderId2);
         Assert.NotNull(order2);
-        Assert.Equal("PED", order2.Series);
+        Assert.Equal("PED-MAT01", order2.Series);
         Assert.Equal(2, order2.Folio);
         Assert.Equal(OrderChannel.WhatsApp, order2.Channel);
+    }
+
+    [Fact]
+    public async Task TakeTelephonistOrderCommand_WithCustomBranchOrderSeries_UsesCustomSeries()
+    {
+        var (context, _, pieceProduct, _, _, _, clientId, zoneId) = await SetupEnvironmentAsync();
+        var customBranch = new Branch("Sucursal Sur", "SUR02", null, "5559998877", orderSeries: "TEL-SUR");
+        context.Branches.Add(customBranch);
+        var stock = new ProductBranchStock(pieceProduct.Id, customBranch.Id, 10m, 1m);
+        context.ProductBranchStocks.Add(stock);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var productRepository = new ProductRepository(context);
+        var orderRepo = new OrderRepository(context);
+        var takeHandler = new TakeTelephonistOrderCommandHandler(context, productRepository, orderRepo);
+
+        var takeCommand = new TakeTelephonistOrderCommand
+        {
+            BranchId = customBranch.Id,
+            ClientId = clientId,
+            DeliveryZoneId = zoneId,
+            PaymentMethod = "Cash",
+            UserId = "telefonista_sur",
+            Items = new List<TakeTelephonistOrderItemDto>
+            {
+                new() { ProductId = pieceProduct.Id, Quantity = 1m }
+            }
+        };
+
+        var orderId = await takeHandler.Handle(takeCommand, CancellationToken.None);
+        var order = await context.Orders.FindAsync(orderId);
+
+        Assert.NotNull(order);
+        Assert.Equal("TEL-SUR", order!.Series);
+        Assert.Equal(1, order.Folio);
     }
 }

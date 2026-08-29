@@ -27,7 +27,8 @@ public record CreateBranchCommand(
     bool IsMainBranch = false,
     double? Latitude = null,
     double? Longitude = null,
-    string? Address = null
+    string? Address = null,
+    string? OrderSeries = null
 ) : IRequest<Guid>;
 
 public class CreateBranchCommandHandler : IRequestHandler<CreateBranchCommand, Guid>
@@ -103,7 +104,8 @@ public class CreateBranchCommandHandler : IRequestHandler<CreateBranchCommand, G
             request.Email,
             request.IsMainBranch,
             latitude,
-            longitude
+            longitude,
+            request.OrderSeries
         );
 
         await _repository.AddAsync(branch, cancellationToken);

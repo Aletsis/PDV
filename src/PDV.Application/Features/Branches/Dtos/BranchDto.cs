@@ -12,5 +12,6 @@ public record BranchDto(
     bool IsActive,
     bool IsMainBranch,
     double? Latitude = null,
-    double? Longitude = null
+    double? Longitude = null,
+    string? OrderSeries = null
 );

@@ -9,6 +9,7 @@ public class Branch : BaseEntity, IAggregateRoot
 {
     public string Name { get; private set; }
     public string Code { get; private set; }
+    public string? OrderSeries { get; private set; }
     public Address? Address { get; private set; }
     public string Phone { get; private set; }
     public string? Email { get; private set; }
@@ -37,7 +38,8 @@ public class Branch : BaseEntity, IAggregateRoot
         string? email = null,
         bool isMainBranch = false,
         double? latitude = null,
-        double? longitude = null)
+        double? longitude = null,
+        string? orderSeries = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("El nombre de la sucursal es requerido.");
@@ -50,6 +52,7 @@ public class Branch : BaseEntity, IAggregateRoot
 
         Name = name.Trim();
         Code = code.Trim();
+        OrderSeries = string.IsNullOrWhiteSpace(orderSeries) ? null : orderSeries.Trim().ToUpper();
         Address = address;
         Phone = phone?.Trim() ?? string.Empty;
         Email = email?.Trim();
@@ -79,7 +82,7 @@ public class Branch : BaseEntity, IAggregateRoot
             throw new DomainException("El formato del correo electrónico es inválido.");
     }
 
-    public void Update(string name, Address? address, string phone, string? email, double? latitude = null, double? longitude = null)
+    public void Update(string name, Address? address, string phone, string? email, double? latitude = null, double? longitude = null, string? orderSeries = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("El nombre es requerido.");
@@ -88,6 +91,7 @@ public class Branch : BaseEntity, IAggregateRoot
         ValidateEmail(email);
 
         Name = name.Trim();
+        OrderSeries = string.IsNullOrWhiteSpace(orderSeries) ? null : orderSeries.Trim().ToUpper();
         Address = address;
         Phone = phone?.Trim() ?? string.Empty;
         Email = email?.Trim();
@@ -95,6 +99,13 @@ public class Branch : BaseEntity, IAggregateRoot
         Longitude = longitude;
 
         AddDomainEvent(new BranchUpdatedEvent(Id, Name));
+    }
+
+    public string GetEffectiveOrderSeries()
+    {
+        return !string.IsNullOrWhiteSpace(OrderSeries) 
+            ? OrderSeries.Trim().ToUpper() 
+            : $"PED-{Code.Trim().ToUpper()}";
     }
 
     public void SetCoordinates(double? latitude, double? longitude)

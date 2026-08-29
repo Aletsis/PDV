@@ -19,6 +19,10 @@ public class BranchConfiguration : IEntityTypeConfiguration<Branch>
         builder.Property(b => b.Code)
             .IsRequired()
             .HasMaxLength(20);
+
+        builder.Property(b => b.OrderSeries)
+            .HasMaxLength(20)
+            .IsRequired(false);
         
         builder.HasIndex(b => b.Code)
             .IsUnique();
