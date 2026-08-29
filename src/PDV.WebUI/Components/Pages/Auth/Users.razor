@@ -7,6 +7,7 @@
 @using MediatR
 @using PDV.Application.Features.Branches.Queries.GetBranches
 @using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Common.Helpers
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole> RoleManager
 @inject IMediator Mediator
@@ -194,7 +195,7 @@ else
                                     {
                                         <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
                                                  Color="@GetRoleColor(role)" Icon="@GetRoleIcon(role)">
-                                            @role
+                                            @RoleHelper.GetRoleDisplayName(role)
                                         </MudChip>
                                     }
                                 }
@@ -285,7 +286,8 @@ else
          (u.EmployeeNumber != null && u.EmployeeNumber.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
          (u.BranchName != null && u.BranchName.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
          (u.BranchCode != null && u.BranchCode.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
-         (u.Email != null && u.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase)))
+         (u.Email != null && u.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase)) ||
+         u.Roles.Any(r => RoleHelper.GetRoleDisplayName(r).Contains(searchString, StringComparison.OrdinalIgnoreCase) || r.Contains(searchString, StringComparison.OrdinalIgnoreCase)))
         &&
         (filterActive == null || u.IsActive == filterActive));
 
@@ -473,27 +475,27 @@ else
         return gradients[idx];
     }
 
-    private static Color GetRoleColor(string role) => role.ToLower() switch
+    private static Color GetRoleColor(string role) => (role ?? string.Empty).ToLowerInvariant() switch
     {
-        "admin" or "administrador"        => Color.Error,
-        "manager" or "gerente"            => Color.Warning,
-        "cashier" or "cajera" or "cajero" => Color.Primary,
-        "telephonist" or "telefonista"    => Color.Secondary,
-        "deliveryman" or "repartidor"     => Color.Info,
-        "almacen" or "almacén" or "warehouse" => Color.Tertiary,
-        "compras" or "purchasing"         => Color.Secondary,
-        _                                 => Color.Info
+        "admin" or "administrador"              => Color.Error,
+        "manager" or "gerente" or "supervisor"   => Color.Warning,
+        "cashier" or "cajera" or "cajero" or "cajero/a" => Color.Primary,
+        "telephonist" or "telefonista"          => Color.Secondary,
+        "deliveryman" or "repartidor"           => Color.Info,
+        "almacen" or "almacén" or "warehouse"   => Color.Tertiary,
+        "compras" or "purchasing"               => Color.Secondary,
+        _                                       => Color.Info
     };
 
-    private static string GetRoleIcon(string role) => role.ToLower() switch
+    private static string GetRoleIcon(string role) => (role ?? string.Empty).ToLowerInvariant() switch
     {
-        "admin" or "administrador"        => Icons.Material.Filled.AdminPanelSettings,
-        "manager" or "gerente"            => Icons.Material.Filled.SupervisorAccount,
-        "cashier" or "cajera" or "cajero" => Icons.Material.Filled.PointOfSale,
-        "telephonist" or "telefonista"    => Icons.Material.Filled.HeadsetMic,
-        "deliveryman" or "repartidor"     => Icons.Material.Filled.TwoWheeler,
-        "almacen" or "almacén" or "warehouse" => Icons.Material.Filled.Warehouse,
-        "compras" or "purchasing"         => Icons.Material.Filled.ShoppingCart,
-        _                                 => Icons.Material.Filled.Person
+        "admin" or "administrador"              => Icons.Material.Filled.AdminPanelSettings,
+        "manager" or "gerente" or "supervisor"   => Icons.Material.Filled.SupervisorAccount,
+        "cashier" or "cajera" or "cajero" or "cajero/a" => Icons.Material.Filled.PointOfSale,
+        "telephonist" or "telefonista"          => Icons.Material.Filled.HeadsetMic,
+        "deliveryman" or "repartidor"           => Icons.Material.Filled.TwoWheeler,
+        "almacen" or "almacén" or "warehouse"   => Icons.Material.Filled.Warehouse,
+        "compras" or "purchasing"               => Icons.Material.Filled.ShoppingCart,
+        _                                       => Icons.Material.Filled.Person
     };
 }

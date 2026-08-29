@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Identity
 @using PDV.Infrastructure.Identity
 @using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Common.Helpers
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole> RoleManager
 @inject ISnackbar Snackbar
@@ -69,10 +70,11 @@
                 {
                     <MudSelect T="string" @bind-Value="Model.SelectedRole" Label="Rol"
                                Variant="Variant.Outlined" Clearable="true"
+                               ToStringFunc="@(r => RoleHelper.GetRoleDisplayName(r))"
                                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Security">
                         @foreach (var role in AvailableRoles)
                         {
-                            <MudSelectItem Value="@role">@role</MudSelectItem>
+                            <MudSelectItem Value="@role">@RoleHelper.GetRoleDisplayName(role)</MudSelectItem>
                         }
                     </MudSelect>
                 }
@@ -116,7 +118,9 @@
     private bool isSaving = false;
     private bool IsEmailRequired => !string.IsNullOrWhiteSpace(Model.SelectedRole) &&
         (Model.SelectedRole.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
-         Model.SelectedRole.Equals("Manager", StringComparison.OrdinalIgnoreCase));
+         Model.SelectedRole.Equals("Administrador", StringComparison.OrdinalIgnoreCase) ||
+         Model.SelectedRole.Equals("Manager", StringComparison.OrdinalIgnoreCase) ||
+         Model.SelectedRole.Equals("Supervisor", StringComparison.OrdinalIgnoreCase));
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -178,7 +182,7 @@
 
         if (!string.IsNullOrWhiteSpace(Model.SelectedRole))
         {
-            await UserManager.AddToRoleAsync(user, Model.SelectedRole);
+            await UserManager.AddToRoleAsync(user, RoleHelper.ToSystemRoleName(Model.SelectedRole));
         }
 
         Snackbar.Add($"Usuario '{user.UserName}' creado exitosamente.", Severity.Success);
@@ -214,7 +218,7 @@
         await UserManager.RemoveFromRolesAsync(user, currentRoles);
         if (!string.IsNullOrWhiteSpace(Model.SelectedRole))
         {
-            await UserManager.AddToRoleAsync(user, Model.SelectedRole);
+            await UserManager.AddToRoleAsync(user, RoleHelper.ToSystemRoleName(Model.SelectedRole));
         }
 
         // Password reset (optional)
