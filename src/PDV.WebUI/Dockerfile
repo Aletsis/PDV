@@ -1,7 +1,7 @@
 # ==========================================
 # Etapa 1: Compilación (Build Stage)
 # ==========================================
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
 WORKDIR /app
 
 # Copiar archivos de solución y proyectos para restaurar dependencias de forma eficiente (aprovechando caché de Docker)
@@ -29,7 +29,7 @@ RUN dotnet publish -c Release -o /app/publish
 # ==========================================
 # Etapa 2: Imagen de Ejecución de Producción
 # ==========================================
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview-alpine AS final
 WORKDIR /app
 
 # Instalar dependencias requeridas para soporte de ICU (Globalización) en Alpine
