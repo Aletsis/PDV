@@ -2,43 +2,42 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PDV.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace PDV.Infrastructure.Server.Migrations
+namespace PDV.Infrastructure.Local.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829210535_AddPickerAvailabilityAndCapacityLocal")]
+    partial class AddPickerAvailabilityAndCapacityLocal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.12")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
-
-            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+                .HasAnnotation("Npgsql:PostgresExtension:pg_trgm", ",,")
+                .HasAnnotation("ProductVersion", "9.0.12");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NormalizedName")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -53,19 +52,17 @@ namespace PDV.Infrastructure.Server.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ClaimType")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ClaimValue")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RoleId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -78,19 +75,17 @@ namespace PDV.Infrastructure.Server.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ClaimType")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ClaimValue")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -102,17 +97,17 @@ namespace PDV.Infrastructure.Server.Migrations
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<string>", b =>
                 {
                     b.Property<string>("LoginProvider")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ProviderKey")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ProviderDisplayName")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("LoginProvider", "ProviderKey");
 
@@ -124,10 +119,10 @@ namespace PDV.Infrastructure.Server.Migrations
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<string>", b =>
                 {
                     b.Property<string>("UserId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RoleId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("UserId", "RoleId");
 
@@ -139,16 +134,16 @@ namespace PDV.Infrastructure.Server.Migrations
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
                 {
                     b.Property<string>("UserId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LoginProvider")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Value")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("UserId", "LoginProvider", "Name");
 
@@ -157,29 +152,29 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.AuditLog", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ActionName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("IpAddress")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NewValues")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("OldValues")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Timestamp")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -188,70 +183,70 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Branch", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("CompanyId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CompanyId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsMainBranch")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<double?>("Latitude")
                         .HasPrecision(9, 6)
-                        .HasColumnType("double precision");
+                        .HasColumnType("REAL");
 
                     b.Property<double?>("Longitude")
                         .HasPrecision(9, 6)
-                        .HasColumnType("double precision");
+                        .HasColumnType("REAL");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("OrderSeries")
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -265,53 +260,54 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Cancellation", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CancellationDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Reason")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("SaleId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SaleId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("SaleItemId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SaleItemId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -326,54 +322,56 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.CashCollection", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CollectionDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Reason")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -386,65 +384,67 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.CashCut", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CutDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("DeclaredPhysicalCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("DeclaredVouchersTotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Difference")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsReconciled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ReconciledAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("SystemExpectedCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -457,107 +457,109 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.CashCutReconciliation", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("CardSalesTotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("CardVouchersDifference")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("CashCutId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashCutId")
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("CashDifference")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("CashSalesTotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CashierUserId")
                         .IsRequired()
                         .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("DeliveredCardVouchers")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("DeliveredCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("ExpectedCardVouchers")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("ExpectedCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("InflowsTotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("InitialCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("OutflowsTotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ReconciledByUserId")
                         .IsRequired()
                         .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("ReconciliationDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("ReturnsTotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -572,59 +574,60 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.CashRegister", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("AssignedPrinterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("AssignedPrinterId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("AssignedUserId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Mode")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -641,45 +644,45 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Category", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("ClasificacionId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -688,86 +691,86 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Client", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CfdiUse")
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ClientType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
+                        .HasColumnType("TEXT")
                         .HasDefaultValue("");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DeliveryZoneId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DeliveryZoneId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FiscalRegime")
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FiscalZipCode")
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<double?>("Latitude")
                         .HasPrecision(9, 6)
-                        .HasColumnType("double precision");
+                        .HasColumnType("REAL");
 
                     b.Property<double?>("Longitude")
                         .HasPrecision(9, 6)
-                        .HasColumnType("double precision");
+                        .HasColumnType("REAL");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("TaxId")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -778,52 +781,52 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Company", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RFC")
                         .IsRequired()
                         .HasMaxLength(13)
-                        .HasColumnType("character varying(13)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -835,55 +838,56 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.ContpaqiSyncQueue", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Action")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Attempts")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastAttemptAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ReferenceId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ReferenceId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("State")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -894,55 +898,56 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.DeliveryRoute", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeliveryManId")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DeliveryZoneId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DeliveryZoneId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DispatchedDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Folio")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("SettledDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -957,49 +962,50 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.DeliveryZone", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("DeliveryCost")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PolygonCoordinatesJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1010,45 +1016,45 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Department", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("ClasificacionId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1057,56 +1063,57 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.FolioSequence", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConceptCode")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("FolioDigits")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("LastFolio")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<byte[]>("RowVersion")
+                    b.Property<string>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Series")
                         .IsRequired()
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("SeriesType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1118,57 +1125,58 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.InboxMessage", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Attempts")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("MessageId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Payload")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("ReceivedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("State")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1182,56 +1190,57 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryConceptMapping", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConceptCode")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConceptName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DefaultSeries")
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DestinationBranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DestinationBranchId")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("MovementType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("Subtype")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1246,100 +1255,101 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryDocument", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Attempts")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DestinationBranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DestinationBranchId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("ExternalDocumentId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ExternalFolio")
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ExternalSeries")
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Folio")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastAttemptAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Reference")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Remarks")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Series")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Subtype")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SupplierCode")
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("SupplierId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SupplierId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SupplierName")
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SyncErrorMessage")
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("SyncStatus")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1354,48 +1364,50 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryDocumentItem", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("InventoryDocumentId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("InventoryDocumentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Remarks")
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitCost")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1408,59 +1420,61 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.InventoryMovement", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DocumentId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DocumentId")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ReferenceId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ReferenceId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Remarks")
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("Subtype")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1475,140 +1489,141 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Invoice", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CadenaOriginal")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CancellationReason")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("CfdiUsage")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
-                    b.Property<Guid?>("ClientId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ClientId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Folio")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("InvoiceDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NoCertificadoEmisor")
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NoCertificadoSAT")
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ReceiverFiscalRegime")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
+                        .HasColumnType("TEXT")
                         .HasDefaultValue("616");
 
                     b.Property<string>("ReceiverName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ReceiverTaxId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ReceiverZipCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
+                        .HasColumnType("TEXT")
                         .HasDefaultValue("00000");
 
                     b.Property<string>("RelatedUuid")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RelationType")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ReturnId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ReturnId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("SaleId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SaleId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("SatCancellationMotif")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SelloDigitalEmisor")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SelloDigitalSAT")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Series")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("StampedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SubstituteUuid")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Subtotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalTax")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Uuid")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1627,56 +1642,56 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Logo", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<byte[]>("Data")
                         .IsRequired()
-                        .HasColumnType("bytea");
+                        .HasColumnType("BLOB");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("FileSizeBytes")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Purpose")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1687,153 +1702,154 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Order", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("AuthorizedBySupervisorId")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CapturedById")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Channel")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
+                        .HasColumnType("INTEGER")
                         .HasDefaultValue(1);
 
-                    b.Property<Guid?>("ClientId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ClientId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeliveredAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeliveryManId")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeliveryNotes")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DeliveryRouteId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DeliveryRouteId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DeliveryZoneId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("DeliveryZoneId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DispatchedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("FilledAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FilledById")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Folio")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("FulfillmentStartedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("GeneralNotes")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsInvoiceRequested")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsOutOfZone")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("OrderDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("PaymentMethod")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ReturnReason")
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RoutedById")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Series")
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("SettledAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SettledById")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("Subtotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("TakenById")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalTax")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("VerifiedById")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1855,67 +1871,68 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.OrderItem", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsFulfilled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsTaxExempt")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("OrderId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("OrderId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ProductName")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("RequestedQuantity")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1928,51 +1945,51 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.OutboxMessage", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Attempts")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastAttemptAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Payload")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("State")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1983,45 +2000,45 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Permission", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2033,42 +2050,42 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.PriceList", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
                         .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2077,15 +2094,15 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.PriceListProduct", b =>
                 {
-                    b.Property<Guid>("PriceListId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("PriceListId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("PriceListId", "ProductId");
 
@@ -2096,61 +2113,61 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Printer", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("CodePage")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("ConnectionType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DevicePath")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("IpAddress")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("MaxWidth")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Port")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -2161,114 +2178,114 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Product", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Barcode")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("Clasificacion1Id")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("Clasificacion5Id")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ControlExistencia")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("Cost")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Department")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Plu")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("SaleType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("SaleUnitId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SaleUnitName")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SatCode")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("TaxRate")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal?>("WholesaleMinQuantity")
                         .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal?>("WholesalePrice")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("XmlUnitId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -2282,10 +2299,9 @@ namespace PDV.Infrastructure.Server.Migrations
                         .IsUnique();
 
                     b.HasIndex("Name")
-                        .HasDatabaseName("IX_Products_Name_GIN");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+                        .HasDatabaseName("IX_Products_Name_GIN")
+                        .HasAnnotation("Npgsql:IndexMethod", "gin")
+                        .HasAnnotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
 
                     b.HasIndex("Plu")
                         .HasDatabaseName("IX_Products_Plu")
@@ -2296,48 +2312,50 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.ProductBranchStock", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("MinStock")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<byte[]>("RowVersion")
+                    b.Property<string>("RowVersion")
                         .IsConcurrencyToken()
-                        .HasColumnType("bytea");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Stock")
                         .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2351,80 +2369,82 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Return", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ClientId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ClientId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Folio")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsCompleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Reason")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("RefundMethod")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("ReturnDate")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("SaleId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SaleId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Series")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Subtotal")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalRefund")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalTax")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2443,52 +2463,54 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.ReturnItem", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsTaxExempt")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ProductName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ReturnId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ReturnId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TaxRate")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2502,10 +2524,10 @@ namespace PDV.Infrastructure.Server.Migrations
             modelBuilder.Entity("PDV.Domain.Entities.RolePermission", b =>
                 {
                     b.Property<string>("RoleId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("PermissionId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("PermissionId")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("RoleId", "PermissionId");
 
@@ -2516,98 +2538,100 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Sale", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Change")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ClientId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ClientId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Folio")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("InvoiceId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsCancelled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsInvoiceRequested")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsInvoiced")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsPaid")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsReturned")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("PaymentMethod")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("ReceivedAmount")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SaleNumber")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Series")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ShiftId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Subtotal")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalTax")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2626,60 +2650,62 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.SaleItem", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsReturned")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsTaxExempt")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal?>("PriceOverride")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ProductName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("SaleId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SaleId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TaxRate")
-                        .HasColumnType("numeric");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2692,76 +2718,77 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Shift", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("GlobalInvoiceId")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("InitialCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsConsolidated")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsGlobalInvoiceRequested")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsGlobalInvoiced")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsReconciled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ReconciledAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("SystemExpectedCash")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalCashReturns")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2772,61 +2799,61 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.Supplier", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("CommercialId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("TaxId")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2838,64 +2865,65 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.SyncConflict", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ClientValuesJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConflictType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("DetectedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("EntityId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("EntityName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ResolutionStrategy")
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("Resolved")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("ResolvedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ServerValuesJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -2908,144 +2936,144 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.SystemConfiguration", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("AlertCashLimit")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("AlertLateOpening")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("AlertLateOrder")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("AlertSystemFailure")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("AutoBackupEnabled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<TimeSpan?>("AutoBackupTime")
-                        .HasColumnType("interval");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("AutoReportEnabled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<TimeSpan?>("AutoReportTime")
-                        .HasColumnType("interval");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("AutoReportUsers")
                         .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("BackupDirectory")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ComercialApiKey")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ComercialApiUrl")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<byte[]>("CsdCertificateData")
-                        .HasColumnType("bytea");
+                        .HasColumnType("BLOB");
 
                     b.Property<DateTime?>("CsdExpiresAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CsdPassword")
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<byte[]>("CsdPrivateKeyData")
-                        .HasColumnType("bytea");
+                        .HasColumnType("BLOB");
 
                     b.Property<string>("CsdSerialNumber")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("DefaultMaxPickingOrdersPerPicker")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FiscalRegime")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PacApiKey")
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PacApiUser")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PacUrl")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SmtpPassword")
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("SmtpPort")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SmtpServer")
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SmtpUser")
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("TaxId")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("TicketCopies")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -3054,51 +3082,52 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.TicketSequence", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("CashRegisterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CashRegisterId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("LastTicketNumber")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("ResetOnNewShift")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
-                    b.Property<byte[]>("RowVersion")
+                    b.Property<string>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("SequenceType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Series")
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -3110,48 +3139,48 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.TicketTemplate", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ContentJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDefault")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("PrinterId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("PrinterId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("TemplateType")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -3160,58 +3189,58 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.UnidadMedida", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Abreviatura")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ClaveInt")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ClaveSat")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Despliegue")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ExternalId")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NombreUnidad")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -3223,57 +3252,58 @@ namespace PDV.Infrastructure.Server.Migrations
 
             modelBuilder.Entity("PDV.Domain.Entities.UserWorkStatus", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<string>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastAssignedOrderAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("LastStatusChangeAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("MaxConcurrentOrders")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("OrdersCompletedToday")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("StatusNotes")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -3290,68 +3320,68 @@ namespace PDV.Infrastructure.Server.Migrations
             modelBuilder.Entity("PDV.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("AccessFailedCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("INTEGER");
 
-                    b.Property<Guid?>("BranchId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("BranchId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("EmailConfirmed")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("EmployeeNumber")
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FullName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("LockoutEnabled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NormalizedUserName")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PasswordHash")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PhoneNumber")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("PhoneNumberConfirmed")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SecurityStamp")
-                        .HasColumnType("text");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("boolean");
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -3427,52 +3457,52 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.OwnsOne("PDV.Domain.ValueObjects.Address", "Address", b1 =>
                         {
-                            b1.Property<Guid>("BranchId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("BranchId")
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("City");
 
                             b1.Property<string>("Colony")
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Colony");
 
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Country");
 
                             b1.Property<string>("ExteriorNumber")
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("ExteriorNumber");
 
                             b1.Property<string>("InteriorNumber")
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("InteriorNumber");
 
                             b1.Property<string>("State")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("State");
 
                             b1.Property<string>("Street")
                                 .IsRequired()
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Street");
 
                             b1.Property<string>("ZipCode")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("ZipCode");
 
                             b1.HasKey("BranchId");
@@ -3529,18 +3559,17 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
-
-                            b1.Property<Guid>("CashCollectionId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("CashCollectionId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Quantity")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<int>("Type")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
                             b1.HasKey("Id");
 
@@ -3577,18 +3606,17 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
-
-                            b1.Property<Guid>("CashCutId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("CashCutId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Quantity")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<int>("Type")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
                             b1.HasKey("Id");
 
@@ -3604,19 +3632,18 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Amount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("CashCutId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("CashCutId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("PaymentMethod")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
                             b1.HasKey("Id");
 
@@ -3660,18 +3687,17 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<int>("Quantity")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
-                            b1.Property<Guid>("ReconciliationId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ReconciliationId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("Type")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
                             b1.HasKey("Id");
 
@@ -3719,52 +3745,52 @@ namespace PDV.Infrastructure.Server.Migrations
 
                     b.OwnsOne("PDV.Domain.ValueObjects.Address", "Address", b1 =>
                         {
-                            b1.Property<Guid>("ClientId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ClientId")
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("City");
 
                             b1.Property<string>("Colony")
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Colony");
 
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Country");
 
                             b1.Property<string>("ExteriorNumber")
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("ExteriorNumber");
 
                             b1.Property<string>("InteriorNumber")
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("InteriorNumber");
 
                             b1.Property<string>("State")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("State");
 
                             b1.Property<string>("Street")
                                 .IsRequired()
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Street");
 
                             b1.Property<string>("ZipCode")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("ZipCode");
 
                             b1.HasKey("ClientId");
@@ -3784,42 +3810,42 @@ namespace PDV.Infrastructure.Server.Migrations
                 {
                     b.OwnsOne("PDV.Domain.ValueObjects.Address", "FiscalAddress", b1 =>
                         {
-                            b1.Property<Guid>("CompanyId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("CompanyId")
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Colony")
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("ExteriorNumber")
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("InteriorNumber")
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("State")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Street")
                                 .IsRequired()
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("ZipCode")
                                 .IsRequired()
                                 .HasMaxLength(10)
-                                .HasColumnType("character varying(10)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("CompanyId");
 
@@ -3988,27 +4014,26 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("InvoiceId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("InvoiceId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
-                                .HasColumnType("boolean");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Rate")
                                 .HasPrecision(18, 4)
-                                .HasColumnType("numeric(18,4)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4079,27 +4104,26 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
-                                .HasColumnType("boolean");
+                                .HasColumnType("INTEGER");
 
-                            b1.Property<Guid>("OrderId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("OrderId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("Rate")
                                 .HasPrecision(18, 4)
-                                .HasColumnType("numeric(18,4)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4225,27 +4249,26 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
-                                .HasColumnType("boolean");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Rate")
                                 .HasPrecision(18, 4)
-                                .HasColumnType("numeric(18,4)");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("ReturnId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ReturnId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4328,27 +4351,26 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
-                                .HasColumnType("boolean");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Rate")
                                 .HasPrecision(18, 4)
-                                .HasColumnType("numeric(18,4)");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("SaleId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("SaleId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4400,19 +4422,18 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Amount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<int>("PaymentMethod")
-                                .HasColumnType("integer");
+                                .HasColumnType("INTEGER");
 
-                            b1.Property<Guid>("ShiftId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4428,26 +4449,25 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
-                                .HasColumnType("boolean");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Rate")
-                                .HasColumnType("numeric");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("ShiftId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4463,26 +4483,25 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("BaseAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<bool>("IsExempt")
-                                .HasColumnType("boolean");
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Rate")
-                                .HasColumnType("numeric");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("ShiftId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.Property<decimal>("TaxAmount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4498,27 +4517,26 @@ namespace PDV.Infrastructure.Server.Migrations
                         {
                             b1.Property<int>("Id")
                                 .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                                .HasColumnType("INTEGER");
 
                             b1.Property<decimal>("Amount")
                                 .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("CreditNoteId")
                                 .IsRequired()
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<DateTime>("Date")
-                                .HasColumnType("timestamp with time zone");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Reason")
                                 .IsRequired()
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
-                            b1.Property<Guid>("ShiftId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("ShiftId")
+                                .IsRequired()
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("Id");
 
@@ -4545,52 +4563,52 @@ namespace PDV.Infrastructure.Server.Migrations
                 {
                     b.OwnsOne("PDV.Domain.ValueObjects.Address", "Address", b1 =>
                         {
-                            b1.Property<Guid>("SupplierId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("SupplierId")
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("City");
 
                             b1.Property<string>("Colony")
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Colony");
 
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Country");
 
                             b1.Property<string>("ExteriorNumber")
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("ExteriorNumber");
 
                             b1.Property<string>("InteriorNumber")
                                 .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("InteriorNumber");
 
                             b1.Property<string>("State")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("State");
 
                             b1.Property<string>("Street")
                                 .IsRequired()
                                 .HasMaxLength(150)
-                                .HasColumnType("character varying(150)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("Street");
 
                             b1.Property<string>("ZipCode")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
+                                .HasColumnType("TEXT")
                                 .HasColumnName("ZipCode");
 
                             b1.HasKey("SupplierId");
@@ -4608,42 +4626,42 @@ namespace PDV.Infrastructure.Server.Migrations
                 {
                     b.OwnsOne("PDV.Domain.ValueObjects.Address", "FiscalAddress", b1 =>
                         {
-                            b1.Property<Guid>("SystemConfigurationId")
-                                .HasColumnType("uuid");
+                            b1.Property<string>("SystemConfigurationId")
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Colony")
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Country")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("ExteriorNumber")
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("InteriorNumber")
-                                .HasColumnType("text");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("State")
                                 .IsRequired()
                                 .HasMaxLength(100)
-                                .HasColumnType("character varying(100)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("Street")
                                 .IsRequired()
                                 .HasMaxLength(200)
-                                .HasColumnType("character varying(200)");
+                                .HasColumnType("TEXT");
 
                             b1.Property<string>("ZipCode")
                                 .IsRequired()
                                 .HasMaxLength(20)
-                                .HasColumnType("character varying(20)");
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("SystemConfigurationId");
 

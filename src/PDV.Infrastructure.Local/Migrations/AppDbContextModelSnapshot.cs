@@ -223,9 +223,21 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<double?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("REAL");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OrderSeries")
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Phone")
@@ -907,7 +919,6 @@ namespace PDV.Infrastructure.Local.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeliveryManId")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
@@ -1700,13 +1711,21 @@ namespace PDV.Infrastructure.Local.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CapturedById")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CashRegisterId")
-                        .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Channel")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
 
                     b.Property<string>("ClientId")
                         .HasColumnType("TEXT");
@@ -1723,14 +1742,27 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DeliveryManId")
                         .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeliveryNotes")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeliveryRouteId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeliveryZoneId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DispatchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FilledAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("FilledById")
@@ -1740,10 +1772,20 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.Property<int>("Folio")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("FulfillmentStartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GeneralNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsInvoiceRequested")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsOutOfZone")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastModifiedAt")
@@ -1770,8 +1812,14 @@ namespace PDV.Infrastructure.Local.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("SettledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettledById")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ShiftId")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
@@ -1791,6 +1839,13 @@ namespace PDV.Infrastructure.Local.Migrations
 
                     b.Property<decimal>("TotalTax")
                         .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VerifiedById")
+                        .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -1832,6 +1887,9 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsFulfilled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsTaxExempt")
                         .HasColumnType("INTEGER");
 
@@ -1839,6 +1897,10 @@ namespace PDV.Infrastructure.Local.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LastModifiedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(250)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OrderId")
@@ -1854,6 +1916,10 @@ namespace PDV.Infrastructure.Local.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("RequestedQuantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
@@ -2943,6 +3009,9 @@ namespace PDV.Infrastructure.Local.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DefaultMaxPickingOrdersPerPicker")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("TEXT");
 
@@ -3176,6 +3245,73 @@ namespace PDV.Infrastructure.Local.Migrations
                         .IsUnique();
 
                     b.ToTable("UnidadesMedida");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.UserWorkStatus", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastAssignedOrderAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastStatusChangeAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MaxConcurrentOrders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OrdersCompletedToday")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StatusNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserWorkStatuses_UserId");
+
+                    b.HasIndex("BranchId", "Status")
+                        .HasDatabaseName("IX_UserWorkStatuses_BranchId_Status");
+
+                    b.ToTable("UserWorkStatuses");
                 });
 
             modelBuilder.Entity("PDV.Infrastructure.Identity.ApplicationUser", b =>
@@ -3939,8 +4075,7 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.HasOne("PDV.Domain.Entities.CashRegister", "CashRegister")
                         .WithMany()
                         .HasForeignKey("CashRegisterId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("PDV.Domain.Entities.Client", "Client")
                         .WithMany()
@@ -3960,8 +4095,7 @@ namespace PDV.Infrastructure.Local.Migrations
                     b.HasOne("PDV.Domain.Entities.Shift", "Shift")
                         .WithMany()
                         .HasForeignKey("ShiftId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.OwnsMany("PDV.Domain.ValueObjects.TaxBreakdown", "Taxes", b1 =>
                         {
@@ -4546,6 +4680,17 @@ namespace PDV.Infrastructure.Local.Migrations
                         .IsRequired();
 
                     b.Navigation("CashRegister");
+                });
+
+            modelBuilder.Entity("PDV.Domain.Entities.UserWorkStatus", b =>
+                {
+                    b.HasOne("PDV.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
                 });
 
             modelBuilder.Entity("PDV.Infrastructure.Identity.ApplicationUser", b =>
