@@ -1,9 +1,10 @@
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using PDV.Infrastructure.Identity
 @inject UserManager<ApplicationUser> UserManager
 @inject ISnackbar Snackbar
 
-<MudDialog Class="glass-card" Style="background: linear-gradient(135deg, rgba(20, 24, 46, 0.9) 0%, rgba(8, 10, 20, 0.9) 100%) !important; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;">
+<MudDialog Class="glass-card" Style="background: linear-gradient(135deg, rgba(20, 24, 0.9) 0%, rgba(8, 10, 20, 0.9) 100%) !important; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;">
     <TitleContent>
         <div class="d-flex flex-column align-center gap-2 pt-4">
             <div class="lock-icon-container d-flex align-center justify-center mb-2" style="background: rgba(244, 67, 54, 0.1); width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(244, 67, 54, 0.3);">
@@ -18,12 +19,12 @@
             <!-- Username Input -->
             <MudTextField T="string"
                           @bind-Value="username"
-                          Label="Usuario o Correo"
+                          Label="Usuario, Correo o N° de Empleado"
                           Variant="Variant.Outlined"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Person"
                           Required="true"
-                          RequiredError="Ingrese el usuario de supervisor"
+                          RequiredError="Ingrese el usuario o código de supervisor"
                           Margin="Margin.Dense"
                           Style="background: rgba(255,255,255,0.02); border-radius: 8px;"
                           OnKeyDown="HandleKeyDown" />
@@ -139,8 +140,14 @@
 
         try
         {
-            // 1. Buscar el usuario supervisor por nombre de usuario o por email
-            var user = await UserManager.FindByNameAsync(username) ?? await UserManager.FindByEmailAsync(username);
+            var cleanUsername = username?.Trim() ?? string.Empty;
+            var cleanUsernameLower = cleanUsername.ToLower();
+
+            // 1. Buscar el usuario supervisor por nombre de usuario, email o número de empleado
+            var user = await UserManager.FindByNameAsync(cleanUsername) 
+                       ?? await UserManager.FindByEmailAsync(cleanUsername)
+                       ?? await UserManager.Users.FirstOrDefaultAsync(u => u.EmployeeNumber != null && u.EmployeeNumber.ToLower() == cleanUsernameLower);
+
             if (user == null || !user.IsActive)
             {
                 errorMessage = "Credenciales incorrectas o usuario inactivo.";
@@ -164,7 +171,7 @@
             if (isAdmin || isManager)
             {
                 Snackbar.Add($"Operación '{ActionName}' autorizada por: {user.FullName}", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(new AuthorizationResult(true, username, password)));
+                MudDialog.Close(DialogResult.Ok(new AuthorizationResult(true, user.UserName ?? username, password)));
             }
             else
             {

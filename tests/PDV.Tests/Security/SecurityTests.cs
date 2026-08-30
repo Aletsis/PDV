@@ -313,4 +313,95 @@ public class SecurityTests
         Assert.Equal("EMP-999", cashierUser.EmployeeNumber);
         Assert.Equal(testBranchId, cashierUser.BranchId);
     }
+
+    [Fact]
+    public async Task ValidateSupervisorPermissionAsync_WithEmployeeNumber_ShouldAuthenticateAndAuthorize()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(opt =>
+            opt.UseInMemoryDatabase($"PDV_SupervisorEmpCode_Test_{Guid.NewGuid()}"));
+
+        var mockConfig = new Mock<IConfiguration>();
+        mockConfig.Setup(c => c["RunMode"]).Returns("Local");
+        services.AddSingleton<IConfiguration>(mockConfig.Object);
+        services.AddLogging();
+        services.AddCommonInfrastructureServices();
+
+        var serviceProvider = services.BuildServiceProvider();
+        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var context = serviceProvider.GetRequiredService<AppDbContext>();
+
+        await AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
+
+        var supervisorUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserName = "sup_test",
+            Email = "sup@test.com",
+            FullName = "Supervisor Test",
+            EmployeeNumber = "EMP-SUPER-01",
+            IsActive = true
+        };
+
+        var createResult = await userManager.CreateAsync(supervisorUser, "Password123!");
+        Assert.True(createResult.Succeeded);
+        await userManager.AddToRoleAsync(supervisorUser, "Manager");
+
+        var permissionService = serviceProvider.GetRequiredService<IPermissionService>();
+
+        // Act - Validate using Employee Number (EMP-SUPER-01) case-insensitively
+        var result = await permissionService.ValidateSupervisorPermissionAsync("emp-super-01", "Password123!", "sales.cancel", CancellationToken.None);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(supervisorUser.Id, result.SupervisorUserId);
+        Assert.Null(result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ValidateSupervisorPermissionAsync_WithInactiveEmployeeNumber_ShouldFail()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(opt =>
+            opt.UseInMemoryDatabase($"PDV_SupervisorInactiveEmpCode_Test_{Guid.NewGuid()}"));
+
+        var mockConfig = new Mock<IConfiguration>();
+        mockConfig.Setup(c => c["RunMode"]).Returns("Local");
+        services.AddSingleton<IConfiguration>(mockConfig.Object);
+        services.AddLogging();
+        services.AddCommonInfrastructureServices();
+
+        var serviceProvider = services.BuildServiceProvider();
+        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var context = serviceProvider.GetRequiredService<AppDbContext>();
+
+        await AppDbContextSeed.SeedDefaultUserAsync(userManager, roleManager, context);
+
+        var inactiveSupervisor = new ApplicationUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserName = "sup_inactivo",
+            Email = "inactivo@test.com",
+            FullName = "Supervisor Inactivo",
+            EmployeeNumber = "EMP-INACTIVO-99",
+            IsActive = false
+        };
+
+        var createResult = await userManager.CreateAsync(inactiveSupervisor, "Password123!");
+        Assert.True(createResult.Succeeded);
+        await userManager.AddToRoleAsync(inactiveSupervisor, "Manager");
+
+        var permissionService = serviceProvider.GetRequiredService<IPermissionService>();
+
+        // Act
+        var result = await permissionService.ValidateSupervisorPermissionAsync("EMP-INACTIVO-99", "Password123!", "sales.cancel", CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("inactivo", result.ErrorMessage?.ToLower());
+    }
 }

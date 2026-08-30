@@ -55,8 +55,14 @@ public class PermissionService : IPermissionService
         string requiredPermissionCode, 
         CancellationToken cancellationToken)
     {
-        // 1. Buscar el usuario supervisor
-        var user = await _userManager.FindByNameAsync(username) ?? await _userManager.FindByEmailAsync(username);
+        var cleanInput = username?.Trim() ?? string.Empty;
+        var cleanInputLower = cleanInput.ToLower();
+
+        // 1. Buscar el usuario supervisor por usuario, email o número de empleado
+        var user = await _userManager.FindByNameAsync(cleanInput) 
+                   ?? await _userManager.FindByEmailAsync(cleanInput)
+                   ?? await _userManager.Users.FirstOrDefaultAsync(u => u.EmployeeNumber != null && u.EmployeeNumber.ToLower() == cleanInputLower, cancellationToken);
+
         if (user == null || !user.IsActive)
         {
             return (false, null, "Usuario de supervisor no encontrado o inactivo.");

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PDV.Infrastructure.Identity;
 using PDV.Application.Features.CashRegisters.Queries.GetCashRegisterByIp;
@@ -37,14 +38,22 @@ public class AccountController : Controller
         [FromForm] string password,
         [FromForm] string returnUrl = "/")
     {
-        // 1. Validar que la cuenta esté activa
-        var user = await _userManager.FindByEmailAsync(email)
-                   ?? await _userManager.FindByNameAsync(email);
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            return Redirect($"/login?error=InvalidCredentials&returnUrl={returnUrl}");
+
+        var identifier = email.Trim();
+        var identifierLower = identifier.ToLower();
+
+        // 1. Buscar usuario por Email, Nombre de Usuario o Número de Empleado
+        var user = await _userManager.FindByEmailAsync(identifier)
+                   ?? await _userManager.FindByNameAsync(identifier)
+                   ?? await _userManager.Users.FirstOrDefaultAsync(u => u.EmployeeNumber != null && u.EmployeeNumber.ToLower() == identifierLower);
 
         if (user != null && !user.IsActive)
             return Redirect($"/login?error=InactiveAccount&returnUrl={returnUrl}");
 
-        var result = await _signInManager.PasswordSignInAsync(user?.UserName ?? email, password, isPersistent: false, lockoutOnFailure: false);
+        var userNameToSignIn = user?.UserName ?? identifier;
+        var result = await _signInManager.PasswordSignInAsync(userNameToSignIn, password, isPersistent: false, lockoutOnFailure: false);
 
         if (!result.Succeeded)
             return Redirect($"/login?error=InvalidCredentials&returnUrl={returnUrl}");
