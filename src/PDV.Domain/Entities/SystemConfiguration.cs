@@ -170,7 +170,7 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
         string? csdPassword = null)
     {
         if (string.IsNullOrWhiteSpace(csdSerialNumber)) throw new DomainException("El número de serie del CSD es requerido.");
-        if (csdExpiresAt <= DateTime.UtcNow) throw new DomainException("El CSD ya está vencido. Cargue un certificado vigente.");
+        if (csdExpiresAt <= DateTime.Now) throw new DomainException("El CSD ya está vencido. Cargue un certificado vigente.");
         if (string.IsNullOrWhiteSpace(pacUrl)) throw new DomainException("La URL del PAC es requerida.");
         if (string.IsNullOrWhiteSpace(pacApiUser)) throw new DomainException("El usuario del PAC es requerido.");
 
@@ -190,7 +190,7 @@ public class SystemConfiguration : BaseEntity, IAggregateRoot
     public bool IsCsdValid() =>
         !string.IsNullOrWhiteSpace(CsdSerialNumber) &&
         CsdExpiresAt.HasValue &&
-        CsdExpiresAt.Value > DateTime.UtcNow;
+        CsdExpiresAt.Value > DateTime.Now;
 
     // ──────────────────────────────────────────────
     // Configuración de Tickets

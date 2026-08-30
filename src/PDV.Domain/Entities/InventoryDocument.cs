@@ -97,7 +97,7 @@ public class InventoryDocument : BaseEntity, IAggregateRoot
         Folio = folio?.Trim() ?? string.Empty;
         Reference = reference?.Trim();
         Remarks = remarks?.Trim();
-        Date = DateTime.UtcNow;
+        Date = DateTime.Now;
         SyncStatus = OutboxState.Pending;
         Attempts = 0;
     }
@@ -122,13 +122,13 @@ public class InventoryDocument : BaseEntity, IAggregateRoot
         if (!string.IsNullOrWhiteSpace(folio)) Folio = ExternalFolio;
         SyncStatus = OutboxState.Processed;
         SyncErrorMessage = null;
-        LastAttemptAt = DateTime.UtcNow;
+        LastAttemptAt = DateTime.Now;
     }
 
     public void MarkAsSyncFailed(string error, int maxAttempts = 5)
     {
         Attempts++;
-        LastAttemptAt = DateTime.UtcNow;
+        LastAttemptAt = DateTime.Now;
         SyncErrorMessage = error;
 
         if (Attempts >= maxAttempts)

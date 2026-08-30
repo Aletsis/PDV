@@ -58,7 +58,7 @@
                             Ruta #@_activeRoute.Folio @(!string.IsNullOrWhiteSpace(_activeRoute.DeliveryZone?.Name) ? $"({_activeRoute.DeliveryZone.Name})" : "")
                         </MudText>
                         <MudText Typo="Typo.body2" Style="opacity: 0.9;" Class="text-white">
-                            Despachada: @((_activeRoute.DispatchedDate ?? _activeRoute.CreatedDate).ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                            Despachada: @((_activeRoute.DispatchedDate ?? _activeRoute.CreatedDate).ToString("dd/MM/yyyy HH:mm"))
                         </MudText>
                     </div>
                     <div class="d-flex gap-4 align-center">

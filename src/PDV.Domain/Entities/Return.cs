@@ -89,7 +89,7 @@ public class Return : BaseEntity, IAggregateRoot
         SaleId = saleId;
         ClientId = clientId;
         CashRegisterId = cashRegisterId;
-        ReturnDate = DateTime.UtcNow;
+        ReturnDate = DateTime.Now;
         IsCompleted = false;
         Subtotal = 0;
         TotalTax = 0;

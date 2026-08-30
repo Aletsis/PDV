@@ -47,7 +47,7 @@ public abstract class BaseEntity
     {
         Id = Guid.CreateVersion7();
         // CreatedAt se fija en el momento de instanciación — nunca cambia.
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = DateTime.Now;
     }
 
     // ──────────────────────────────────────────────
@@ -70,7 +70,7 @@ public abstract class BaseEntity
     /// </summary>
     public void SetModificationAudit(string modifiedBy)
     {
-        LastModifiedAt = DateTime.UtcNow;
+        LastModifiedAt = DateTime.Now;
         LastModifiedBy = modifiedBy;
     }
 
@@ -83,7 +83,7 @@ public abstract class BaseEntity
         if (IsDeleted) return; // Idempotente: ya eliminado, se ignora.
 
         IsDeleted = true;
-        DeletedAt = DateTime.UtcNow;
+        DeletedAt = DateTime.Now;
         DeletedBy = deletedBy;
     }
 

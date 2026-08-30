@@ -46,7 +46,7 @@ public class ContpaqiSyncQueue : BaseEntity
             throw new DomainException("No se puede procesar una tarea de CONTPAQi que ya ha sido completada.");
 
         State = OutboxState.Processing;
-        LastAttemptAt = DateTime.UtcNow;
+        LastAttemptAt = DateTime.Now;
     }
 
     public void MarkAsProcessed()
@@ -64,7 +64,7 @@ public class ContpaqiSyncQueue : BaseEntity
             throw new DomainException("El detalle del error es requerido para registrar la falla.");
 
         Attempts++;
-        LastAttemptAt = DateTime.UtcNow;
+        LastAttemptAt = DateTime.Now;
         ErrorMessage = error;
 
         if (Attempts >= maxAttempts)

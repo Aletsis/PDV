@@ -51,7 +51,7 @@ public class UpdateInvoiceSettingsCommandHandler : IRequestHandler<UpdateInvoice
         }
 
         string serialNumber = config.CsdSerialNumber ?? string.Empty;
-        DateTime expiresAt = config.CsdExpiresAt ?? DateTime.UtcNow.AddYears(1);
+        DateTime expiresAt = config.CsdExpiresAt ?? DateTime.Now.AddYears(1);
 
         if (request.CsdCertificateData != null && request.CsdCertificateData.Length > 0)
         {

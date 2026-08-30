@@ -192,7 +192,7 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
 
             apiCreditInvoice.Stamp(
                 uuid: ncResult.DatosFiscales.UUID,
-                stampedAt: DateTime.TryParse(ncResult.DatosFiscales.FechaTimbrado, out var dtNc) ? dtNc : DateTime.UtcNow,
+                stampedAt: DateTime.TryParse(ncResult.DatosFiscales.FechaTimbrado, out var dtNc) ? dtNc : DateTime.Now,
                 selloDigitalEmisor: ncResult.DatosFiscales.SelloDigitalEmisor,
                 selloDigitalSAT: ncResult.DatosFiscales.SelloDigitalSAT,
                 noCertificadoEmisor: ncResult.DatosFiscales.NoCertificadoEmisor,
@@ -270,7 +270,7 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
         }
         else
         {
-            sello = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_NC_{creditInvoice.InvoiceNumber}_{DateTime.UtcNow.Ticks}"));
+            sello = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_NC_{creditInvoice.InvoiceNumber}_{DateTime.Now.Ticks}"));
         }
 
         // Insertar sello en el XML
@@ -297,7 +297,7 @@ public class CreateCreditNoteCommandHandler : IRequestHandler<CreateCreditNoteCo
         // Estampar la Nota de Crédito en el sistema con los datos devueltos por el PAC
         creditInvoice.Stamp(
             uuid: stampResult.Uuid,
-            stampedAt: stampResult.StampedAt ?? DateTime.UtcNow,
+            stampedAt: stampResult.StampedAt ?? DateTime.Now,
             selloDigitalEmisor: sello,
             selloDigitalSAT: stampResult.SelloSAT ?? "",
             noCertificadoEmisor: config.CsdSerialNumber ?? "00001000000500000000",

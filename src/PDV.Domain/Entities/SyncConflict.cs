@@ -26,14 +26,14 @@ public class SyncConflict : BaseEntity
         ClientValuesJson = clientValuesJson;
         ServerValuesJson = serverValuesJson;
         ConflictType = conflictType;
-        DetectedAt = DateTime.UtcNow;
+        DetectedAt = DateTime.Now;
         Resolved = false;
     }
 
     public void Resolve(string strategy)
     {
         Resolved = true;
-        ResolvedAt = DateTime.UtcNow;
+        ResolvedAt = DateTime.Now;
         ResolutionStrategy = strategy;
     }
 }

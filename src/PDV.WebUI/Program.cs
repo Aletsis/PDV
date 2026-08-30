@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Authorization;
 
 Directory.SetCurrentDirectory(System.AppContext.BaseDirectory);
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 if (System.Array.IndexOf(args, "--apply-migrations-only") >= 0)
 {

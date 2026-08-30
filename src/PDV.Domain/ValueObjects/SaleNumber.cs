@@ -25,7 +25,7 @@ public record SaleNumber
 
     public static SaleNumber Generate()
     {
-        var timestamp = DateTime.UtcNow.Ticks;
+        var timestamp = DateTime.Now.Ticks;
         return new SaleNumber($"T-{timestamp}");
     }
 

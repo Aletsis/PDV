@@ -163,7 +163,7 @@
                             @if (context.LastStatusChangeAt != DateTime.MinValue)
                             {
                                 <span class="mud-text-secondary" style="font-size: 0.75rem;">
-                                    Desde @context.LastStatusChangeAt.ToLocalTime().ToString("HH:mm") (@GetTimeAgo(context.LastStatusChangeAt))
+                                    Desde @context.LastStatusChangeAt.ToString("HH:mm") (@GetTimeAgo(context.LastStatusChangeAt))
                                 </span>
                             }
                         </div>

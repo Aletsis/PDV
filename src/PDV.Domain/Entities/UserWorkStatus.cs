@@ -40,7 +40,7 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
         BranchId = branchId;
         Status = PickerAvailabilityStatus.Available;
         MaxConcurrentOrders = maxConcurrentOrders > 0 ? maxConcurrentOrders : null;
-        LastStatusChangeAt = DateTime.UtcNow;
+        LastStatusChangeAt = DateTime.Now;
         LastAssignedOrderAt = null;
         OrdersCompletedToday = 0;
         StatusNotes = null;
@@ -51,7 +51,7 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
     public void SetAvailable()
     {
         Status = PickerAvailabilityStatus.Available;
-        LastStatusChangeAt = DateTime.UtcNow;
+        LastStatusChangeAt = DateTime.Now;
         StatusNotes = null;
         AddDomainEvent(new PickerStatusChangedEvent(UserId, BranchId, Status, StatusNotes));
     }
@@ -59,7 +59,7 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
     public void SetMealBreak(string? notes = null)
     {
         Status = PickerAvailabilityStatus.MealBreak;
-        LastStatusChangeAt = DateTime.UtcNow;
+        LastStatusChangeAt = DateTime.Now;
         StatusNotes = notes?.Trim();
         AddDomainEvent(new PickerStatusChangedEvent(UserId, BranchId, Status, StatusNotes));
     }
@@ -67,7 +67,7 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
     public void SetOperationalBreak(string? reason = null)
     {
         Status = PickerAvailabilityStatus.OperationalBreak;
-        LastStatusChangeAt = DateTime.UtcNow;
+        LastStatusChangeAt = DateTime.Now;
         StatusNotes = reason?.Trim();
         AddDomainEvent(new PickerStatusChangedEvent(UserId, BranchId, Status, StatusNotes));
     }
@@ -75,7 +75,7 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
     public void SetOffDuty(string? notes = null)
     {
         Status = PickerAvailabilityStatus.OffDuty;
-        LastStatusChangeAt = DateTime.UtcNow;
+        LastStatusChangeAt = DateTime.Now;
         StatusNotes = notes?.Trim();
         AddDomainEvent(new PickerStatusChangedEvent(UserId, BranchId, Status, StatusNotes));
     }
@@ -90,7 +90,7 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
 
     public void RecordOrderAssigned()
     {
-        LastAssignedOrderAt = DateTime.UtcNow;
+        LastAssignedOrderAt = DateTime.Now;
     }
 
     public void RecordOrderCompleted()
@@ -109,6 +109,6 @@ public class UserWorkStatus : BaseEntity, IAggregateRoot
             throw new DomainException("El ID de sucursal es inválido.");
 
         BranchId = newBranchId;
-        LastStatusChangeAt = DateTime.UtcNow;
+        LastStatusChangeAt = DateTime.Now;
     }
 }

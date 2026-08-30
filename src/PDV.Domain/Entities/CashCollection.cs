@@ -56,7 +56,7 @@ public class CashCollection : BaseEntity, IAggregateRoot
         UserId = userId;
         Reason = reason.Trim();
         Type = type;
-        CollectionDate = DateTime.UtcNow;
+        CollectionDate = DateTime.Now;
 
         _denominations.AddRange(denominationsList);
         Amount = _denominations.Sum(d => d.TotalValue);

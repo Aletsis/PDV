@@ -63,14 +63,14 @@ public class GetDashboardSummaryQueryHandler
         GetDashboardSummaryQuery request,
         CancellationToken cancellationToken)
     {
-        var todayUtc = DateTime.UtcNow.Date;
-        var tomorrowUtc = todayUtc.AddDays(1);
+        var today = DateTime.Today;
+        var tomorrow = today.AddDays(1);
 
         // ── Ventas del día ────────────────────────────────────────────────
         var todaySales = await _context.Sales
             .AsNoTracking()
             .Include(s => s.Items)
-            .Where(s => s.Date >= todayUtc && s.Date < tomorrowUtc && !s.IsCancelled)
+            .Where(s => s.Date >= today && s.Date < tomorrow && !s.IsCancelled)
             .ToListAsync(cancellationToken);
 
         var totalSalesToday = todaySales.Sum(s => s.TotalAmount);
@@ -133,7 +133,7 @@ public class GetDashboardSummaryQueryHandler
             .CountAsync(cancellationToken);
 
         // ── Ventas por hora (últimas 8 horas) ─────────────────────────────
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         var cutoff = now.AddHours(-8);
 
         var salesByHour = todaySales

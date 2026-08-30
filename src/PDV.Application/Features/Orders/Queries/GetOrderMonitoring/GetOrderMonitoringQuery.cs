@@ -40,8 +40,8 @@ public class GetOrderMonitoringQueryHandler : IRequestHandler<GetOrderMonitoring
 
     public async Task<OrderMonitoringResultDto> Handle(GetOrderMonitoringQuery request, CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
-        var todayUtcStart = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+        var now = DateTime.Now;
+        var todayStart = DateTime.Today;
 
         var query = _context.Orders
             .Include(o => o.Client)
@@ -57,15 +57,13 @@ public class GetOrderMonitoringQueryHandler : IRequestHandler<GetOrderMonitoring
         {
             if (request.StartDate.HasValue)
             {
-                var s = request.StartDate.Value;
-                var sUtc = s.Kind == DateTimeKind.Utc ? s : (s.Kind == DateTimeKind.Local ? s.ToUniversalTime() : DateTime.SpecifyKind(s, DateTimeKind.Utc));
-                query = query.Where(o => o.OrderDate >= sUtc);
+                var s = request.StartDate.Value.Date;
+                query = query.Where(o => o.OrderDate >= s);
             }
             if (request.EndDate.HasValue)
             {
-                var e = request.EndDate.Value;
-                var eUtc = e.Kind == DateTimeKind.Utc ? e : (e.Kind == DateTimeKind.Local ? e.ToUniversalTime() : DateTime.SpecifyKind(e, DateTimeKind.Utc));
-                query = query.Where(o => o.OrderDate <= eUtc);
+                var e = request.EndDate.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(o => o.OrderDate <= e);
             }
         }
         else if (request.OnlyActive)
@@ -228,7 +226,7 @@ public class GetOrderMonitoringQueryHandler : IRequestHandler<GetOrderMonitoring
                     break;
                 case OrderStatus.Delivered:
                 case OrderStatus.Settled:
-                    if (o.OrderDate >= todayUtcStart || (o.DeliveredAt.HasValue && o.DeliveredAt.Value >= todayUtcStart))
+                    if (o.OrderDate >= todayStart || (o.DeliveredAt.HasValue && o.DeliveredAt.Value >= todayStart))
                         deliveredTodayCount++;
                     break;
                 case OrderStatus.Returned:

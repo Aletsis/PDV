@@ -56,7 +56,7 @@
                         </MudItem>
                         <MudItem xs="6" sm="3">
                             <MudText Typo="Typo.caption" Class="mud-text-secondary">Fecha Conciliación</MudText>
-                            <MudText Typo="Typo.body2" Class="font-weight-bold">@(detail.ReconciliationDate?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "-")</MudText>
+                            <MudText Typo="Typo.body2" Class="font-weight-bold">@(detail.ReconciliationDate?.ToString("dd/MM/yyyy HH:mm") ?? "-")</MudText>
                         </MudItem>
                     </MudGrid>
                 </MudPaper>

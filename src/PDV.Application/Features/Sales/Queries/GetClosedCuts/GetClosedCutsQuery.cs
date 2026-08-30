@@ -59,13 +59,13 @@ public class GetClosedCutsQueryHandler : IRequestHandler<GetClosedCutsQuery, Lis
 
         if (request.StartDate.HasValue)
         {
-            var start = DateTime.SpecifyKind(request.StartDate.Value.Date, DateTimeKind.Utc);
+            var start = request.StartDate.Value.Date;
             shiftsQuery = shiftsQuery.Where(s => s.StartTime >= start);
         }
 
         if (request.EndDate.HasValue)
         {
-            var end = DateTime.SpecifyKind(request.EndDate.Value.Date.AddDays(1), DateTimeKind.Utc);
+            var end = request.EndDate.Value.Date.AddDays(1);
             shiftsQuery = shiftsQuery.Where(s => s.EndTime < end);
         }
 

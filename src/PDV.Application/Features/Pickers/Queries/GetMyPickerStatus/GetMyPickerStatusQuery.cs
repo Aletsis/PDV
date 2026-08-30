@@ -67,7 +67,7 @@ public class GetMyPickerStatusQueryHandler : IRequestHandler<GetMyPickerStatusQu
             EffectiveMaxCapacity = effectiveCapacity,
             ActiveOrdersCount = activeOrders,
             OrdersCompletedToday = workStatus?.OrdersCompletedToday ?? 0,
-            LastStatusChangeAt = workStatus?.LastStatusChangeAt ?? DateTime.UtcNow,
+            LastStatusChangeAt = workStatus?.LastStatusChangeAt ?? DateTime.Now,
             LastAssignedOrderAt = workStatus?.LastAssignedOrderAt,
             StatusNotes = workStatus?.StatusNotes
         };

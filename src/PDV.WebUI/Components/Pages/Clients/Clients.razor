@@ -451,8 +451,7 @@
                     var fileContent = await File.ReadAllTextAsync(pullSyncFile);
                     if (DateTime.TryParse(fileContent, out var dt))
                     {
-                        // Convert to local time for user readability
-                        lastSyncText = dt.ToLocalTime().ToString("g");
+                        lastSyncText = dt.ToString("g");
                         return;
                     }
                 }

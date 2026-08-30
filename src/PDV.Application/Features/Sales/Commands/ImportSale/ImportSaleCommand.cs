@@ -82,7 +82,7 @@ public class ImportSaleCommandHandler : IRequestHandler<ImportSaleCommand, bool>
 
             // Close the shift so it doesn't affect active drawer operations
             stubShift.Close(
-                endTime: DateTime.UtcNow,
+                endTime: DateTime.Now,
                 totalCashSales: 0m,
                 totalCashReturns: 0m,
                 totalInflows: 0m,

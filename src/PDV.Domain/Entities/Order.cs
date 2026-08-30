@@ -109,7 +109,7 @@ public class Order : BaseEntity, IAggregateRoot
         IsOutOfZone = isOutOfZone;
         Channel = channel;
         
-        OrderDate = DateTime.UtcNow;
+        OrderDate = DateTime.Now;
         Status = OrderStatus.Pending;
         Subtotal = 0;
         TotalTax = 0;
@@ -171,7 +171,7 @@ public class Order : BaseEntity, IAggregateRoot
             throw new DomainException("Solo los pedidos pendientes pueden ser asignados a un surtidor.");
 
         FilledById = pickerId;
-        FulfillmentStartedAt = DateTime.UtcNow;
+        FulfillmentStartedAt = DateTime.Now;
         Status = OrderStatus.InFulfillment;
         AddDomainEvent(new OrderFulfillmentStartedEvent(Id, pickerId));
     }
@@ -186,7 +186,7 @@ public class Order : BaseEntity, IAggregateRoot
             FilledById = pickerId;
         }
 
-        FilledAt = DateTime.UtcNow;
+        FilledAt = DateTime.Now;
         Status = OrderStatus.Filled;
         AddDomainEvent(new OrderFilledEvent(Id, FilledById));
     }
@@ -203,7 +203,7 @@ public class Order : BaseEntity, IAggregateRoot
 
         VerifiedById = verifierId;
         CapturedById ??= verifierId;
-        VerifiedAt = DateTime.UtcNow;
+        VerifiedAt = DateTime.Now;
 
         if (cashRegisterId.HasValue) CashRegisterId = cashRegisterId;
         if (shiftId.HasValue) ShiftId = shiftId;
@@ -245,7 +245,7 @@ public class Order : BaseEntity, IAggregateRoot
     {
         if (!DeliveryRouteId.HasValue) throw new DomainException("Debe estar enrutado primero.");
         DeliveryManId = deliveryManId;
-        DispatchedAt = DateTime.UtcNow;
+        DispatchedAt = DateTime.Now;
         Status = OrderStatus.EnRoute;
         AddDomainEvent(new OrderDeliveryAssignedEvent(Id, deliveryManId));
     }
@@ -253,7 +253,7 @@ public class Order : BaseEntity, IAggregateRoot
     public void MarkAsDelivered()
     {
         if (Status != OrderStatus.EnRoute) throw new DomainException("Solo un pedido en ruta puede ser entregado.");
-        DeliveredAt = DateTime.UtcNow;
+        DeliveredAt = DateTime.Now;
         Status = OrderStatus.Delivered;
         AddDomainEvent(new OrderDeliveredEvent(Id));
     }
@@ -262,7 +262,7 @@ public class Order : BaseEntity, IAggregateRoot
     {
         if (Status != OrderStatus.EnRoute) throw new DomainException("Solo un pedido en ruta puede ser devuelto.");
         if (string.IsNullOrWhiteSpace(reason)) throw new DomainException("Se requiere un motivo para registrar la devolución.");
-        DeliveredAt = DateTime.UtcNow;
+        DeliveredAt = DateTime.Now;
         Status = OrderStatus.Returned;
         ReturnReason = reason;
         AddDomainEvent(new OrderReturnedEvent(Id, reason));
@@ -274,7 +274,7 @@ public class Order : BaseEntity, IAggregateRoot
             throw new DomainException("Solo pedidos entregados o devueltos pueden liquidarse.");
 
         SettledById = settledById;
-        SettledAt = DateTime.UtcNow;
+        SettledAt = DateTime.Now;
         Status = OrderStatus.Settled;
         AddDomainEvent(new OrderSettledEvent(Id, settledById));
     }

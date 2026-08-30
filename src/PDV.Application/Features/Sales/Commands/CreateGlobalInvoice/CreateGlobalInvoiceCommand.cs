@@ -175,7 +175,7 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
 
             apiGlobalInvoice.Stamp(
                 uuid: apiResult.DatosFiscales.UUID,
-                stampedAt: DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var dt) ? dt : DateTime.UtcNow,
+                stampedAt: DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var dt) ? dt : DateTime.Now,
                 selloDigitalEmisor: apiResult.DatosFiscales.SelloDigitalEmisor,
                 selloDigitalSAT: apiResult.DatosFiscales.SelloDigitalSAT,
                 noCertificadoEmisor: apiResult.DatosFiscales.NoCertificadoEmisor,
@@ -325,7 +325,7 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
 
                                 apiCreditInvoice.Stamp(
                                     uuid: ncResult.DatosFiscales.UUID,
-                                    stampedAt: DateTime.TryParse(ncResult.DatosFiscales.FechaTimbrado, out var dtNc) ? dtNc : DateTime.UtcNow,
+                                    stampedAt: DateTime.TryParse(ncResult.DatosFiscales.FechaTimbrado, out var dtNc) ? dtNc : DateTime.Now,
                                     selloDigitalEmisor: ncResult.DatosFiscales.SelloDigitalEmisor,
                                     selloDigitalSAT: ncResult.DatosFiscales.SelloDigitalSAT,
                                     noCertificadoEmisor: ncResult.DatosFiscales.NoCertificadoEmisor,
@@ -405,7 +405,7 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
         }
         else
         {
-            sello = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_GLOBAL_{globalInvoice.InvoiceNumber}_{DateTime.UtcNow.Ticks}"));
+            sello = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_GLOBAL_{globalInvoice.InvoiceNumber}_{DateTime.Now.Ticks}"));
         }
 
         // Insertar sello en el XML
@@ -433,7 +433,7 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
         // Estampar la Factura Global con los datos del PAC
         globalInvoice.Stamp(
             uuid: stampResult.Uuid,
-            stampedAt: stampResult.StampedAt ?? DateTime.UtcNow,
+            stampedAt: stampResult.StampedAt ?? DateTime.Now,
             selloDigitalEmisor: sello,
             selloDigitalSAT: stampResult.SelloSAT ?? "",
             noCertificadoEmisor: config.CsdSerialNumber ?? "00001000000500000000",
@@ -584,7 +584,7 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
                         }
                         else
                         {
-                            selloNC = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_NC_{creditInvoice.InvoiceNumber}_{DateTime.UtcNow.Ticks}"));
+                            selloNC = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_NC_{creditInvoice.InvoiceNumber}_{DateTime.Now.Ticks}"));
                         }
 
                         // Insertar sello
@@ -607,7 +607,7 @@ public class CreateGlobalInvoiceCommandHandler : IRequestHandler<CreateGlobalInv
                         {
                             creditInvoice.Stamp(
                                 uuid: creditResult.Uuid,
-                                stampedAt: creditResult.StampedAt ?? DateTime.UtcNow,
+                                stampedAt: creditResult.StampedAt ?? DateTime.Now,
                                 selloDigitalEmisor: selloNC,
                                 selloDigitalSAT: creditResult.SelloSAT ?? "",
                                 noCertificadoEmisor: config.CsdSerialNumber ?? "00001000000500000000",

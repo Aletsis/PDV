@@ -72,7 +72,7 @@
                                 </HeaderContent>
                                 <RowTemplate>
                                     <MudTd>@context.Series-@context.Folio</MudTd>
-                                    <MudTd>@context.OrderDate.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                                    <MudTd>@context.OrderDate.ToString("dd/MM HH:mm")</MudTd>
                                     <MudTd>@(context.Client?.Name ?? "Público General")</MudTd>
                                     <MudTd>
                                         @if (context.DeliveryZone != null)

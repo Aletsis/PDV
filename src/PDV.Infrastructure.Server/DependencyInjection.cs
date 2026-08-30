@@ -10,6 +10,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddServerInfrastructureServices(this IServiceCollection services, string connectionString)
     {
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
         services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         {
             var interceptor = serviceProvider.GetRequiredService<DomainEventsInterceptor>();

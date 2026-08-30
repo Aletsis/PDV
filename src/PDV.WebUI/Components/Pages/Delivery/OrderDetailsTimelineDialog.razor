@@ -14,7 +14,7 @@
                         Pedido @Order.OrderNumber
                     </MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        Creado el @Order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") • Canal: @Order.Channel
+                        Creado el @Order.OrderDate.ToString("dd/MM/yyyy HH:mm:ss") • Canal: @Order.Channel
                     </MudText>
                 </div>
             </div>
@@ -71,7 +71,7 @@
                             <div class="d-flex align-center justify-space-between flex-wrap">
                                 <MudText Typo="Typo.body2" Class="font-weight-bold">1. Captura de Pedido</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @Order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    @Order.OrderDate.ToString("dd/MM/yyyy HH:mm")
                                 </MudText>
                             </div>
                             <MudText Typo="Typo.body2" Color="Color.Default">
@@ -97,8 +97,8 @@
                                 @if (Order.FulfillmentStartedAt.HasValue)
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        Inicio: @Order.FulfillmentStartedAt.Value.ToLocalTime().ToString("HH:mm")
-                                        @(Order.FilledAt.HasValue ? $" • Fin: {Order.FilledAt.Value.ToLocalTime().ToString("HH:mm")}" : " (En proceso)")
+                                        Inicio: @Order.FulfillmentStartedAt.Value.ToString("HH:mm")
+                                        @(Order.FilledAt.HasValue ? $" • Fin: {Order.FilledAt.Value.ToString("HH:mm")}" : " (En proceso)")
                                     </MudText>
                                 }
                             </div>
@@ -139,7 +139,7 @@
                                 @if (Order.VerifiedAt.HasValue)
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @Order.VerifiedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                        @Order.VerifiedAt.Value.ToString("dd/MM/yyyy HH:mm")
                                     </MudText>
                                 }
                             </div>
@@ -174,7 +174,7 @@
                                 @if (Order.DispatchedAt.HasValue)
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        Despachado: @Order.DispatchedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                        Despachado: @Order.DispatchedAt.Value.ToString("dd/MM/yyyy HH:mm")
                                     </MudText>
                                 }
                             </div>
@@ -213,7 +213,7 @@
                                 @if (Order.DeliveredAt.HasValue || Order.SettledAt.HasValue)
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @((Order.DeliveredAt ?? Order.SettledAt)!.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                                        @((Order.DeliveredAt ?? Order.SettledAt)!.Value.ToString("dd/MM/yyyy HH:mm"))
                                     </MudText>
                                 }
                             </div>

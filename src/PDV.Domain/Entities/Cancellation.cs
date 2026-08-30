@@ -52,7 +52,7 @@ public class Cancellation : BaseEntity, IAggregateRoot
         UserId = userId;
         SaleId = saleId;
         SaleItemId = saleItemId;
-        CancellationDate = DateTime.UtcNow;
+        CancellationDate = DateTime.Now;
 
         AddDomainEvent(new CancellationCreatedEvent(Id, Type, SaleId, SaleItemId, Reason));
     }

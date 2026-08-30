@@ -25,7 +25,7 @@ public class Sale : BaseEntity, IAggregateRoot
     public decimal ReceivedAmount { get; private set; }
     public decimal Change { get; private set; }
 
-    public DateTime Date { get; private set; } = DateTime.UtcNow;
+    public DateTime Date { get; private set; } = DateTime.Now;
     
     public PaymentMethodType PaymentMethod { get; private set; }
     
@@ -78,7 +78,7 @@ public class Sale : BaseEntity, IAggregateRoot
         Folio = folio;
         ClientId = clientId;
         CashRegisterId = cashRegisterId;
-        Date = DateTime.UtcNow;
+        Date = DateTime.Now;
         IsPaid = false;
         IsCancelled = false;
         IsInvoiceRequested = false;

@@ -52,7 +52,7 @@
                                 Totales del Sistema (Esperado)
                             </MudText>
                             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                Turno: @detail.StartTime.ToLocalTime().ToString("dd/MM HH:mm") - @(detail.EndTime?.ToLocalTime().ToString("HH:mm") ?? "Abierto")
+                                Turno: @detail.StartTime.ToString("dd/MM HH:mm") - @(detail.EndTime?.ToString("HH:mm") ?? "Abierto")
                             </MudText>
                         </div>
 

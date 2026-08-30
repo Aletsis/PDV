@@ -218,7 +218,7 @@
                             Tu usuario cuenta actualmente con un turno activo abierto en la caja: <strong class="mud-text-primary">@globalActiveShift.CashRegisterName</strong>.
                         </MudText>
                         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-2 text-left" Style="border-radius: 12px; width: 100%;">
-                            El sistema central detectó que ya tienes un turno iniciado desde el día/hora <strong>@globalActiveShift.StartTime.ToLocalTime().ToString("g")</strong> en otra caja. Debes cerrar ese turno antes de poder abrir uno nuevo aquí.
+                            El sistema central detectó que ya tienes un turno iniciado desde el día/hora <strong>@globalActiveShift.StartTime.ToString("g")</strong> en otra caja. Debes cerrar ese turno antes de poder abrir uno nuevo aquí.
                         </MudAlert>
                         <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/" Class="mt-4 py-3 px-6" Style="border-radius: 12px; font-weight: 600;">
                             Regresar al Dashboard

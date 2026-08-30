@@ -106,7 +106,7 @@ public class CashCutCommandHandler : IRequestHandler<CashCutCommand, Guid>
 
         // Cerrar formalmente el turno en el dominio
         activeShift.Close(
-            endTime: DateTime.UtcNow,
+            endTime: DateTime.Now,
             totalCashSales: totalCashSales,
             totalCashReturns: totalCashReturns,
             totalInflows: totalInflows,

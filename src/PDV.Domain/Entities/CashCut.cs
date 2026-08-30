@@ -66,7 +66,7 @@ public class CashCut : BaseEntity, IAggregateRoot
         CashRegisterId = cashRegisterId;
         UserId = userId;
         SystemExpectedCash = systemExpectedCash;
-        CutDate = DateTime.UtcNow;
+        CutDate = DateTime.Now;
         IsReconciled = false;
         ReconciledAt = null;
 
@@ -88,6 +88,6 @@ public class CashCut : BaseEntity, IAggregateRoot
     public void MarkAsReconciled(DateTime? reconciledAt = null)
     {
         IsReconciled = true;
-        ReconciledAt = reconciledAt ?? DateTime.UtcNow;
+        ReconciledAt = reconciledAt ?? DateTime.Now;
     }
 }

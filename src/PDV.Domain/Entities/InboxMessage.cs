@@ -34,7 +34,7 @@ public class InboxMessage : BaseEntity
         Payload = payload;
         State = InboxState.Pending;
         Attempts = 0;
-        ReceivedAt = DateTime.UtcNow;
+        ReceivedAt = DateTime.Now;
     }
 
     public void MarkAsProcessing()
@@ -48,7 +48,7 @@ public class InboxMessage : BaseEntity
     public void MarkAsProcessed()
     {
         State = InboxState.Processed;
-        ProcessedAt = DateTime.UtcNow;
+        ProcessedAt = DateTime.Now;
         ErrorMessage = null;
     }
 

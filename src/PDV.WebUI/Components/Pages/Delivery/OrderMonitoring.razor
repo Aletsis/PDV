@@ -30,7 +30,7 @@
                 <span style="font-size: 0.78rem; color: rgba(255,255,255,0.7);">
                     @(_autoRefreshIntervalSeconds > 0 ? $"Auto-refresco: {_autoRefreshIntervalSeconds}s" : "Refresco Manual")
                 </span>
-                <span class="mud-text-secondary" style="font-size: 0.72rem;">(@_lastUpdated.ToLocalTime().ToString("HH:mm:ss"))</span>
+                <span class="mud-text-secondary" style="font-size: 0.72rem;">(@_lastUpdated.ToString("HH:mm:ss"))</span>
             </div>
         </StatusAlert>
         <Actions>
@@ -355,8 +355,8 @@
                     </MudTd>
                     <MudTd>
                         <div class="d-flex flex-column">
-                            <span>@context.OrderDate.ToLocalTime().ToString("HH:mm")</span>
-                            <span class="mud-text-secondary" style="font-size: 0.72rem;">@context.OrderDate.ToLocalTime().ToString("dd/MM")</span>
+                            <span>@context.OrderDate.ToString("HH:mm")</span>
+                            <span class="mud-text-secondary" style="font-size: 0.72rem;">@context.OrderDate.ToString("dd/MM")</span>
                         </div>
                     </MudTd>
                     <MudTd>

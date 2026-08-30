@@ -342,7 +342,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     {
         if (auditEntries == null || auditEntries.Count == 0) return;
 
-        var timestamp = _dateTimeService?.UtcNow ?? DateTime.UtcNow;
+        var timestamp = _dateTimeService?.Now ?? DateTime.Now;
 
         foreach (var auditEntry in auditEntries)
         {
@@ -365,7 +365,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IApplicationDbCo
     {
         if (auditEntries == null || auditEntries.Count == 0) return;
 
-        var timestamp = _dateTimeService?.UtcNow ?? DateTime.UtcNow;
+        var timestamp = _dateTimeService?.Now ?? DateTime.Now;
 
         foreach (var auditEntry in auditEntries)
         {

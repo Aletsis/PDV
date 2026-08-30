@@ -207,7 +207,7 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
 
             localInvoice.Stamp(
                 uuid: apiResult.DatosFiscales.UUID,
-                stampedAt: DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var dt) ? dt : DateTime.UtcNow,
+                stampedAt: DateTime.TryParse(apiResult.DatosFiscales.FechaTimbrado, out var dt) ? dt : DateTime.Now,
                 selloDigitalEmisor: apiResult.DatosFiscales.SelloDigitalEmisor,
                 selloDigitalSAT: apiResult.DatosFiscales.SelloDigitalSAT,
                 noCertificadoEmisor: apiResult.DatosFiscales.NoCertificadoEmisor,
@@ -328,7 +328,7 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
         }
         else
         {
-            sello = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_DIGITAL_{invoice.InvoiceNumber}_{DateTime.UtcNow.Ticks}"));
+            sello = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"SELLO_DIGITAL_{invoice.InvoiceNumber}_{DateTime.Now.Ticks}"));
         }
 
         // Insertar sello en el XML
@@ -355,7 +355,7 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
         // Estampar la factura con los datos fiscales recibidos del PAC
         invoice.Stamp(
             uuid: stampResult.Uuid,
-            stampedAt: stampResult.StampedAt ?? DateTime.UtcNow,
+            stampedAt: stampResult.StampedAt ?? DateTime.Now,
             selloDigitalEmisor: sello,
             selloDigitalSAT: stampResult.SelloSAT ?? "",
             noCertificadoEmisor: config.CsdSerialNumber ?? "00001000000500000000",

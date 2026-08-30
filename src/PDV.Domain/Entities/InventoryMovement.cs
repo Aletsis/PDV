@@ -51,6 +51,6 @@ public class InventoryMovement : BaseEntity
         Remarks = remarks?.Trim();
         DocumentId = documentId;
         Subtype = subtype;
-        Date = DateTime.UtcNow;
+        Date = DateTime.Now;
     }
 }

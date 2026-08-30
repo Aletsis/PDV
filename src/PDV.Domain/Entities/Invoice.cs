@@ -141,7 +141,7 @@ public class Invoice : BaseEntity, IAggregateRoot
             ReceiverZipCode = receiverZipCode.Trim(),
             CfdiUsage = cfdiUsage,
             Subtotal = subtotal,
-            InvoiceDate = DateTime.UtcNow
+            InvoiceDate = DateTime.Now
         };
 
         invoice._taxBreakdowns.AddRange(breakdowns);
@@ -187,7 +187,7 @@ public class Invoice : BaseEntity, IAggregateRoot
             ReceiverZipCode = receiverZipCode.Trim(),
             CfdiUsage = CfdiUsage.ToDefine,     // S01 - obligatorio en facturas globales
             Subtotal = subtotal,
-            InvoiceDate = DateTime.UtcNow
+            InvoiceDate = DateTime.Now
         };
 
         invoice._taxBreakdowns.AddRange(breakdowns);
@@ -246,7 +246,7 @@ public class Invoice : BaseEntity, IAggregateRoot
             RelatedUuid = relatedUuid.Trim().ToUpperInvariant(),
             RelationType = "01", // "01" - Nota de crédito de los documentos relacionados
             Subtotal = subtotal,
-            InvoiceDate = DateTime.UtcNow
+            InvoiceDate = DateTime.Now
         };
 
         invoice._taxBreakdowns.AddRange(breakdowns);
@@ -267,7 +267,7 @@ public class Invoice : BaseEntity, IAggregateRoot
     /// </summary>
     public void Stamp(string uuid)
     {
-        Stamp(uuid, DateTime.UtcNow, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+        Stamp(uuid, DateTime.Now, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
     }
 
     /// <summary>
@@ -316,7 +316,7 @@ public class Invoice : BaseEntity, IAggregateRoot
             throw new DomainException("Se requiere un motivo para anular la factura.");
 
         Status = InvoiceStatus.VoidedInSystem;
-        CancelledAt = DateTime.UtcNow;
+        CancelledAt = DateTime.Now;
         CancellationReason = reason.Trim();
 
         AddDomainEvent(new InvoiceVoidedInSystemEvent(Id, CancellationReason));
@@ -339,7 +339,7 @@ public class Invoice : BaseEntity, IAggregateRoot
             throw new DomainException("El motivo '01 - Error con relación' requiere el UUID del CFDI sustituto.");
 
         Status = InvoiceStatus.CancelledAtSat;
-        CancelledAt = DateTime.UtcNow;
+        CancelledAt = DateTime.Now;
         CancellationReason = reason.Trim();
         SatCancellationMotif = motif;
         SubstituteUuid = substituteUuid?.Trim().ToUpperInvariant();

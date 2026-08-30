@@ -48,35 +48,16 @@ public class GetInventoryMovementsQueryHandler : IRequestHandler<GetInventoryMov
             query = query.Where(x => x.Type == request.Type.Value);
         }
 
-        var startDate = request.StartDate;
-        if (startDate.HasValue)
+        if (request.StartDate.HasValue)
         {
-            if (startDate.Value.Kind == DateTimeKind.Local)
-                startDate = startDate.Value.ToUniversalTime();
-            else if (startDate.Value.Kind == DateTimeKind.Unspecified)
-                startDate = DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc);
+            var start = request.StartDate.Value.Date;
+            query = query.Where(x => x.Date >= start);
         }
 
-        var endDate = request.EndDate;
-        if (endDate.HasValue)
+        if (request.EndDate.HasValue)
         {
-            if (endDate.Value.Kind == DateTimeKind.Local)
-                endDate = endDate.Value.ToUniversalTime();
-            else if (endDate.Value.Kind == DateTimeKind.Unspecified)
-                endDate = DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc);
-        }
-
-        if (startDate.HasValue)
-        {
-            query = query.Where(x => x.Date >= startDate.Value);
-        }
-
-        if (endDate.HasValue)
-        {
-            // Extender la fecha final al final del día (23:59:59)
-            var endOfDay = endDate.Value.Date.AddDays(1).AddSeconds(-1);
-            var endOfDayUtc = DateTime.SpecifyKind(endOfDay, DateTimeKind.Utc);
-            query = query.Where(x => x.Date <= endOfDayUtc);
+            var endOfDay = request.EndDate.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(x => x.Date <= endOfDay);
         }
 
         if (!string.IsNullOrWhiteSpace(request.SearchQuery))

@@ -84,7 +84,7 @@ public class CashCutReconciliation : BaseEntity, IAggregateRoot
         CashRegisterId = cashRegisterId;
         CashierUserId = cashierUserId;
         ReconciledByUserId = reconciledByUserId;
-        ReconciliationDate = DateTime.UtcNow;
+        ReconciliationDate = DateTime.Now;
 
         InitialCash = initialCash;
         CashSalesTotal = cashSalesTotal;

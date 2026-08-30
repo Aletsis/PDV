@@ -41,7 +41,7 @@ public class OutboxMessage : BaseEntity
             throw new DomainException("No se puede procesar un mensaje que ya ha sido completado.");
 
         State = OutboxState.Processing;
-        LastAttemptAt = DateTime.UtcNow;
+        LastAttemptAt = DateTime.Now;
     }
 
     public void MarkAsProcessed()
@@ -63,7 +63,7 @@ public class OutboxMessage : BaseEntity
             throw new DomainException("El detalle del error es requerido para registrar la falla.");
 
         Attempts++;
-        LastAttemptAt = DateTime.UtcNow;
+        LastAttemptAt = DateTime.Now;
         ErrorMessage = error;
 
         if (Attempts >= maxAttempts)

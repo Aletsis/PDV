@@ -164,10 +164,10 @@ else
                         <MudTd>
                             <div>
                                 <MudText Typo="Typo.body2" Class="font-weight-bold">
-                                    @(context.EndTime?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? context.StartTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                                    @(context.EndTime?.ToString("dd/MM/yyyy HH:mm") ?? context.StartTime.ToString("dd/MM/yyyy HH:mm"))
                                 </MudText>
                                 <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                    Inicio: @context.StartTime.ToLocalTime().ToString("HH:mm")
+                                    Inicio: @context.StartTime.ToString("HH:mm")
                                 </MudText>
                             </div>
                         </MudTd>

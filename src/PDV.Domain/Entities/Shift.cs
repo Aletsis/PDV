@@ -53,7 +53,7 @@ public class Shift : BaseEntity, IAggregateRoot
         CashRegisterId = cashRegisterId;
         UserId = userId;
         InitialCash = initialCash;
-        StartTime = DateTime.UtcNow;
+        StartTime = DateTime.Now;
         Status = ShiftStatus.Open;
         
         IsGlobalInvoiceRequested = false;
@@ -127,7 +127,7 @@ public class Shift : BaseEntity, IAggregateRoot
         
         if (!IsGlobalInvoiced) throw new DomainException("No se pueden registrar notas de crédito a un turno que no ha sido facturado globalmente.");
 
-        var creditNote = new ShiftCreditNote(creditNoteId, amount, reason, DateTime.UtcNow);
+        var creditNote = new ShiftCreditNote(creditNoteId, amount, reason, DateTime.Now);
         _creditNotes.Add(creditNote);
 
         AddDomainEvent(new ShiftCreditNoteRegisteredEvent(Id, creditNoteId, amount));
@@ -152,7 +152,7 @@ public class Shift : BaseEntity, IAggregateRoot
             throw new DomainException("El turno ya ha sido conciliado previamente.");
 
         IsReconciled = true;
-        ReconciledAt = reconciledAt ?? DateTime.UtcNow;
+        ReconciledAt = reconciledAt ?? DateTime.Now;
     }
 }
 

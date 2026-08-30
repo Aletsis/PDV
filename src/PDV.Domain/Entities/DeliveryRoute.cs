@@ -36,7 +36,7 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
         DeliveryZoneId = deliveryZoneId;
         DeliveryManId = deliveryManId;
         Folio = folio;
-        CreatedDate = DateTime.UtcNow;
+        CreatedDate = DateTime.Now;
         Status = DeliveryRouteStatus.Created;
     }
 
@@ -73,7 +73,7 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
             throw new DomainException("Se requiere un repartidor asignado para despachar la ruta.");
 
         Status = DeliveryRouteStatus.EnRoute;
-        DispatchedDate = DateTime.UtcNow;
+        DispatchedDate = DateTime.Now;
 
         foreach (var order in _orders)
         {
@@ -86,7 +86,7 @@ public class DeliveryRoute : BaseEntity, IAggregateRoot
         if (Status != DeliveryRouteStatus.EnRoute) throw new DomainException("Solo se puede liquidar una ruta que se encuentra en camino.");
         
         Status = DeliveryRouteStatus.Settled;
-        SettledDate = DateTime.UtcNow;
+        SettledDate = DateTime.Now;
     }
 }
 
