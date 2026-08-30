@@ -1,0 +1,359 @@
+@page "/orders/drivers-management"
+@page "/admin/drivers"
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Drivers.Dtos
+@using PDV.Application.Features.Drivers.Queries.GetDriversStatus
+@using PDV.Application.Features.Drivers.Commands.SetDriverStatus
+@using PDV.WebUI.Components.Shared
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Common.Interfaces
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICurrentUserService CurrentUserService
+@attribute [Authorize(Roles = "Admin,Manager")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Monitor de Repartidores</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Header Principal -->
+    <PdvHeader Title="Monitor y Control de Repartidores"
+               Subtitle="Supervise en tiempo real la disponibilidad, estado de turno y rutas asignadas de los repartidores de cada sucursal."
+               Icon="@Icons.Material.Filled.SportsMotorsports"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            <div class="d-flex align-center gap-3 px-4 py-2 border-solid border mud-border-secondary" style="border-radius: 12px; background: rgba(255,255,255,0.03);">
+                <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Success" Size="Size.Small" />
+                <div class="d-flex flex-column">
+                    <span style="font-size: 0.72rem; color: rgba(255,255,255,0.5); text-transform: uppercase;">Reparto</span>
+                    <strong style="font-size: 0.82rem; color: #ffffff;">Monitoreo en Tiempo Real</strong>
+                </div>
+            </div>
+        </StatusAlert>
+        <Actions>
+            @if (!_isManagerOnly)
+            {
+                <div style="min-width: 220px;">
+                    <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var b in _branches)
+                        {
+                            <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+            }
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadDriversAsync">
+                Actualizar
+            </MudButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Métricas Rápidas -->
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Total Repartidores"
+                        Value="@_drivers.Count.ToString()"
+                        Icon="@Icons.Material.Filled.People"
+                        IconColor="Color.Primary"
+                        IsLoading="@_isLoading" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Disponibles"
+                        Value="@_drivers.Count(d => d.Status == PickerAvailabilityStatus.Available).ToString()"
+                        Icon="@Icons.Material.Filled.CheckCircle"
+                        IconColor="Color.Success"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="En Comida / Pausa"
+                        Value="@_drivers.Count(d => d.Status == PickerAvailabilityStatus.MealBreak || d.Status == PickerAvailabilityStatus.OperationalBreak).ToString()"
+                        Icon="@Icons.Material.Filled.Restaurant"
+                        IconColor="Color.Warning"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <PdvKpiCard Title="Fuera de Turno"
+                        Value="@_drivers.Count(d => d.Status == PickerAvailabilityStatus.OffDuty).ToString()"
+                        Icon="@Icons.Material.Filled.PersonOff"
+                        IconColor="Color.Error"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Tabla Principal de Repartidores -->
+    <MudPaper Class="pa-4" Style="border-radius: 14px;">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+            <MudTextField @bind-Value="_searchString"
+                           Placeholder="Buscar por nombre, usuario o n° de empleado..."
+                           Adornment="Adornment.Start"
+                           AdornmentIcon="@Icons.Material.Filled.Search"
+                           Immediate="true"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Clearable="true"
+                           Style="max-width: 400px;" />
+
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Mostrando @_filteredDrivers.Count() de @_drivers.Count repartidores registrados en la sucursal.
+            </MudText>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center align-center py-12">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            </div>
+        }
+        else if (!_drivers.Any())
+        {
+            <div class="d-flex flex-column align-center justify-center py-16 text-center mud-text-secondary">
+                <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Style="font-size: 4rem;" Color="Color.Default" Class="mb-3" />
+                <MudText Typo="Typo.h6">No hay usuarios con rol de Repartidor en esta sucursal</MudText>
+                <MudText Typo="Typo.body2">Asigne el rol "DeliveryMan" o "Repartidor" a usuarios en el módulo de Administración de Usuarios.</MudText>
+            </div>
+        }
+        else
+        {
+            <MudTable Items="@_filteredDrivers" Hover="true" Striped="true" Dense="false" Elevation="0" Class="border border-solid rounded-lg">
+                <HeaderContent>
+                    <MudTh>Repartidor</MudTh>
+                    <MudTh>N° Empleado</MudTh>
+                    <MudTh>Estado de Disponibilidad</MudTh>
+                    <MudTh Style="text-align: center;">Rutas Activas</MudTh>
+                    <MudTh Style="text-align: center;">Pedidos en Tránsito</MudTh>
+                    <MudTh Style="text-align: center;">Entregas Hoy</MudTh>
+                    <MudTh Style="text-align: right;">Acciones del Supervisor</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">
+                                @GetInitials(context.FullName, context.UserName)
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body1" Class="font-weight-bold">@context.FullName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@@@context.UserName</MudText>
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        @if (!string.IsNullOrWhiteSpace(context.EmployeeNumber))
+                        {
+                            <span class="font-weight-medium">@context.EmployeeNumber</span>
+                        }
+                        else
+                        {
+                            <span class="mud-text-secondary">—</span>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-column gap-1">
+                            <MudChip T="string" Color="@GetStatusColor(context.Status)"
+                                     Icon="@GetStatusIcon(context.Status)"
+                                     Size="Size.Small"
+                                     Variant="Variant.Filled"
+                                     Class="font-weight-bold">
+                                @GetStatusLabel(context.Status)
+                            </MudChip>
+                            @if (context.LastStatusChangeAt != DateTime.MinValue)
+                            {
+                                <span class="mud-text-secondary" style="font-size: 0.75rem;">
+                                    Desde @context.LastStatusChangeAt.ToString("HH:mm") (@GetTimeAgo(context.LastStatusChangeAt))
+                                </span>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudChip T="string" Color="@(context.ActiveRoutesCount > 0 ? Color.Info : Color.Default)"
+                                 Variant="Variant.Outlined"
+                                 Size="Size.Small"
+                                 Class="font-weight-bold">
+                            @context.ActiveRoutesCount ruta(s)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudChip T="string" Color="@(context.ActiveOrdersCount > 0 ? Color.Warning : Color.Default)"
+                                 Variant="Variant.Outlined"
+                                 Size="Size.Small"
+                                 Class="font-weight-bold">
+                            @context.ActiveOrdersCount pedido(s)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Class="font-weight-bold">
+                            @context.DeliveriesCompletedToday
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align: right;">
+                        <div class="d-flex justify-end gap-2">
+                            <!-- Menú Cambiar Estado -->
+                            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Filled.ArrowDropDown">
+                                        Cambiar Estado
+                                    </MudButton>
+                                </ActivatorContent>
+                                <ChildContent>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success" OnClick="@(() => SetDriverStatus(context, PickerAvailabilityStatus.Available))">
+                                        Marcar como <strong>Disponible</strong>
+                                    </MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.Restaurant" IconColor="Color.Warning" OnClick="@(() => SetDriverStatus(context, PickerAvailabilityStatus.MealBreak))">
+                                        Enviar a <strong>Hora de Comida</strong>
+                                    </MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.PauseCircle" IconColor="Color.Info" OnClick="@(() => SetDriverStatus(context, PickerAvailabilityStatus.OperationalBreak))">
+                                        Poner en <strong>Pausa Operativa</strong>
+                                    </MudMenuItem>
+                                    <MudMenuItem Icon="@Icons.Material.Filled.Cancel" IconColor="Color.Error" OnClick="@(() => SetDriverStatus(context, PickerAvailabilityStatus.OffDuty))">
+                                        Marcar como <strong>Fuera de Turno</strong>
+                                    </MudMenuItem>
+                                </ChildContent>
+                            </MudMenu>
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private List<BranchDto> _branches = new();
+    private Guid _selectedBranchId = Guid.Empty;
+    private List<DriverStatusDto> _drivers = new();
+    private string _searchString = string.Empty;
+    private bool _isLoading = false;
+    private bool _isManagerOnly = false;
+
+    private IEnumerable<DriverStatusDto> _filteredDrivers => _drivers.Where(d =>
+        string.IsNullOrWhiteSpace(_searchString) ||
+        d.FullName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+        d.UserName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+        (d.EmployeeNumber != null && d.EmployeeNumber.Contains(_searchString, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isManagerOnly = user.IsInRole(RoleHelper.Manager) && !user.IsInRole(RoleHelper.Admin);
+
+        var branchesResult = await Mediator.Send(new GetBranchesQuery());
+        if (branchesResult != null && branchesResult.Any())
+        {
+            _branches = branchesResult.ToList();
+            if (_isManagerOnly && CurrentUserService.BranchId.HasValue && CurrentUserService.BranchId.Value != Guid.Empty)
+            {
+                _selectedBranchId = CurrentUserService.BranchId.Value;
+            }
+            else
+            {
+                _selectedBranchId = _branches.First().Id;
+            }
+            await LoadDriversAsync();
+        }
+    }
+
+    private async Task OnBranchChanged(Guid branchId)
+    {
+        if (_isManagerOnly) return;
+        _selectedBranchId = branchId;
+        await LoadDriversAsync();
+    }
+
+    private async Task LoadDriversAsync()
+    {
+        if (_selectedBranchId == Guid.Empty) return;
+
+        _isLoading = true;
+        try
+        {
+            _drivers = await Mediator.Send(new GetDriversStatusQuery(_selectedBranchId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar repartidores: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SetDriverStatus(DriverStatusDto driver, PickerAvailabilityStatus status)
+    {
+        try
+        {
+            await Mediator.Send(new SetDriverStatusCommand
+            {
+                UserId = driver.UserId,
+                BranchId = _selectedBranchId,
+                Status = status
+            });
+
+            Snackbar.Add($"Estado de '{driver.FullName}' actualizado a {GetStatusLabel(status)}.", Severity.Success);
+            await LoadDriversAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cambiar estado: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static string GetInitials(string fullName, string userName)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2
+                ? $"{parts[0][0]}{parts[1][0]}".ToUpper()
+                : fullName[0].ToString().ToUpper();
+        }
+        return userName.Length > 0 ? userName[0].ToString().ToUpper() : "R";
+    }
+
+    private Color GetStatusColor(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Color.Success,
+        PickerAvailabilityStatus.MealBreak => Color.Warning,
+        PickerAvailabilityStatus.OperationalBreak => Color.Info,
+        PickerAvailabilityStatus.OffDuty => Color.Error,
+        _ => Color.Default
+    };
+
+    private string GetStatusIcon(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Icons.Material.Filled.CheckCircle,
+        PickerAvailabilityStatus.MealBreak => Icons.Material.Filled.Restaurant,
+        PickerAvailabilityStatus.OperationalBreak => Icons.Material.Filled.PauseCircle,
+        PickerAvailabilityStatus.OffDuty => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private string GetStatusLabel(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => "Disponible",
+        PickerAvailabilityStatus.MealBreak => "En Comida",
+        PickerAvailabilityStatus.OperationalBreak => "En Pausa",
+        PickerAvailabilityStatus.OffDuty => "Fuera de Turno",
+        _ => "Desconocido"
+    };
+
+    private string GetTimeAgo(DateTime dt)
+    {
+        var span = DateTime.Now - dt;
+        if (span.TotalMinutes < 1) return "hace un momento";
+        if (span.TotalMinutes < 60) return $"hace {(int)span.TotalMinutes} min";
+        if (span.TotalHours < 24) return $"hace {(int)span.TotalHours} h";
+        return $"hace {(int)span.TotalDays} d";
+    }
+}

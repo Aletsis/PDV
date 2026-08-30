@@ -148,5 +148,46 @@ public class RoleHelperTests
         Assert.False(RoleHelper.HasPickerRole(null));
         Assert.False(RoleHelper.HasPickerRole(new string[0]));
     }
+
+    [Theory]
+    [InlineData("DeliveryMan", true)]
+    [InlineData("deliveryman", true)]
+    [InlineData("Repartidor", true)]
+    [InlineData("repartidor", true)]
+    [InlineData("Almacen", false)]
+    [InlineData("Picker", false)]
+    [InlineData("Admin", false)]
+    [InlineData("Manager", false)]
+    [InlineData("Cashier", false)]
+    [InlineData("Telephonist", false)]
+    [InlineData("Compras", false)]
+    [InlineData("Verifier", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsDeliveryManRole_ShouldCorrectlyIdentifyDeliveryManRolesOnly(string? inputRole, bool expectedIsDeliveryMan)
+    {
+        // Act
+        var result = RoleHelper.IsDeliveryManRole(inputRole);
+
+        // Assert
+        Assert.Equal(expectedIsDeliveryMan, result);
+    }
+
+    [Fact]
+    public void HasDeliveryManRole_ShouldReturnTrue_WhenDeliveryManIsInRolesList()
+    {
+        // Arrange
+        var rolesWithDeliveryMan = new[] { "Cashier", "DeliveryMan" };
+        var rolesWithRepartidor = new[] { "Almacen", "repartidor" };
+        var rolesWithoutDeliveryMan = new[] { "Almacen", "Picker", "Manager" };
+
+        // Act & Assert
+        Assert.True(RoleHelper.HasDeliveryManRole(rolesWithDeliveryMan));
+        Assert.True(RoleHelper.HasDeliveryManRole(rolesWithRepartidor));
+        Assert.False(RoleHelper.HasDeliveryManRole(rolesWithoutDeliveryMan));
+        Assert.False(RoleHelper.HasDeliveryManRole(null));
+        Assert.False(RoleHelper.HasDeliveryManRole(new string[0]));
+    }
 }
+
 

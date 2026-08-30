@@ -3,12 +3,19 @@
 @using Microsoft.AspNetCore.Identity
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.DeliveryRoutes.Queries.GetMyActiveRoute
 @using PDV.Application.Features.Orders.Commands.ReportOrderDelivery
+@using PDV.Application.Features.Drivers.Dtos
+@using PDV.Application.Features.Drivers.Queries.GetMyDriverStatus
+@using PDV.Application.Features.Drivers.Commands.SetDriverStatus
+@using PDV.Application.Features.Branches.Queries.GetBranches
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject ICurrentUserService CurrentUserService
+@inject IIdentityService IdentityService
 @inject IJSRuntime JS
 @attribute [Authorize(Roles = "Admin,Manager,DeliveryMan")]
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
@@ -16,7 +23,7 @@
 <PageTitle>Mi Ruta de Reparto</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-8">
-    <div class="d-flex justify-space-between align-center mb-4">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-4">
         <div>
             <MudText Typo="Typo.h4" Class="font-weight-bold d-flex align-center gap-2">
                 <MudIcon Icon="@Icons.Material.Filled.TwoWheeler" Color="Color.Primary" Size="Size.Large" />
@@ -26,10 +33,62 @@
                 Consulte sus pedidos asignados, navegue hacia el domicilio y registre el estado de cada entrega.
             </MudText>
         </div>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRouteAsync">
-            Actualizar
-        </MudButton>
+        <div class="d-flex align-center flex-wrap gap-3">
+            <!-- Control de Disponibilidad del Repartidor -->
+            @if (_myDriverStatus != null)
+            {
+                <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="@GetStatusColor(_myDriverStatus.Status)"
+                                   StartIcon="@GetStatusIcon(_myDriverStatus.Status)"
+                                   EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                                   Size="Size.Medium">
+                            @GetStatusLabel(_myDriverStatus.Status)
+                        </MudButton>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.Available))">
+                            <strong>Disponible</strong> (Listo para recibir rutas)
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Restaurant" IconColor="Color.Warning" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.MealBreak))">
+                            <strong>Hora de Comida</strong> (Pausar asignación)
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.PauseCircle" IconColor="Color.Info" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.OperationalBreak))">
+                            <strong>Pausa Operativa</strong> (Carga / Gasolina / Pausa)
+                        </MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Cancel" IconColor="Color.Error" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.OffDuty))">
+                            <strong>Fuera de Turno</strong> (Fin de jornada / Descanso)
+                        </MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Size="Size.Small" Icon="@Icons.Material.Filled.TaskAlt">
+                    @_myDriverStatus.DeliveriesCompletedToday entregas hoy
+                </MudChip>
+            }
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRouteAsync">
+                Actualizar
+            </MudButton>
+        </div>
     </div>
+
+    <!-- Alerta de Estado No Disponible -->
+    @if (_myDriverStatus != null && _myDriverStatus.Status != PickerAvailabilityStatus.Available)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4 d-flex justify-space-between align-center">
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@GetStatusIcon(_myDriverStatus.Status)" />
+                <span>
+                    Tu estado actual es <strong>@GetStatusLabel(_myDriverStatus.Status)</strong>. El sistema te muestra en pausa para la asignación de nuevas rutas.
+                </span>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow" Class="ml-4" OnClick="@(() => ChangeMyStatus(PickerAvailabilityStatus.Available))">
+                Ponerme Disponible
+            </MudButton>
+        </MudAlert>
+    }
 
     @if (_isLoading)
     {
@@ -207,6 +266,8 @@
 
 @code {
     private DeliveryRoute? _activeRoute;
+    private DriverStatusDto? _myDriverStatus;
+    private Guid _myBranchId = Guid.Empty;
     private bool _isLoading = false;
     private string _currentUserId = string.Empty;
 
@@ -215,6 +276,26 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "";
+        
+        if (CurrentUserService.BranchId.HasValue && CurrentUserService.BranchId.Value != Guid.Empty)
+        {
+            _myBranchId = CurrentUserService.BranchId.Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            var userDto = await IdentityService.GetUserByIdAsync(_currentUserId);
+            if (userDto?.BranchId.HasValue == true)
+            {
+                _myBranchId = userDto.BranchId.Value;
+            }
+        }
+
+        if (_myBranchId == Guid.Empty)
+        {
+            var branches = await Mediator.Send(new GetBranchesQuery());
+            _myBranchId = branches.FirstOrDefault()?.Id ?? Guid.Empty;
+        }
+
         await LoadRouteAsync();
     }
 
@@ -226,6 +307,13 @@
         try
         {
             _activeRoute = await Mediator.Send(new GetMyActiveRouteQuery(_currentUserId));
+
+            var effectiveBranchId = _activeRoute?.BranchId ?? _myBranchId;
+            if (effectiveBranchId != Guid.Empty)
+            {
+                _myBranchId = effectiveBranchId;
+                _myDriverStatus = await Mediator.Send(new GetMyDriverStatusQuery(_currentUserId, effectiveBranchId));
+            }
         }
         catch (Exception ex)
         {
@@ -236,6 +324,55 @@
             _isLoading = false;
         }
     }
+
+    private async Task ChangeMyStatus(PickerAvailabilityStatus newStatus)
+    {
+        if (string.IsNullOrWhiteSpace(_currentUserId) || _myBranchId == Guid.Empty) return;
+
+        try
+        {
+            await Mediator.Send(new SetDriverStatusCommand
+            {
+                UserId = _currentUserId,
+                BranchId = _myBranchId,
+                Status = newStatus
+            });
+
+            Snackbar.Add($"Tu disponibilidad se actualizó a {GetStatusLabel(newStatus)}.", Severity.Success);
+            await LoadRouteAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cambiar disponibilidad: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private Color GetStatusColor(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Color.Success,
+        PickerAvailabilityStatus.MealBreak => Color.Warning,
+        PickerAvailabilityStatus.OperationalBreak => Color.Info,
+        PickerAvailabilityStatus.OffDuty => Color.Error,
+        _ => Color.Default
+    };
+
+    private string GetStatusIcon(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Icons.Material.Filled.CheckCircle,
+        PickerAvailabilityStatus.MealBreak => Icons.Material.Filled.Restaurant,
+        PickerAvailabilityStatus.OperationalBreak => Icons.Material.Filled.PauseCircle,
+        PickerAvailabilityStatus.OffDuty => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private string GetStatusLabel(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => "Disponible",
+        PickerAvailabilityStatus.MealBreak => "En Comida",
+        PickerAvailabilityStatus.OperationalBreak => "En Pausa",
+        PickerAvailabilityStatus.OffDuty => "Fuera de Turno",
+        _ => "Desconocido"
+    };
 
     private async Task OpenNavigation(string address)
     {

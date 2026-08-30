@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PDV.Application.Common.Helpers;
 using PDV.Application.Common.Interfaces;
 using PDV.Domain.Entities;
 using PDV.Domain.Exceptions;
@@ -64,11 +65,7 @@ public class CreateDeliveryRouteCommandHandler : IRequestHandler<CreateDeliveryR
             }
 
             // Validar rol repartidor
-            var isDeliveryMan = deliveryMan.Roles.Any(r => 
-                r.Equals("DeliveryMan", StringComparison.OrdinalIgnoreCase) || 
-                r.Equals("repartidor", StringComparison.OrdinalIgnoreCase));
-                
-            if (!isDeliveryMan)
+            if (!RoleHelper.HasDeliveryManRole(deliveryMan.Roles))
             {
                 throw new DomainException("El usuario seleccionado no tiene el rol de repartidor.");
             }
@@ -108,6 +105,16 @@ public class CreateDeliveryRouteCommandHandler : IRequestHandler<CreateDeliveryR
                 route.AddOrder(order);
                 await _orderRepository.UpdateAsync(order, cancellationToken);
             }
+
+            // Actualizar status de trabajo del repartidor (última asignación)
+            var driverStatus = await _context.UserWorkStatuses
+                .FirstOrDefaultAsync(s => s.UserId == request.DeliveryManId, cancellationToken);
+            if (driverStatus == null)
+            {
+                driverStatus = new UserWorkStatus(request.DeliveryManId, request.BranchId);
+                _context.UserWorkStatuses.Add(driverStatus);
+            }
+            driverStatus.RecordOrderAssigned();
 
             await _routeRepository.AddAsync(route, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);

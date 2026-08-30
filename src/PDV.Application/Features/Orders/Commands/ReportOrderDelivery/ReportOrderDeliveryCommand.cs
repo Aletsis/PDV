@@ -36,6 +36,16 @@ public class ReportOrderDeliveryCommandHandler : IRequestHandler<ReportOrderDeli
         if (request.IsDelivered)
         {
             order.MarkAsDelivered();
+
+            if (!string.IsNullOrWhiteSpace(request.DeliveryManId))
+            {
+                var driverStatus = await _context.UserWorkStatuses
+                    .FirstOrDefaultAsync(s => s.UserId == request.DeliveryManId && s.BranchId == order.BranchId, cancellationToken);
+                if (driverStatus != null)
+                {
+                    driverStatus.RecordOrderCompleted();
+                }
+            }
         }
         else
         {

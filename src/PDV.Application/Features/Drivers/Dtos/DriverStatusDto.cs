@@ -1,0 +1,22 @@
+using System;
+using PDV.Domain.Enums;
+
+namespace PDV.Application.Features.Drivers.Dtos;
+
+public class DriverStatusDto
+{
+    public string UserId { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string? EmployeeNumber { get; set; }
+    public Guid BranchId { get; set; }
+    public string BranchName { get; set; } = string.Empty;
+    public PickerAvailabilityStatus Status { get; set; }
+    public int ActiveRoutesCount { get; set; }
+    public int ActiveOrdersCount { get; set; }
+    public int DeliveriesCompletedToday { get; set; }
+    public DateTime LastStatusChangeAt { get; set; }
+    public DateTime? LastAssignedRouteAt { get; set; }
+    public string? StatusNotes { get; set; }
+    public bool IsEligible => Status == PickerAvailabilityStatus.Available && ActiveRoutesCount == 0;
+}

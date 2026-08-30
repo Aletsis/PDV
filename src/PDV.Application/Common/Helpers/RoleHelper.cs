@@ -114,5 +114,34 @@ public static class RoleHelper
 
         return false;
     }
+
+    /// <summary>
+    /// Determina si un rol corresponde exclusivamente al rol de Repartidor (DeliveryMan).
+    /// </summary>
+    public static bool IsDeliveryManRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+            return false;
+
+        return string.Equals(ToSystemRoleName(role), DeliveryMan, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Determina si una lista o colección de roles incluye el rol de Repartidor (DeliveryMan).
+    /// </summary>
+    public static bool HasDeliveryManRole(IEnumerable<string>? roles)
+    {
+        if (roles == null)
+            return false;
+
+        foreach (var r in roles)
+        {
+            if (IsDeliveryManRole(r))
+                return true;
+        }
+
+        return false;
+    }
 }
+
 

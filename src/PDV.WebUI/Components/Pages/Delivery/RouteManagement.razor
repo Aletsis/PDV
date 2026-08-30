@@ -5,6 +5,9 @@
 @using PDV.Application.Features.DeliveryRoutes.Commands.PrintRouteManifest
 @using PDV.Application.Features.DeliveryRoutes.Queries.GetDeliveryRoutes
 @using PDV.Application.Features.Orders.Queries.GetOrders
+@using PDV.Application.Features.Drivers.Dtos
+@using PDV.Application.Features.Drivers.Queries.GetDriversStatus
+@using PDV.Application.Common.Helpers
 @using PDV.Application.Common.Interfaces
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
@@ -126,15 +129,57 @@
                                          SearchFunc="SearchDeliveryMen"
                                          Value="_selectedDeliveryMan"
                                          ValueChanged="OnDeliveryManChanged"
-                                         ToStringFunc="@(u => u == null ? "" : $"{u.FullName} (No. {u.EmployeeNumber ?? "N/A"})")"
+                                         ToStringFunc="@FormatDeliveryManDisplay"
                                          Variant="Variant.Outlined"
                                          Required="true"
-                                         Class="mb-4"
+                                         Class="mb-2"
                                          Adornment="Adornment.Start"
                                          AdornmentIcon="@Icons.Material.Filled.Person"
                                          ResetValueOnEmptyText="true"
                                          CoerceText="true"
-                                         CoerceValue="true" />
+                                         CoerceValue="true">
+                            <ItemTemplate Context="u">
+                                @{
+                                    var st = GetDriverStatus(u.Id);
+                                }
+                                <div class="d-flex align-center justify-space-between w-100 py-1">
+                                    <div class="d-flex flex-column">
+                                        <MudText Typo="Typo.body2" Class="font-weight-bold">@u.FullName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">No. @(u.EmployeeNumber ?? "N/A")</MudText>
+                                    </div>
+                                    @if (st != null)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(st.Status)" Variant="Variant.Filled" Class="ml-2">
+                                            @GetStatusLabel(st.Status)
+                                            @if (st.ActiveRoutesCount > 0)
+                                            {
+                                                <span> (@st.ActiveRoutesCount ruta)</span>
+                                            }
+                                        </MudChip>
+                                    }
+                                </div>
+                            </ItemTemplate>
+                        </MudAutocomplete>
+
+                        @if (_selectedDriverStatus != null)
+                        {
+                            <div class="d-flex align-center justify-space-between mb-3 px-2 py-1 border-solid border rounded mud-border-lines-default" style="background: rgba(255,255,255,0.03);">
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@GetStatusIcon(_selectedDriverStatus.Status)" Color="@GetStatusColor(_selectedDriverStatus.Status)" Size="Size.Small" />
+                                    <span style="font-size: 0.85rem;">@GetStatusLabel(_selectedDriverStatus.Status)</span>
+                                </div>
+                                <span class="mud-text-secondary" style="font-size: 0.8rem;">
+                                    @_selectedDriverStatus.ActiveRoutesCount ruta(s) activa(s) | @_selectedDriverStatus.DeliveriesCompletedToday entregas hoy
+                                </span>
+                            </div>
+
+                            @if (_selectedDriverStatus.Status != PickerAvailabilityStatus.Available)
+                            {
+                                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+                                    El repartidor está en <strong>@GetStatusLabel(_selectedDriverStatus.Status)</strong>. Se recomienda asignar a repartidores disponibles.
+                                </MudAlert>
+                            }
+                        }
 
                         <MudButton OnClick="CreateAndDispatchRoute" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.LocalShipping" FullWidth="true" Disabled="@(!CanCreateRoute)" Class="py-3">
                             Despachar Ruta
@@ -181,11 +226,13 @@
     private List<Order> _pendingOrders = new();
     private HashSet<Order> _selectedOrders = new();
     private List<UserSyncDataDto> _deliveryMen = new();
+    private List<DriverStatusDto> _driversStatus = new();
     private List<UserSyncDataDto> _allUsers = new();
     private List<DeliveryRoute> _activeRoutes = new();
     private string _searchString = string.Empty;
 
     private UserSyncDataDto? _selectedDeliveryMan;
+    private DriverStatusDto? _selectedDriverStatus;
     private string _selectedDeliveryManId = string.Empty;
 
     private bool CanCreateRoute => !string.IsNullOrWhiteSpace(_selectedDeliveryManId) && _selectedOrders.Count > 0;
@@ -212,10 +259,19 @@
         // 2. Cargar repartidores / usuarios del sistema y filtrar por branch del usuario
         _allUsers = await IdentityService.GetUsersAsync(default);
         _deliveryMen = _allUsers
-            .Where(u => u.BranchId == branchId &&
-                        u.Roles.Any(r => r.Equals("DeliveryMan", StringComparison.OrdinalIgnoreCase) || 
-                                         r.Equals("repartidor", StringComparison.OrdinalIgnoreCase)))
+            .Where(u => (!u.BranchId.HasValue || u.BranchId == branchId) &&
+                        RoleHelper.HasDeliveryManRole(u.Roles))
             .ToList();
+
+        // Cargar estado de disponibilidad de repartidores
+        try
+        {
+            _driversStatus = await Mediator.Send(new GetDriversStatusQuery(branchId));
+        }
+        catch
+        {
+            _driversStatus = new List<DriverStatusDto>();
+        }
 
         // 3. Cargar rutas activas en estado "EnRoute" del branch del usuario
         _activeRoutes = await Mediator.Send(new GetDeliveryRoutesQuery 
@@ -226,6 +282,7 @@
 
         _selectedOrders.Clear();
         _selectedDeliveryMan = null;
+        _selectedDriverStatus = null;
         _selectedDeliveryManId = string.Empty;
         _searchString = string.Empty;
         StateHasChanged();
@@ -264,6 +321,19 @@
         return user?.FullName ?? userId;
     }
 
+    private DriverStatusDto? GetDriverStatus(string userId)
+    {
+        return _driversStatus.FirstOrDefault(d => d.UserId == userId);
+    }
+
+    private string FormatDeliveryManDisplay(UserSyncDataDto? u)
+    {
+        if (u == null) return "";
+        var st = GetDriverStatus(u.Id);
+        var statusLabel = st != null ? $" [{GetStatusLabel(st.Status)}]" : "";
+        return $"{u.FullName} (No. {u.EmployeeNumber ?? "N/A"}){statusLabel}";
+    }
+
     private Task<IEnumerable<UserSyncDataDto>> SearchDeliveryMen(string value, CancellationToken token)
     {
         if (string.IsNullOrEmpty(value))
@@ -281,7 +351,37 @@
     {
         _selectedDeliveryMan = deliveryMan;
         _selectedDeliveryManId = deliveryMan?.Id ?? string.Empty;
+        _selectedDriverStatus = !string.IsNullOrWhiteSpace(_selectedDeliveryManId) 
+            ? GetDriverStatus(_selectedDeliveryManId) 
+            : null;
     }
+
+    private Color GetStatusColor(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Color.Success,
+        PickerAvailabilityStatus.MealBreak => Color.Warning,
+        PickerAvailabilityStatus.OperationalBreak => Color.Info,
+        PickerAvailabilityStatus.OffDuty => Color.Error,
+        _ => Color.Default
+    };
+
+    private string GetStatusIcon(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => Icons.Material.Filled.CheckCircle,
+        PickerAvailabilityStatus.MealBreak => Icons.Material.Filled.Restaurant,
+        PickerAvailabilityStatus.OperationalBreak => Icons.Material.Filled.PauseCircle,
+        PickerAvailabilityStatus.OffDuty => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private string GetStatusLabel(PickerAvailabilityStatus status) => status switch
+    {
+        PickerAvailabilityStatus.Available => "Disponible",
+        PickerAvailabilityStatus.MealBreak => "En Comida",
+        PickerAvailabilityStatus.OperationalBreak => "En Pausa",
+        PickerAvailabilityStatus.OffDuty => "Fuera de Turno",
+        _ => "Desconocido"
+    };
 
     private async Task CreateAndDispatchRoute()
     {
