@@ -44,8 +44,8 @@ public class UpdateClientCommandValidator : AbstractValidator<UpdateClientComman
             .MaximumLength(100);
 
         RuleFor(v => v.TaxId)
-            .NotEmpty().WithMessage("El RFC/ID Fiscal es requerido")
-            .MaximumLength(50);
+            .MaximumLength(50)
+            .When(x => !string.IsNullOrWhiteSpace(x.TaxId));
 
         RuleFor(v => v.Email)
             .EmailAddress().WithMessage("Email inválido")
@@ -81,7 +81,7 @@ public class UpdateClientCommandHandler : IRequestHandler<UpdateClientCommand, b
         entity.UpdateContactInfo(request.Phone, request.Email);
         entity.UpdateFiscalProfile(
             request.FiscalRegime, 
-            !string.IsNullOrWhiteSpace(request.ZipCode) && request.ZipCode != "00000" ? request.ZipCode : null, 
+            !string.IsNullOrWhiteSpace(request.ZipCode) && request.ZipCode.Trim().Length == 5 && request.ZipCode.Trim().All(char.IsDigit) && request.ZipCode.Trim() != "00000" ? request.ZipCode.Trim() : null, 
             request.CfdiUse);
 
         var street = !string.IsNullOrWhiteSpace(request.Street) ? request.Street : request.Address;

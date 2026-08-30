@@ -1,0 +1,264 @@
+@using MediatR
+@using PDV.Application.Features.Clients.Dtos
+@using PDV.Application.Features.Clients.Commands.UpdateClient
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<MudDialog Class="client-fiscal-dialog" Style="border-radius: 16px; background: #120E1E; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.08); max-width: 580px; width: 100%;">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="pb-3 border-solid border-b mud-border-secondary">
+            <div style="background: rgba(33, 150, 243, 0.12); border-radius: 10px; padding: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.EditDocument" Color="Color.Primary" Size="Size.Medium" />
+            </div>
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6" Class="font-weight-bold" Style="color: #ffffff;">Actualizar Datos Fiscales</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.5);">Requerido para la emisión de CFDI 4.0</MudText>
+            </MudStack>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="fiscalForm" ValidationDelay="200" Class="mt-2">
+            <MudStack Spacing="3">
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="rounded-lg" Style="border-color: rgba(33, 150, 243, 0.3); background: rgba(33, 150, 243, 0.05);">
+                    <MudText Typo="Typo.caption">
+                        El SAT requiere que el <strong>RFC</strong>, <strong>Razón Social</strong>, <strong>Régimen Fiscal</strong> y <strong>Código Postal</strong> coincidan exactamente con la Constancia de Situación Fiscal.
+                    </MudText>
+                </MudAlert>
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">
+                        <MudTextField Value="@Client.Code" Label="Código" 
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" 
+                                      Disabled="true" Style="color: #ffffff;"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.QrCode" />
+                    </MudItem>
+                    <MudItem xs="12" sm="8">
+                        <MudTextField @bind-Value="taxId" Label="RFC / ID Fiscal *" 
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Required="true" RequiredError="El RFC es obligatorio para facturación"
+                                      Validation="@(new Func<string, string?>(ValidateTaxIdField))"
+                                      HelperText="12 o 13 caracteres sin espacios"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Assignment"
+                                      Style="color: #ffffff;" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="name" Label="Nombre / Razón Social Fiscal *" 
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Required="true" RequiredError="La razón social es obligatoria"
+                                      HelperText="Tal como aparece en la constancia de situación fiscal"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person"
+                                      Style="color: #ffffff;" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudSelect T="string" @bind-Value="fiscalRegime" Label="Régimen Fiscal *" 
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" RequiredError="El régimen fiscal es obligatorio"
+                                   HelperText="Catálogo SAT (CFDI 4.0)"
+                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountBalance"
+                                   Style="color: #ffffff;">
+                            <MudSelectItem Value="@("601")">601 - General de Ley Personas Morales</MudSelectItem>
+                            <MudSelectItem Value="@("603")">603 - Personas Morales con Fines no Lucrativos</MudSelectItem>
+                            <MudSelectItem Value="@("605")">605 - Sueldos y Salarios e Ingresos Asimilados</MudSelectItem>
+                            <MudSelectItem Value="@("606")">606 - Arrendamiento</MudSelectItem>
+                            <MudSelectItem Value="@("612")">612 - Personas Físicas con Actividades Empresariales y Profesionales</MudSelectItem>
+                            <MudSelectItem Value="@("616")">616 - Sin obligaciones fiscales</MudSelectItem>
+                            <MudSelectItem Value="@("621")">621 - Incorporación Fiscal</MudSelectItem>
+                            <MudSelectItem Value="@("625")">625 - Régimen de las Actividades Empresariales Plataformas Tecnológicas</MudSelectItem>
+                            <MudSelectItem Value="@("626")">626 - Régimen Simplificado de Confianza (RESICO)</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="zipCode" Label="C.P. Fiscal *" 
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Required="true" RequiredError="El Código Postal es obligatorio"
+                                      Validation="@(new Func<string, string?>(ValidateZipCodeField))"
+                                      HelperText="5 dígitos numéricos"
+                                      MaxLength="5"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.PinDrop"
+                                      Style="color: #ffffff;" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" @bind-Value="cfdiUse" Label="Uso del CFDI Preferente" 
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Description"
+                                   Style="color: #ffffff;">
+                            <MudSelectItem Value="@("G01")">G01 - Adquisición de mercancías</MudSelectItem>
+                            <MudSelectItem Value="@("G02")">G02 - Devoluciones o bonificaciones</MudSelectItem>
+                            <MudSelectItem Value="@("G03")">G03 - Gastos en general</MudSelectItem>
+                            <MudSelectItem Value="@("I01")">I01 - Construcciones</MudSelectItem>
+                            <MudSelectItem Value="@("I02")">I02 - Mobilario y equipo de oficina</MudSelectItem>
+                            <MudSelectItem Value="@("I04")">I04 - Equipo de cómputo y accesorios</MudSelectItem>
+                            <MudSelectItem Value="@("I08")">I08 - Otra maquinaria y equipo</MudSelectItem>
+                            <MudSelectItem Value="@("D01")">D01 - Honorarios médicos y dentales</MudSelectItem>
+                            <MudSelectItem Value="@("D02")">D02 - Gastos médicos por incapacidad</MudSelectItem>
+                            <MudSelectItem Value="@("D04")">D04 - Donativos</MudSelectItem>
+                            <MudSelectItem Value="@("S01")">S01 - Sin efectos fiscales</MudSelectItem>
+                            <MudSelectItem Value="@("CP01")">CP01 - Pagos</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none; border-radius: 8px; color: rgba(255,255,255,0.7);">
+            Cancelar
+        </MudButton>
+        <MudButton OnClick="SaveFiscalDataAsync" 
+                   Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   Disabled="@_saving"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   Style="text-transform: none; border-radius: 8px; font-weight: bold;">
+            @if (_saving)
+            {
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>Guardar y Aplicar</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .client-fiscal-dialog .mud-dialog-title {
+        background: #191228 !important;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+    }
+    .client-fiscal-dialog .mud-dialog-actions {
+        background: #140E20 !important;
+        border-bottom-left-radius: 16px;
+        border-bottom-right-radius: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        padding: 12px 18px !important;
+    }
+    .client-fiscal-dialog .mud-input-label {
+        color: rgba(255, 255, 255, 0.5) !important;
+    }
+    .client-fiscal-dialog .mud-input-outlined-border {
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+    .client-fiscal-dialog .mud-input:hover .mud-input-outlined-border {
+        border-color: rgba(255, 255, 255, 0.25) !important;
+    }
+    .client-fiscal-dialog .mud-select-input {
+        color: #ffffff !important;
+    }
+</style>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public ClientDto Client { get; set; } = new();
+
+    private MudForm fiscalForm = default!;
+    private string name = string.Empty;
+    private string taxId = string.Empty;
+    private string? fiscalRegime = "616";
+    private string zipCode = string.Empty;
+    private string? cfdiUse = "G03";
+    private bool _saving = false;
+
+    protected override void OnInitialized()
+    {
+        name = Client.Name;
+        taxId = Client.TaxId;
+        fiscalRegime = !string.IsNullOrWhiteSpace(Client.FiscalRegime) ? Client.FiscalRegime : "616";
+        zipCode = !string.IsNullOrWhiteSpace(Client.FiscalZipCode) ? Client.FiscalZipCode : (!string.IsNullOrWhiteSpace(Client.ZipCode) && Client.ZipCode != "00000" ? Client.ZipCode : "");
+        cfdiUse = !string.IsNullOrWhiteSpace(Client.CfdiUse) ? Client.CfdiUse : "G03";
+    }
+
+    private string? ValidateTaxIdField(string? val)
+    {
+        if (string.IsNullOrWhiteSpace(val)) return "El RFC es obligatorio para facturación.";
+        var trimmed = val.Trim();
+        if (trimmed.Length < 10 || trimmed.Length > 13) return "El RFC debe tener entre 10 y 13 caracteres.";
+        return null;
+    }
+
+    private string? ValidateZipCodeField(string? val)
+    {
+        if (string.IsNullOrWhiteSpace(val)) return "El Código Postal es obligatorio.";
+        var trimmed = val.Trim();
+        if (trimmed.Length != 5 || !trimmed.All(char.IsDigit)) return "El Código Postal debe tener 5 dígitos numéricos.";
+        return null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveFiscalDataAsync()
+    {
+        await fiscalForm.Validate();
+        if (!fiscalForm.IsValid)
+        {
+            Snackbar.Add("Por favor complete los campos fiscales correctamente.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+            var trimmedTaxId = taxId.Trim().ToUpperInvariant();
+            var trimmedName = name.Trim();
+            var trimmedZip = zipCode.Trim();
+
+            var command = new UpdateClientCommand
+            {
+                Id = Client.Id,
+                Code = Client.Code,
+                Name = trimmedName,
+                TaxId = trimmedTaxId,
+                Address = Client.Address,
+                Street = Client.Street,
+                ExteriorNumber = Client.ExteriorNumber,
+                InteriorNumber = Client.InteriorNumber,
+                Colony = Client.Colony,
+                ZipCode = trimmedZip,
+                City = Client.City,
+                State = Client.State,
+                Country = string.IsNullOrWhiteSpace(Client.Country) ? "México" : Client.Country,
+                Phone = Client.Phone,
+                Email = Client.Email,
+                FiscalRegime = fiscalRegime,
+                CfdiUse = cfdiUse,
+                IsActive = Client.IsActive
+            };
+
+            var success = await Mediator.Send(command);
+            if (success)
+            {
+                Client.Name = trimmedName;
+                Client.TaxId = trimmedTaxId;
+                Client.FiscalRegime = fiscalRegime;
+                Client.FiscalZipCode = trimmedZip;
+                Client.ZipCode = trimmedZip;
+                Client.CfdiUse = cfdiUse;
+
+                Snackbar.Add("Datos fiscales del cliente actualizados exitosamente.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(Client));
+            }
+            else
+            {
+                Snackbar.Add("No se pudo actualizar el cliente.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar datos fiscales: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

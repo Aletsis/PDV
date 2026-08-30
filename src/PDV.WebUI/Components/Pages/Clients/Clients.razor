@@ -123,7 +123,18 @@
                 <Columns>
                     <PropertyColumn Property="x => x.Code" Title="Código" CellStyle="font-weight: 600; color: var(--mud-palette-text-primary);" />
                     <PropertyColumn Property="x => x.Name" Title="Nombre" />
-                    <PropertyColumn Property="x => x.TaxId" Title="RFC / ID Fiscal" />
+                    <TemplateColumn Title="RFC / ID Fiscal">
+                        <CellTemplate>
+                            @if (!string.IsNullOrWhiteSpace(context.Item.TaxId))
+                            {
+                                <MudText Typo="Typo.body2">@context.Item.TaxId</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">—</MudText>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
                     <PropertyColumn Property="x => x.Phone" Title="Teléfono" />
                     <TemplateColumn Title="Zona de Reparto">
                         <CellTemplate>
@@ -196,8 +207,9 @@
                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" />
                         
                         <MudTextField @bind-Value="currentClient.TaxId" Label="RFC / ID Fiscal" 
-                                      Variant="Variant.Outlined" Required="true" RequiredError="El RFC es obligatorio"
-                                      HelperText="Ingrese a 12 o 13 dígitos sin guiones (ej. GOMP820325XX1)"
+                                      Variant="Variant.Outlined"
+                                      Validation="@(new Func<string, string?>(ValidateOptionalTaxId))"
+                                      HelperText="Opcional. Ingrese a 12 o 13 dígitos sin guiones (ej. GOMP820325XX1)"
                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Assignment" />
 
                         <MudTextField @bind-Value="currentClient.Phone" Label="Número Telefónico" 
@@ -210,7 +222,7 @@
 
                         <MudSelect T="string" @bind-Value="currentClient.FiscalRegime" Label="Régimen Fiscal" 
                                    Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" 
-                                   HelperText="Catálogo SAT (CFDI 4.0)"
+                                   HelperText="Opcional. Catálogo SAT (CFDI 4.0)"
                                    Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AccountBalance">
                             <MudSelectItem Value="@("601")">601 - General de Ley Personas Morales</MudSelectItem>
                             <MudSelectItem Value="@("603")">603 - Personas Morales con Fines no Lucrativos</MudSelectItem>
@@ -225,7 +237,7 @@
 
                         <MudSelect T="string" @bind-Value="currentClient.CfdiUse" Label="Uso del CFDI" 
                                    Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" 
-                                   HelperText="Uso preferente para comprobantes fiscales"
+                                   HelperText="Opcional. Uso preferente para comprobantes fiscales"
                                    Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Description">
                             <MudSelectItem Value="@("G01")">G01 - Adquisición de mercancías</MudSelectItem>
                             <MudSelectItem Value="@("G02")">G02 - Devoluciones, descuentos o bonificaciones</MudSelectItem>
@@ -497,14 +509,23 @@
         return string.Join(", ", parts);
     }
 
+    private string? ValidateOptionalTaxId(string? val)
+    {
+        if (string.IsNullOrWhiteSpace(val)) return null;
+        var trimmed = val.Trim();
+        if (trimmed.Length < 10 || trimmed.Length > 13)
+            return "El RFC debe tener entre 10 y 13 caracteres.";
+        return null;
+    }
+
     private void OpenCreateDialog()
     {
         currentClient = new ClientDto 
         { 
             IsActive = true,
             Country = "México",
-            FiscalRegime = "616",
-            CfdiUse = "S01"
+            FiscalRegime = null,
+            CfdiUse = null
         };
         isEdit = false;
         isDialogVisible = true;

@@ -42,8 +42,8 @@ public class CreateClientCommandValidator : AbstractValidator<CreateClientComman
             .MaximumLength(100);
 
         RuleFor(v => v.TaxId)
-            .NotEmpty().WithMessage("El RFC/ID Fiscal es requerido")
-            .MaximumLength(50);
+            .MaximumLength(50)
+            .When(x => !string.IsNullOrWhiteSpace(x.TaxId));
 
         RuleFor(v => v.Email)
             .EmailAddress().WithMessage("Email inválido")
@@ -76,7 +76,7 @@ public class CreateClientCommandHandler : IRequestHandler<CreateClientCommand, G
             request.Phone,
             request.Email,
             fiscalRegime: request.FiscalRegime,
-            fiscalZipCode: !string.IsNullOrWhiteSpace(request.ZipCode) && request.ZipCode != "00000" ? request.ZipCode : null,
+            fiscalZipCode: !string.IsNullOrWhiteSpace(request.ZipCode) && request.ZipCode.Trim().Length == 5 && request.ZipCode.Trim().All(char.IsDigit) && request.ZipCode.Trim() != "00000" ? request.ZipCode.Trim() : null,
             cfdiUse: request.CfdiUse
         );
 

@@ -362,4 +362,95 @@ public class CfdiInvoicingTests
         Assert.Equal(InvoiceStatus.CancelledAtSat, updatedInvoice!.Status);
         Assert.NotNull(updatedInvoice.CancelledAt);
     }
+
+    [Fact]
+    public async Task CreateInvoiceCommand_Handle_ClientWithoutTaxId_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(databaseName: $"PDV_CreateInvoice_NoRfc_Test_{Guid.NewGuid()}")
+            .ConfigureWarnings(x => x.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+
+        await using var context = new AppDbContext(options);
+
+        var (certBytes, keyBytes, _) = GenerateTestCredentials();
+        
+        var config = new SystemConfiguration("Empresa de Prueba SA de CV", "AAA010101AAA", "601");
+        config.UpdateInvoiceSettings("30303030313030303035", DateTime.UtcNow.AddDays(10), "http://localhost", "user", "key", certBytes, keyBytes, "password123");
+        var address = Address.Create("Calle Falsa 123", "Centro", "CDMX", "06000", "México");
+        config.SetFiscalAddress(address);
+        context.SystemConfigurations.Add(config);
+
+        var branch = new Branch("Sucursal Centro", "SC001", address, "5551234567");
+        context.Branches.Add(branch);
+
+        // Cliente sin RFC
+        var client = new Client("CLI-NO-RFC", "Cliente Sin RFC", "", "5559876543", "test@test.com");
+        context.Clients.Add(client);
+
+        var product = new Product("Producto Test", "P-001", 100m, SaleType.Piece, TaxRateType.Rate16, "Cat");
+        context.Products.Add(product);
+
+        var cashRegister = new CashRegister("Caja 1", "CR01", branch.Id);
+        context.CashRegisters.Add(cashRegister);
+
+        var shift = new Shift(cashRegister.Id, "user", 1000m);
+        context.Shifts.Add(shift);
+
+        var folioSequence = new FolioSequence(branch.Id, InvoiceType.Customer, "A", 6);
+        context.FolioSequences.Add(folioSequence);
+
+        await context.SaveChangesAsync();
+
+        var saleNumber = SaleNumber.Create("T-0002");
+        var sale = new Sale(
+            saleNumber: saleNumber,
+            paymentMethod: PaymentMethodType.Cash,
+            userId: "user",
+            shiftId: shift.Id,
+            series: "A",
+            folio: 2,
+            clientId: client.Id,
+            cashRegisterId: cashRegister.Id);
+        sale.SetBranch(branch.Id);
+
+        var saleItem = new SaleItem(product, 1, 16m);
+        sale.AddItem(saleItem);
+        sale.MarkAsPaid();
+
+        context.Sales.Add(sale);
+        await context.SaveChangesAsync();
+
+        var saleRepository = new SaleRepository(context);
+        var csdCertificateService = new CsdCertificateService();
+        var cfdiXmlGenerator = new CfdiXmlGenerator(context);
+        var pacService = new MockPacService();
+
+        var mockComercialSyncService = new Mock<IComercialApiSyncService>();
+        var handler = new CreateInvoiceCommandHandler(
+            saleRepository,
+            context,
+            csdCertificateService,
+            cfdiXmlGenerator,
+            pacService,
+            mockComercialSyncService.Object);
+
+        var command = new CreateInvoiceCommand
+        {
+            SaleId = sale.Id,
+            IsGlobal = false,
+            ClientId = client.Id,
+            UsoCfdi = "G03",
+            MetodoPago = "PUE",
+            FormaPago = "01",
+            TaxRate = 0.16m,
+            ReceiverFiscalRegime = "616",
+            ReceiverZipCode = "06000"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.Handle(command, CancellationToken.None));
+        Assert.Contains("no cuenta con RFC registrado", ex.Message);
+    }
 }

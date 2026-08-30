@@ -4,6 +4,7 @@
 @using PDV.Application.Features.Sales.Dtos
 @using PDV.Application.Features.Clients.Queries.GetClient
 @using PDV.Application.Features.Clients.Dtos
+@using PDV.WebUI.Components.Pages.Clients
 @using PDV.Domain.Enums
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
@@ -50,12 +51,19 @@
                 <!-- Tarjeta del Cliente Asociado -->
                 <MudStack Spacing="1">
                     <MudText Typo="Typo.subtitle2" Class="font-weight-bold text-sm" Style="color: rgba(255,255,255,0.7);">Cliente Receptor</MudText>
-                    <MudPaper Outlined="false" Class="pa-3 d-flex align-center justify-space-between border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.025);">
+                    <MudPaper Outlined="false" Class="pa-3 d-flex align-center justify-space-between flex-wrap gap-2 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.025);">
                         <MudStack Spacing="0">
                             @if (selectedClient != null)
                             {
                                 <MudText Typo="Typo.body2" Class="font-weight-bold" Style="color: #ffffff;">@selectedClient.Name</MudText>
-                                <MudText Typo="Typo.caption" Style="font-family: 'Roboto Mono', monospace; color: rgba(255,255,255,0.6);">RFC: @selectedClient.TaxId</MudText>
+                                @if (!string.IsNullOrWhiteSpace(selectedClient.TaxId))
+                                {
+                                    <MudText Typo="Typo.caption" Style="font-family: 'Roboto Mono', monospace; color: rgba(255,255,255,0.6);">RFC: @selectedClient.TaxId</MudText>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Class="text-warning font-weight-medium">⚠️ Sin RFC registrado</MudText>
+                                }
                                 @if (!string.IsNullOrEmpty(selectedClient.Phone))
                                 {
                                     <MudText Typo="Typo.caption" Class="mud-text-secondary">Tel: @selectedClient.Phone</MudText>
@@ -68,16 +76,45 @@
                             }
                         </MudStack>
                         
-                        <MudButton StartIcon="@Icons.Material.Filled.PersonSearch" 
-                                   Variant="Variant.Outlined" 
-                                   Color="Color.Warning" 
-                                   Size="Size.Small"
-                                   OnClick="ChangeClientAsync"
-                                   Style="text-transform: none; border-radius: 8px; font-weight: 600; font-size: 0.75rem;">
-                            Cambiar Cliente
-                        </MudButton>
+                        <div class="d-flex align-center gap-1">
+                            @if (selectedClient != null)
+                            {
+                                <MudButton StartIcon="@Icons.Material.Filled.EditDocument" 
+                                           Variant="Variant.Filled" 
+                                           Color="@(string.IsNullOrWhiteSpace(selectedClient.TaxId) ? Color.Warning : Color.Primary)" 
+                                           Size="Size.Small"
+                                           OnClick="OpenUpdateFiscalDataDialogAsync"
+                                           Style="text-transform: none; border-radius: 8px; font-weight: 600; font-size: 0.75rem;">
+                                    Datos Fiscales
+                                </MudButton>
+                            }
+                            <MudButton StartIcon="@Icons.Material.Filled.PersonSearch" 
+                                       Variant="Variant.Outlined" 
+                                       Color="Color.Secondary" 
+                                       Size="Size.Small"
+                                       OnClick="ChangeClientAsync"
+                                       Style="text-transform: none; border-radius: 8px; font-weight: 600; font-size: 0.75rem;">
+                                Cambiar
+                            </MudButton>
+                        </div>
                     </MudPaper>
                 </MudStack>
+
+                @if (!isGlobal && selectedClient != null && string.IsNullOrWhiteSpace(selectedClient.TaxId))
+                {
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Dense="true" Class="rounded-lg">
+                        <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                            <span style="font-size: 0.8rem;">El cliente no tiene RFC registrado. Para factura individual debe capturar sus datos fiscales.</span>
+                            <MudButton Variant="Variant.Filled" 
+                                       Color="Color.Dark" 
+                                       Size="Size.Small" 
+                                       OnClick="OpenUpdateFiscalDataDialogAsync" 
+                                       Style="text-transform: none; font-weight: bold; font-size: 0.72rem;">
+                                Actualizar Datos
+                            </MudButton>
+                        </div>
+                    </MudAlert>
+                }
 
                 <!-- Tipo de Facturación (Cliente vs Global) -->
                 <MudRadioGroup T="bool" Value="isGlobal" ValueChanged="OnIsGlobalChanged" Class="d-flex gap-4">
@@ -320,6 +357,39 @@
         }
     }
 
+    private async Task OpenUpdateFiscalDataDialogAsync()
+    {
+        if (selectedClient == null) return;
+
+        try
+        {
+            var parameters = new DialogParameters { ["Client"] = selectedClient };
+            var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, BackdropClick = false };
+            
+            var dialog = await DialogService.ShowAsync<ClientFiscalDataDialog>("Actualizar Datos Fiscales", parameters, options);
+            var result = await dialog.Result;
+
+            if (result != null && !result.Canceled && result.Data is ClientDto updatedClient)
+            {
+                selectedClient = updatedClient;
+                receiverFiscalRegime = updatedClient.FiscalRegime ?? "616";
+                receiverZipCode = !string.IsNullOrWhiteSpace(updatedClient.FiscalZipCode) 
+                    ? updatedClient.FiscalZipCode 
+                    : (!string.IsNullOrWhiteSpace(updatedClient.ZipCode) && updatedClient.ZipCode != "00000" ? updatedClient.ZipCode : "00000");
+
+                if (!string.IsNullOrWhiteSpace(updatedClient.CfdiUse))
+                {
+                    usoCfdi = updatedClient.CfdiUse;
+                }
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al abrir diálogo de datos fiscales: {ex.Message}", Severity.Error);
+        }
+    }
+
     private async Task ProcessInvoiceAsync()
     {
         if (saleDetail == null) return;
@@ -339,6 +409,16 @@
 
         if (!isGlobal)
         {
+            if (string.IsNullOrWhiteSpace(selectedClient?.TaxId))
+            {
+                Snackbar.Add("El cliente seleccionado no cuenta con RFC registrado. Por favor capture sus datos fiscales para continuar.", Severity.Warning);
+                await OpenUpdateFiscalDataDialogAsync();
+                if (string.IsNullOrWhiteSpace(selectedClient?.TaxId))
+                {
+                    return;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(receiverFiscalRegime))
             {
                 Snackbar.Add("El Régimen Fiscal es obligatorio para facturación individual.", Severity.Warning);

@@ -168,4 +168,115 @@ public class ClientsTests
             .FirstOrDefaultAsync(o => o.EventType == "ClientDeactivatedEvent", CancellationToken.None);
         Assert.NotNull(outboxMessage);
     }
+
+    [Fact]
+    public async Task Handle_CreateClient_WithoutTaxIdAndFiscalData_SavesSuccessfully()
+    {
+        // Arrange
+        var options = CreateNewContextOptions();
+        await using var context = new AppDbContext(options);
+
+        var mockSyncService = new Mock<IComercialApiSyncService>();
+        var mockGeocodingService = new Mock<IGeocodingService>();
+        var handler = new CreateClientCommandHandler(context, mockSyncService.Object, mockGeocodingService.Object);
+        var command = new CreateClientCommand
+        {
+            Code = "C-NO-RFC",
+            Name = "Cliente Sin RFC",
+            TaxId = "",
+            Phone = "5551234567",
+            Email = "sinrfc@correo.com",
+            FiscalRegime = null,
+            CfdiUse = null
+        };
+
+        // Act
+        var clientId = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        Assert.NotEqual(Guid.Empty, clientId);
+
+        var client = await context.Clients.FindAsync(new object[] { clientId }, CancellationToken.None);
+        Assert.NotNull(client);
+        Assert.Equal("C-NO-RFC", client!.Code);
+        Assert.Equal("Cliente Sin RFC", client.Name);
+        Assert.Equal(string.Empty, client.TaxId);
+        Assert.Null(client.FiscalRegime);
+        Assert.Null(client.FiscalZipCode);
+        Assert.Null(client.CfdiUse);
+    }
+
+    [Fact]
+    public async Task Handle_UpdateClient_RemovingTaxId_UpdatesSuccessfully()
+    {
+        // Arrange
+        var options = CreateNewContextOptions();
+        await using var context = new AppDbContext(options);
+
+        var existingClient = new Client("C-WITH-RFC", "Cliente Inicial", "XAXX010101000", "5559876543", "test@correo.com");
+        context.Clients.Add(existingClient);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var mockSyncService = new Mock<IComercialApiSyncService>();
+        var mockGeocodingService = new Mock<IGeocodingService>();
+        var handler = new UpdateClientCommandHandler(context, mockSyncService.Object, mockGeocodingService.Object);
+        var command = new UpdateClientCommand
+        {
+            Id = existingClient.Id,
+            Code = "C-WITH-RFC",
+            Name = "Cliente Inicial Modificado",
+            TaxId = "", // Limpieza de RFC
+            FiscalRegime = null,
+            CfdiUse = null,
+            Phone = "5559876543",
+            Email = "test@correo.com",
+            IsActive = true
+        };
+
+        // Act
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        Assert.True(result);
+
+        var client = await context.Clients.FindAsync(new object[] { existingClient.Id }, CancellationToken.None);
+        Assert.NotNull(client);
+        Assert.Equal(string.Empty, client!.TaxId);
+        Assert.Null(client.FiscalRegime);
+        Assert.Null(client.FiscalZipCode);
+        Assert.Null(client.CfdiUse);
+    }
+
+    [Fact]
+    public void CreateClientCommandValidator_AllowsEmptyTaxId()
+    {
+        var validator = new CreateClientCommandValidator();
+        var command = new CreateClientCommand
+        {
+            Code = "C001",
+            Name = "Cliente Mostrador",
+            TaxId = ""
+        };
+
+        var result = validator.Validate(command);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void UpdateClientCommandValidator_AllowsEmptyTaxId()
+    {
+        var validator = new UpdateClientCommandValidator();
+        var command = new UpdateClientCommand
+        {
+            Id = Guid.NewGuid(),
+            Code = "C001",
+            Name = "Cliente Mostrador",
+            TaxId = ""
+        };
+
+        var result = validator.Validate(command);
+
+        Assert.True(result.IsValid);
+    }
 }

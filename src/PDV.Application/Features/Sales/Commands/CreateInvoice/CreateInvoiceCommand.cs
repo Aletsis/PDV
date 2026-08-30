@@ -131,6 +131,11 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
                 var cliente = await _context.Clients.FindAsync(new object[] { clientGuid.Value }, cancellationToken);
                 if (cliente != null)
                 {
+                    if (string.IsNullOrWhiteSpace(cliente.TaxId))
+                    {
+                        throw new InvalidOperationException($"El cliente '{cliente.Name}' no cuenta con RFC registrado. Por favor actualice sus datos fiscales antes de facturar.");
+                    }
+
                     clientCode = cliente.Code;
                     apiRfc = cliente.TaxId;
                     apiNombre = cliente.Name;
@@ -255,6 +260,11 @@ public class CreateInvoiceCommandHandler : IRequestHandler<CreateInvoiceCommand,
             var cliente = await _context.Clients.FindAsync(new object[] { finalClientId.Value }, cancellationToken);
             if (cliente != null)
             {
+                if (string.IsNullOrWhiteSpace(cliente.TaxId))
+                {
+                    throw new InvalidOperationException($"El cliente '{cliente.Name}' no cuenta con RFC registrado. Por favor actualice sus datos fiscales antes de facturar.");
+                }
+
                 rfc = cliente.TaxId;
                 nombre = cliente.Name;
                 cfdiUsage = Enum.TryParse<CfdiUsage>(request.UsoCfdi, true, out var u) ? u : CfdiUsage.GeneralExpense;
