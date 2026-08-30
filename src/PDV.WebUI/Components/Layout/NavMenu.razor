@@ -12,6 +12,9 @@
     </AuthorizeView>
     <AuthorizeView Roles="Admin,Manager,Cashier,Telephonist,Almacen,Picker,Verifier,DeliveryMan">
         <MudNavGroup Title="Reparto y Pedidos" Icon="@Icons.Material.Filled.LocalShipping" Expanded="false">
+            <AuthorizeView Roles="Admin,Manager,Cashier,Telephonist,Almacen,Verifier" Context="monitorCtx">
+                <MudNavLink Href="orders/monitor" Icon="@Icons.Material.Filled.MonitorHeart">Monitor de Pedidos</MudNavLink>
+            </AuthorizeView>
             <AuthorizeView Roles="Admin,Manager,Telephonist,Cashier" Context="takeCtx">
                 <MudNavLink Href="orders/take" Icon="@Icons.Material.Filled.Phone">Toma Telefónica</MudNavLink>
             </AuthorizeView>

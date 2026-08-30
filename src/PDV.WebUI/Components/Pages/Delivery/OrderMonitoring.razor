@@ -1,0 +1,659 @@
+@page "/orders/monitor"
+@using MediatR
+@using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Features.Branches.Queries.GetBranches
+@using PDV.Application.Features.DeliveryZones.Queries.GetDeliveryZones
+@using PDV.Domain.Entities
+@using PDV.Domain.Enums
+@using PDV.Application.Features.Orders.Dtos
+@using PDV.Application.Features.Orders.Queries.GetOrderMonitoring
+@using PDV.WebUI.Components.Shared
+@using PDV.WebUI.Components.Shared.UI
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@implements IDisposable
+@attribute [Authorize]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Monitor de Pedidos</PageTitle>
+
+<div class="d-flex flex-column gap-6">
+    <!-- Header Principal -->
+    <PdvHeader Title="Monitor y Trazabilidad de Pedidos"
+               Subtitle="Supervise en tiempo real el avance de los pedidos, tiempos en cada estado, alertas de SLA y el personal asignado."
+               Icon="@Icons.Material.Filled.MonitorHeart"
+               IconColor="Color.Primary">
+        <StatusAlert>
+            <div class="d-flex align-center gap-2 px-3 py-1 border-solid border mud-border-secondary" style="border-radius: 12px; background: rgba(255,255,255,0.03);">
+                <div class="status-indicator-dot @(_autoRefreshIntervalSeconds > 0 ? "active" : "")"></div>
+                <span style="font-size: 0.78rem; color: rgba(255,255,255,0.7);">
+                    @(_autoRefreshIntervalSeconds > 0 ? $"Auto-refresco: {_autoRefreshIntervalSeconds}s" : "Refresco Manual")
+                </span>
+                <span class="mud-text-secondary" style="font-size: 0.72rem;">(@_lastUpdated.ToLocalTime().ToString("HH:mm:ss"))</span>
+            </div>
+        </StatusAlert>
+        <Actions>
+            <div style="min-width: 200px;">
+                <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var b in _branches)
+                    {
+                        <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+            <div style="min-width: 140px;">
+                <MudSelect T="int" Label="Frecuencia" Value="_autoRefreshIntervalSeconds" ValueChanged="OnAutoRefreshChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="0">Manual</MudSelectItem>
+                    <MudSelectItem Value="10">Cada 10 seg</MudSelectItem>
+                    <MudSelectItem Value="30">Cada 30 seg</MudSelectItem>
+                    <MudSelectItem Value="60">Cada 1 min</MudSelectItem>
+                </MudSelect>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="@(() => LoadOrdersAsync(false))" Disabled="@_isLoading">
+                Actualizar
+            </MudButton>
+        </Actions>
+    </PdvHeader>
+
+    <!-- Métricas KPI Rápidas -->
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="4" md="2">
+            <PdvKpiCard Title="Activos"
+                        Value="@_summary.ActiveOrders.ToString()"
+                        Icon="@Icons.Material.Filled.PendingActions"
+                        IconColor="Color.Primary"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Primary" />
+        </MudItem>
+        <MudItem xs="6" sm="4" md="2">
+            <PdvKpiCard Title="En Surtido"
+                        Value="@_summary.InFulfillmentOrders.ToString()"
+                        Icon="@Icons.Material.Filled.ShoppingBag"
+                        IconColor="Color.Info"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Info" />
+        </MudItem>
+        <MudItem xs="6" sm="4" md="2">
+            <PdvKpiCard Title="En Reparto"
+                        Value="@_summary.EnRouteOrders.ToString()"
+                        Icon="@Icons.Material.Filled.TwoWheeler"
+                        IconColor="Color.Warning"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Warning" />
+        </MudItem>
+        <MudItem xs="6" sm="4" md="2">
+            <PdvKpiCard Title="Retrasados (>SLA)"
+                        Value="@_summary.DelayedOrdersCount.ToString()"
+                        Icon="@Icons.Material.Filled.Warning"
+                        IconColor="Color.Error"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Error" />
+        </MudItem>
+        <MudItem xs="6" sm="4" md="2">
+            <PdvKpiCard Title="Entregados Hoy"
+                        Value="@_summary.DeliveredTodayOrders.ToString()"
+                        Icon="@Icons.Material.Filled.TaskAlt"
+                        IconColor="Color.Success"
+                        IsLoading="@_isLoading"
+                        GradientType="PdvKpiCard.KpiGradientType.Success" />
+        </MudItem>
+        <MudItem xs="6" sm="4" md="2">
+            <PdvKpiCard Title="Monto Activo"
+                        Value="@_summary.TotalActiveAmount.ToString("C0")"
+                        Icon="@Icons.Material.Filled.AttachMoney"
+                        IconColor="Color.Success"
+                        IsLoading="@_isLoading" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Barra de Filtros y Selector de Vista -->
+    <MudPaper Class="pa-4 rounded-lg" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+            <div class="d-flex align-center flex-grow-1 flex-wrap gap-3" style="max-width: 800px;">
+                <MudTextField @bind-Value="_searchString"
+                              Placeholder="Buscar por folio, cliente, teléfono, notas..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Clearable="true"
+                              Style="min-width: 260px; max-width: 360px;" />
+
+                <MudSelect T="Guid?" Label="Zona de Reparto" Value="_selectedZoneId" ValueChanged="OnZoneFilterChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="min-width: 180px;">
+                    @foreach (var z in _zones)
+                    {
+                        <MudSelectItem Value="@((Guid?)z.Id)">@z.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSwitch @bind-Value="_onlyDelayedFilter" Color="Color.Error" Label="Solo Retrasados (> SLA)" UncheckedColor="Color.Default" />
+            </div>
+
+            <!-- Controles de Vista -->
+            <div class="d-flex align-center gap-2">
+                <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                    <MudButton StartIcon="@Icons.Material.Filled.ViewKanban"
+                               Variant="@(_currentView == ViewMode.Kanban ? Variant.Filled : Variant.Outlined)"
+                               Color="@(_currentView == ViewMode.Kanban ? Color.Primary : Color.Default)"
+                               OnClick="@(() => _currentView = ViewMode.Kanban)">
+                        Tablero
+                    </MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.TableRows"
+                               Variant="@(_currentView == ViewMode.Table ? Variant.Filled : Variant.Outlined)"
+                               Color="@(_currentView == ViewMode.Table ? Color.Primary : Color.Default)"
+                               OnClick="@(() => _currentView = ViewMode.Table)">
+                        Tabla
+                    </MudButton>
+                </MudButtonGroup>
+            </div>
+        </div>
+
+        <!-- Chips de Estado Rápido -->
+        <div class="d-flex align-center flex-wrap gap-2 mt-3 pt-3 border-t">
+            <MudChip T="string" Color="@(_selectedStatusFilter == null ? Color.Primary : Color.Default)"
+                     Variant="@(_selectedStatusFilter == null ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(null))">
+                Todos (@_orders.Count)
+            </MudChip>
+            <MudChip T="string" Color="Color.Warning"
+                     Variant="@(_selectedStatusFilter == OrderStatus.Pending ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.Pending))">
+                Pendientes (@_orders.Count(o => o.Status == OrderStatus.Pending))
+            </MudChip>
+            <MudChip T="string" Color="Color.Info"
+                     Variant="@(_selectedStatusFilter == OrderStatus.InFulfillment ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.InFulfillment))">
+                En Surtido (@_orders.Count(o => o.Status == OrderStatus.InFulfillment))
+            </MudChip>
+            <MudChip T="string" Color="Color.Secondary"
+                     Variant="@(_selectedStatusFilter == OrderStatus.Filled ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.Filled))">
+                Surtidos (@_orders.Count(o => o.Status == OrderStatus.Filled))
+            </MudChip>
+            <MudChip T="string" Color="Color.Success"
+                     Variant="@(_selectedStatusFilter == OrderStatus.Confirmed ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.Confirmed))">
+                Confirmados (@_orders.Count(o => o.Status == OrderStatus.Confirmed))
+            </MudChip>
+            <MudChip T="string" Color="Color.Primary"
+                     Variant="@(_selectedStatusFilter == OrderStatus.Routed ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.Routed))">
+                Enrutados (@_orders.Count(o => o.Status == OrderStatus.Routed))
+            </MudChip>
+            <MudChip T="string" Color="Color.Tertiary"
+                     Variant="@(_selectedStatusFilter == OrderStatus.EnRoute ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.EnRoute))">
+                En Ruta (@_orders.Count(o => o.Status == OrderStatus.EnRoute))
+            </MudChip>
+            <MudChip T="string" Color="Color.Success"
+                     Variant="@(_selectedStatusFilter == OrderStatus.Delivered ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small"
+                     OnClick="@(() => SetStatusFilter(OrderStatus.Delivered))">
+                Entregados (@_orders.Count(o => o.Status == OrderStatus.Delivered || o.Status == OrderStatus.Settled))
+            </MudChip>
+        </div>
+    </MudPaper>
+
+    <!-- Contenido Principal según vista seleccionada -->
+    @if (_isLoading && !_orders.Any())
+    {
+        <div class="d-flex justify-center align-center py-16">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (!_filteredOrders.Any())
+    {
+        <div class="d-flex flex-column align-center justify-center py-16 text-center mud-text-secondary">
+            <MudIcon Icon="@Icons.Material.Filled.Inbox" Style="font-size: 4rem;" Color="Color.Default" Class="mb-3" />
+            <MudText Typo="Typo.h6">No se encontraron pedidos</MudText>
+            <MudText Typo="Typo.body2">No hay pedidos que coincidan con los filtros seleccionados en esta sucursal.</MudText>
+        </div>
+    }
+    else if (_currentView == ViewMode.Kanban)
+    {
+        <!-- Vista 1: Tablero Kanban / Pipeline -->
+        <div class="kanban-board-container">
+            <!-- Columna 1: Pendientes -->
+            <div class="kanban-column">
+                <div class="kanban-column-header bg-warning-subtle">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Schedule" Color="Color.Warning" Size="Size.Small" />
+                        <span class="kanban-column-title">1. Pendientes</span>
+                    </div>
+                    <MudBadge Content="@GetColumnOrders(OrderStatus.Pending).Count()" Color="Color.Warning" Overlap="false" />
+                </div>
+                <div class="kanban-column-body">
+                    @foreach (var order in GetColumnOrders(OrderStatus.Pending))
+                    {
+                        @RenderKanbanCard(order)
+                    }
+                </div>
+            </div>
+
+            <!-- Columna 2: En Surtido -->
+            <div class="kanban-column">
+                <div class="kanban-column-header bg-info-subtle">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingBag" Color="Color.Info" Size="Size.Small" />
+                        <span class="kanban-column-title">2. En Surtido</span>
+                    </div>
+                    <MudBadge Content="@GetColumnOrders(OrderStatus.InFulfillment).Count()" Color="Color.Info" Overlap="false" />
+                </div>
+                <div class="kanban-column-body">
+                    @foreach (var order in GetColumnOrders(OrderStatus.InFulfillment))
+                    {
+                        @RenderKanbanCard(order)
+                    }
+                </div>
+            </div>
+
+            <!-- Columna 3: Surtidos / Por Verificar -->
+            <div class="kanban-column">
+                <div class="kanban-column-header bg-secondary-subtle">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" Color="Color.Secondary" Size="Size.Small" />
+                        <span class="kanban-column-title">3. Por Verificar</span>
+                    </div>
+                    <MudBadge Content="@GetColumnOrders(OrderStatus.Filled).Count()" Color="Color.Secondary" Overlap="false" />
+                </div>
+                <div class="kanban-column-body">
+                    @foreach (var order in GetColumnOrders(OrderStatus.Filled))
+                    {
+                        @RenderKanbanCard(order)
+                    }
+                </div>
+            </div>
+
+            <!-- Columna 4: Confirmados / Enrutados -->
+            <div class="kanban-column">
+                <div class="kanban-column-header bg-primary-subtle">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.FactCheck" Color="Color.Primary" Size="Size.Small" />
+                        <span class="kanban-column-title">4. Confirmados</span>
+                    </div>
+                    <MudBadge Content="@GetConfirmedAndRoutedOrders().Count()" Color="Color.Primary" Overlap="false" />
+                </div>
+                <div class="kanban-column-body">
+                    @foreach (var order in GetConfirmedAndRoutedOrders())
+                    {
+                        @RenderKanbanCard(order)
+                    }
+                </div>
+            </div>
+
+            <!-- Columna 5: En Camino -->
+            <div class="kanban-column">
+                <div class="kanban-column-header bg-tertiary-subtle">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.TwoWheeler" Color="Color.Tertiary" Size="Size.Small" />
+                        <span class="kanban-column-title">5. En Camino</span>
+                    </div>
+                    <MudBadge Content="@GetColumnOrders(OrderStatus.EnRoute).Count()" Color="Color.Tertiary" Overlap="false" />
+                </div>
+                <div class="kanban-column-body">
+                    @foreach (var order in GetColumnOrders(OrderStatus.EnRoute))
+                    {
+                        @RenderKanbanCard(order)
+                    }
+                </div>
+            </div>
+
+            <!-- Columna 6: Entregados / Finalizados -->
+            <div class="kanban-column">
+                <div class="kanban-column-header bg-success-subtle">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Color="Color.Success" Size="Size.Small" />
+                        <span class="kanban-column-title">6. Finalizados</span>
+                    </div>
+                    <MudBadge Content="@GetFinishedOrders().Count()" Color="Color.Success" Overlap="false" />
+                </div>
+                <div class="kanban-column-body">
+                    @foreach (var order in GetFinishedOrders())
+                    {
+                        @RenderKanbanCard(order)
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Vista 2: Tabla Detallada -->
+        <MudPaper Class="pa-2 rounded-lg" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+            <MudTable Items="@_filteredOrders" Hover="true" Striped="true" Dense="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Folio</MudTh>
+                    <MudTh>Hora Pedido</MudTh>
+                    <MudTh>Cliente & Destino</MudTh>
+                    <MudTh>Estado</MudTh>
+                    <MudTh>Tiempo en Estado</MudTh>
+                    <MudTh>Tiempo Total</MudTh>
+                    <MudTh>Responsable Actual</MudTh>
+                    <MudTh Style="text-align: right;">Total</MudTh>
+                    <MudTh Style="text-align: center;">Detalle</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-1">
+                            <span class="font-weight-bold">@context.OrderNumber</span>
+                            @if (context.IsOutOfZone)
+                            {
+                                <MudTooltip Text="Fuera de Zona">
+                                    <MudIcon Icon="@Icons.Material.Filled.ExploreOff" Size="Size.Small" Color="Color.Warning" />
+                                </MudTooltip>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-column">
+                            <span>@context.OrderDate.ToLocalTime().ToString("HH:mm")</span>
+                            <span class="mud-text-secondary" style="font-size: 0.72rem;">@context.OrderDate.ToLocalTime().ToString("dd/MM")</span>
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-column">
+                            <span class="font-weight-medium text-truncate" style="max-width: 200px;">@context.ClientName</span>
+                            <span class="mud-text-secondary" style="font-size: 0.75rem;">
+                                @(context.DeliveryZoneName ?? "Sin Zona") @(context.ClientPhone != null ? $"• {context.ClientPhone}" : "")
+                            </span>
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Filled" Class="font-weight-medium">
+                            @GetStatusLabel(context.Status)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex align-center gap-1">
+                            <div class="sla-badge @GetSlaCssClass(context.SlaStatus)">
+                                @context.FormattedTimeInCurrentStatus
+                            </div>
+                            @if (context.SlaStatus == OrderSlaStatus.Delayed)
+                            {
+                                <MudTooltip Text="@context.SlaMessage">
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Small" />
+                                </MudTooltip>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd>
+                        <span class="mud-text-secondary">@context.FormattedTotalElapsed</span>
+                    </MudTd>
+                    <MudTd>
+                        <div class="d-flex flex-column">
+                            <span class="font-weight-medium">@context.CurrentAssigneeName</span>
+                            @if (!string.IsNullOrWhiteSpace(context.CurrentAssigneeRole))
+                            {
+                                <span class="mud-text-secondary" style="font-size: 0.72rem;">@context.CurrentAssigneeRole</span>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd Style="text-align: right;">
+                        <span class="font-weight-bold">@context.TotalAmount.ToString("C2")</span>
+                    </MudTd>
+                    <MudTd Style="text-align: center;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Primary" OnClick="@(() => OpenDetailsDialog(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    }
+</div>
+
+@code {
+    private enum ViewMode { Kanban, Table }
+
+    private List<BranchDto> _branches = new();
+    private Guid _selectedBranchId = Guid.Empty;
+    private List<DeliveryZone> _zones = new();
+    private Guid? _selectedZoneId;
+
+    private List<OrderMonitoringItemDto> _orders = new();
+    private OrderMonitoringSummaryDto _summary = new();
+    private string _searchString = string.Empty;
+    private OrderStatus? _selectedStatusFilter = null;
+    private bool _onlyDelayedFilter = false;
+    private ViewMode _currentView = ViewMode.Kanban;
+    private bool _isLoading = false;
+    private DateTime _lastUpdated = DateTime.UtcNow;
+
+    // Timer de auto-refresco
+    private int _autoRefreshIntervalSeconds = 15;
+    private Timer? _refreshTimer;
+
+    private IEnumerable<OrderMonitoringItemDto> _filteredOrders => _orders.Where(o =>
+        (_selectedStatusFilter == null || 
+         (_selectedStatusFilter == OrderStatus.Delivered ? (o.Status == OrderStatus.Delivered || o.Status == OrderStatus.Settled) : o.Status == _selectedStatusFilter.Value)) &&
+        (!_selectedZoneId.HasValue || o.DeliveryZoneId == _selectedZoneId.Value) &&
+        (!_onlyDelayedFilter || o.SlaStatus == OrderSlaStatus.Delayed || o.SlaStatus == OrderSlaStatus.Warning) &&
+        (string.IsNullOrWhiteSpace(_searchString) ||
+         o.OrderNumber.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+         o.ClientName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+         (o.ClientPhone != null && o.ClientPhone.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) ||
+         (o.ClientAddress != null && o.ClientAddress.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) ||
+         (o.GeneralNotes != null && o.GeneralNotes.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) ||
+         (o.DeliveryNotes != null && o.DeliveryNotes.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) ||
+         (o.CurrentAssigneeName.Contains(_searchString, StringComparison.OrdinalIgnoreCase))));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var branchesResult = await Mediator.Send(new GetBranchesQuery());
+        if (branchesResult != null && branchesResult.Any())
+        {
+            _branches = branchesResult.ToList();
+            _selectedBranchId = _branches.First().Id;
+            await LoadZonesAsync();
+            await LoadOrdersAsync();
+            StartTimer();
+        }
+    }
+
+    private async Task OnBranchChanged(Guid branchId)
+    {
+        _selectedBranchId = branchId;
+        await LoadZonesAsync();
+        await LoadOrdersAsync();
+    }
+
+    private void OnAutoRefreshChanged(int interval)
+    {
+        _autoRefreshIntervalSeconds = interval;
+        StartTimer();
+    }
+
+    private async Task OnZoneFilterChanged(Guid? zoneId)
+    {
+        _selectedZoneId = zoneId;
+        await Task.CompletedTask;
+    }
+
+    private void SetStatusFilter(OrderStatus? status)
+    {
+        _selectedStatusFilter = status;
+    }
+
+    private void StartTimer()
+    {
+        _refreshTimer?.Dispose();
+        if (_autoRefreshIntervalSeconds > 0)
+        {
+            _refreshTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadOrdersAsync(isSilent: true);
+                    StateHasChanged();
+                });
+            }, null, TimeSpan.FromSeconds(_autoRefreshIntervalSeconds), TimeSpan.FromSeconds(_autoRefreshIntervalSeconds));
+        }
+    }
+
+    private async Task LoadZonesAsync()
+    {
+        if (_selectedBranchId == Guid.Empty) return;
+        try
+        {
+            _zones = await Mediator.Send(new GetDeliveryZonesQuery { BranchId = _selectedBranchId });
+        }
+        catch
+        {
+            _zones = new();
+        }
+    }
+
+    private async Task LoadOrdersAsync(bool isSilent = false)
+    {
+        if (_selectedBranchId == Guid.Empty) return;
+
+        if (!isSilent) _isLoading = true;
+
+        try
+        {
+            var result = await Mediator.Send(new GetOrderMonitoringQuery
+            {
+                BranchId = _selectedBranchId,
+                OnlyActive = true
+            });
+
+            _orders = result.Orders;
+            _summary = result.Summary;
+            _lastUpdated = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            if (!isSilent)
+            {
+                Snackbar.Add($"Error al consultar pedidos: {ex.Message}", Severity.Error);
+            }
+        }
+        finally
+        {
+            if (!isSilent) _isLoading = false;
+        }
+    }
+
+    private IEnumerable<OrderMonitoringItemDto> GetColumnOrders(OrderStatus status) =>
+        _filteredOrders.Where(o => o.Status == status);
+
+    private IEnumerable<OrderMonitoringItemDto> GetConfirmedAndRoutedOrders() =>
+        _filteredOrders.Where(o => o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Routed);
+
+    private IEnumerable<OrderMonitoringItemDto> GetFinishedOrders() =>
+        _filteredOrders.Where(o => o.Status == OrderStatus.Delivered || o.Status == OrderStatus.Settled || o.Status == OrderStatus.Returned || o.Status == OrderStatus.Cancelled);
+
+    private async Task OpenDetailsDialog(OrderMonitoringItemDto order)
+    {
+        var parameters = new DialogParameters<OrderDetailsTimelineDialog>
+        {
+            { x => x.Order, order }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        await DialogService.ShowAsync<OrderDetailsTimelineDialog>($"Detalle de Pedido {order.OrderNumber}", parameters, options);
+    }
+
+    private RenderFragment RenderKanbanCard(OrderMonitoringItemDto order) => __builder =>
+    {
+        <div class="kanban-card @GetKanbanCardBorderClass(order.SlaStatus)" @onclick="@(() => OpenDetailsDialog(order))">
+            <!-- Header de Tarjeta -->
+            <div class="d-flex align-center justify-space-between mb-2">
+                <span class="kanban-card-folio font-weight-bold">@order.OrderNumber</span>
+                <span class="kanban-card-amount font-weight-bold text-success">@order.TotalAmount.ToString("C0")</span>
+            </div>
+
+            <!-- Cliente y Zona -->
+            <div class="kanban-card-client font-weight-medium text-truncate mb-1">
+                @order.ClientName
+            </div>
+            <div class="d-flex align-center gap-1 mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.Place" Size="Size.Small" Style="font-size: 0.85rem;" Color="Color.Secondary" />
+                <span class="mud-text-secondary text-truncate" style="font-size: 0.75rem;">
+                    @(order.DeliveryZoneName ?? "Sin Zona")
+                </span>
+            </div>
+
+            <!-- Artículos Resumen -->
+            <div class="kanban-card-items text-truncate mb-3" title="@order.ItemsSummary">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingBag" Size="Size.Small" Style="font-size: 0.8rem;" Color="Color.Default" />
+                <span>@order.ItemsSummary</span>
+            </div>
+
+            <!-- Footer: Asignado + Tiempo -->
+            <div class="kanban-card-footer d-flex align-center justify-space-between pt-2 border-t">
+                <div class="d-flex align-center gap-1 text-truncate" style="max-width: 140px;" title="@order.CurrentAssigneeName">
+                    <MudIcon Icon="@GetAssigneeIcon(order.Status)" Size="Size.Small" Style="font-size: 0.9rem;" Color="Color.Primary" />
+                    <span class="kanban-card-assignee text-truncate">@order.CurrentAssigneeName</span>
+                </div>
+                <div class="sla-badge @GetSlaCssClass(order.SlaStatus)">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Style="font-size: 0.75rem;" />
+                    <span>@order.FormattedTimeInCurrentStatus</span>
+                </div>
+            </div>
+        </div>
+    };
+
+    private static string GetKanbanCardBorderClass(OrderSlaStatus sla) => sla switch
+    {
+        OrderSlaStatus.Delayed => "border-sla-delayed",
+        OrderSlaStatus.Warning => "border-sla-warning",
+        _ => "border-sla-normal"
+    };
+
+    private static string GetSlaCssClass(OrderSlaStatus sla) => sla switch
+    {
+        OrderSlaStatus.Delayed => "sla-delayed",
+        OrderSlaStatus.Warning => "sla-warning",
+        _ => "sla-normal"
+    };
+
+    private static string GetAssigneeIcon(OrderStatus status) => status switch
+    {
+        OrderStatus.InFulfillment or OrderStatus.Filled => Icons.Material.Filled.Checklist,
+        OrderStatus.EnRoute => Icons.Material.Filled.TwoWheeler,
+        OrderStatus.Confirmed or OrderStatus.Routed => Icons.Material.Filled.AltRoute,
+        OrderStatus.Delivered or OrderStatus.Settled => Icons.Material.Filled.TaskAlt,
+        _ => Icons.Material.Filled.PersonOutline
+    };
+
+    private static Color GetStatusColor(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => Color.Warning,
+        OrderStatus.InFulfillment => Color.Info,
+        OrderStatus.Filled => Color.Secondary,
+        OrderStatus.Confirmed => Color.Success,
+        OrderStatus.Routed => Color.Primary,
+        OrderStatus.EnRoute => Color.Tertiary,
+        OrderStatus.Delivered or OrderStatus.Settled => Color.Success,
+        OrderStatus.Returned or OrderStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string GetStatusLabel(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => "Pendiente",
+        OrderStatus.InFulfillment => "En Surtido",
+        OrderStatus.Filled => "Surtido",
+        OrderStatus.Confirmed => "Confirmado",
+        OrderStatus.Routed => "Enrutado",
+        OrderStatus.EnRoute => "En Camino",
+        OrderStatus.Delivered => "Entregado",
+        OrderStatus.Returned => "Devuelto",
+        OrderStatus.Settled => "Liquidado",
+        OrderStatus.Cancelled => "Cancelado",
+        _ => status.ToString()
+    };
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+}

@@ -1,0 +1,378 @@
+@using PDV.Application.Features.Orders.Dtos
+@using PDV.Domain.Enums
+@using PDV.WebUI.Components.Shared
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+            <div class="d-flex align-center gap-3">
+                <MudAvatar Color="@GetStatusColor(Order.Status)" Variant="Variant.Filled" Size="Size.Medium">
+                    <MudIcon Icon="@GetStatusIcon(Order.Status)" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold">
+                        Pedido @Order.OrderNumber
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Creado el @Order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") • Canal: @Order.Channel
+                    </MudText>
+                </div>
+            </div>
+            <div class="d-flex align-center gap-2">
+                <MudChip T="string" Color="@GetStatusColor(Order.Status)" Variant="Variant.Filled" Size="Size.Small" Class="font-weight-bold">
+                    @GetStatusLabel(Order.Status)
+                </MudChip>
+                @if (Order.SlaStatus == OrderSlaStatus.Delayed)
+                {
+                    <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Variant="Variant.Filled" Class="font-weight-bold">
+                        RETRASADO
+                    </MudChip>
+                }
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4 py-2">
+            <!-- Resumen Rápido -->
+            <MudPaper Class="pa-3 rounded-lg" Elevation="0" Style="background: var(--mud-palette-background-grey);">
+                <MudGrid Spacing="2">
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">TOTAL PEDIDO</MudText>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold text-success">@Order.TotalAmount.ToString("C2")</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">MÉTODO DE PAGO</MudText>
+                        <MudText Typo="Typo.body1" Class="font-weight-medium">@Order.PaymentMethodDisplay</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">TIEMPO EN ESTADO</MudText>
+                        <MudText Typo="Typo.body1" Class="@($"font-weight-bold {(Order.SlaStatus == OrderSlaStatus.Delayed ? "text-danger" : "")}")">
+                            @Order.FormattedTimeInCurrentStatus
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">TIEMPO TOTAL CICLO</MudText>
+                        <MudText Typo="Typo.body1" Class="font-weight-bold">@Order.FormattedTotalElapsed</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Línea de Tiempo / Trazabilidad de Responsables -->
+            <MudText Typo="Typo.subtitle2" Class="font-weight-bold d-flex align-center gap-2 mt-2">
+                <MudIcon Icon="@Icons.Material.Filled.Timeline" Size="Size.Small" Color="Color.Primary" />
+                Línea de Tiempo y Personal Responsable
+            </MudText>
+
+            <MudTimeline TimelineOrientation="TimelineOrientation.Vertical" TimelinePosition="TimelinePosition.Start">
+                <!-- Hito 1: Captura -->
+                <MudTimelineItem Color="Color.Primary" Size="Size.Small">
+                    <ItemContent>
+                        <div class="d-flex flex-column mb-3">
+                            <div class="d-flex align-center justify-space-between flex-wrap">
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">1. Captura de Pedido</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @Order.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                </MudText>
+                            </div>
+                            <MudText Typo="Typo.body2" Color="Color.Default">
+                                <strong>Tomado por:</strong> @(Order.TakenByName ?? Order.CapturedByName ?? "Sistema / Telefonista")
+                            </MudText>
+                            @if (!string.IsNullOrWhiteSpace(Order.AuthorizedBySupervisorName))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Warning">
+                                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Small" />
+                                    Autorizado bajo mínimo por: @Order.AuthorizedBySupervisorName
+                                </MudText>
+                            }
+                        </div>
+                    </ItemContent>
+                </MudTimelineItem>
+
+                <!-- Hito 2: Surtido -->
+                <MudTimelineItem Color="@(Order.FulfillmentStartedAt.HasValue ? Color.Info : Color.Default)" Size="Size.Small">
+                    <ItemContent>
+                        <div class="d-flex flex-column mb-3">
+                            <div class="d-flex align-center justify-space-between flex-wrap">
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">2. Surtido en Almacén</MudText>
+                                @if (Order.FulfillmentStartedAt.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Inicio: @Order.FulfillmentStartedAt.Value.ToLocalTime().ToString("HH:mm")
+                                        @(Order.FilledAt.HasValue ? $" • Fin: {Order.FilledAt.Value.ToLocalTime().ToString("HH:mm")}" : " (En proceso)")
+                                    </MudText>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(Order.FilledByName))
+                            {
+                                <MudText Typo="Typo.body2">
+                                    <strong>Surtidor asignado:</strong> @Order.FilledByName
+                                    @if (!string.IsNullOrWhiteSpace(Order.FilledByEmployeeNumber))
+                                    {
+                                        <span class="mud-text-secondary"> (Emp. #@Order.FilledByEmployeeNumber)</span>
+                                    }
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    <em>Sin surtidor asignado aún</em>
+                                </MudText>
+                            }
+
+                            @if (Order.FulfillmentStartedAt.HasValue && Order.FilledAt.HasValue)
+                            {
+                                var diff = Order.FilledAt.Value - Order.FulfillmentStartedAt.Value;
+                                <MudText Typo="Typo.caption" Color="Color.Info">
+                                    ⏱ Duración del surtido: @((int)diff.TotalMinutes) min
+                                </MudText>
+                            }
+                        </div>
+                    </ItemContent>
+                </MudTimelineItem>
+
+                <!-- Hito 3: Verificación en Caja -->
+                <MudTimelineItem Color="@(Order.VerifiedAt.HasValue ? Color.Success : Color.Default)" Size="Size.Small">
+                    <ItemContent>
+                        <div class="d-flex flex-column mb-3">
+                            <div class="d-flex align-center justify-space-between flex-wrap">
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">3. Verificación Física en Caja</MudText>
+                                @if (Order.VerifiedAt.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @Order.VerifiedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </MudText>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(Order.VerifiedByName))
+                            {
+                                <MudText Typo="Typo.body2">
+                                    <strong>Verificado por:</strong> @Order.VerifiedByName
+                                </MudText>
+                            }
+                            else if (Order.Status >= OrderStatus.Confirmed)
+                            {
+                                <MudText Typo="Typo.body2">
+                                    <strong>Verificación:</strong> Confirmado en Caja
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    <em>Pendiente de verificación en caja</em>
+                                </MudText>
+                            }
+                        </div>
+                    </ItemContent>
+                </MudTimelineItem>
+
+                <!-- Hito 4: Despacho y Reparto -->
+                <MudTimelineItem Color="@(Order.DispatchedAt.HasValue ? Color.Warning : Color.Default)" Size="Size.Small">
+                    <ItemContent>
+                        <div class="d-flex flex-column mb-3">
+                            <div class="d-flex align-center justify-space-between flex-wrap">
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">4. Despacho y Reparto en Ruta</MudText>
+                                @if (Order.DispatchedAt.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Despachado: @Order.DispatchedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </MudText>
+                                }
+                            </div>
+                            @if (Order.DeliveryRouteFolio.HasValue)
+                            {
+                                <MudText Typo="Typo.body2">
+                                    <strong>Ruta asignada:</strong> Ruta #@Order.DeliveryRouteFolio.Value
+                                </MudText>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Order.DeliveryManName))
+                            {
+                                <MudText Typo="Typo.body2">
+                                    <strong>Repartidor / Chofer:</strong> @Order.DeliveryManName
+                                    @if (!string.IsNullOrWhiteSpace(Order.DeliveryManEmployeeNumber))
+                                    {
+                                        <span class="mud-text-secondary"> (Emp. #@Order.DeliveryManEmployeeNumber)</span>
+                                    }
+                                </MudText>
+                            }
+                            else if (Order.Status < OrderStatus.Routed)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    <em>Pendiente de asignación a ruta</em>
+                                </MudText>
+                            }
+                        </div>
+                    </ItemContent>
+                </MudTimelineItem>
+
+                <!-- Hito 5: Entrega / Cierre -->
+                <MudTimelineItem Color="@(Order.DeliveredAt.HasValue || Order.SettledAt.HasValue ? Color.Success : (Order.Status == OrderStatus.Cancelled || Order.Status == OrderStatus.Returned ? Color.Error : Color.Default))" Size="Size.Small">
+                    <ItemContent>
+                        <div class="d-flex flex-column">
+                            <div class="d-flex align-center justify-space-between flex-wrap">
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">5. Entrega y Liquidación</MudText>
+                                @if (Order.DeliveredAt.HasValue || Order.SettledAt.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @((Order.DeliveredAt ?? Order.SettledAt)!.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                                    </MudText>
+                                }
+                            </div>
+                            @if (Order.Status == OrderStatus.Delivered)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Success">
+                                    <strong>Estado:</strong> Entregado con éxito al cliente
+                                </MudText>
+                            }
+                            else if (Order.Status == OrderStatus.Settled)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Success">
+                                    <strong>Estado:</strong> Entregado y liquidado en sucursal
+                                    @(Order.SettledByName != null ? $" (por {Order.SettledByName})" : "")
+                                </MudText>
+                            }
+                            else if (Order.Status == OrderStatus.Returned)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Error">
+                                    <strong>Devuelto / No entregado:</strong> @(Order.ReturnReason ?? "Sin motivo especificado")
+                                </MudText>
+                            }
+                            else if (Order.Status == OrderStatus.Cancelled)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Error">
+                                    <strong>Cancelado:</strong> @(Order.CancellationReason ?? "Sin motivo especificado")
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    <em>En proceso operativo</em>
+                                </MudText>
+                            }
+                        </div>
+                    </ItemContent>
+                </MudTimelineItem>
+            </MudTimeline>
+
+            <!-- Datos del Cliente y Entrega -->
+            <MudPaper Class="pa-3 rounded-lg mt-2" Elevation="0" Style="border: 1px solid var(--mud-palette-table-lines);">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2 d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.PersonPin" Size="Size.Small" Color="Color.Primary" />
+                    Datos del Cliente y Destino
+                </MudText>
+                <MudGrid Spacing="1">
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.body2"><strong>Cliente:</strong> @Order.ClientName</MudText>
+                        <MudText Typo="Typo.body2"><strong>Teléfono:</strong> @(Order.ClientPhone ?? "No registrado")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.body2">
+                            <strong>Zona:</strong> @(Order.DeliveryZoneName ?? "Sin Zona")
+                            @(Order.IsOutOfZone ? " (Fuera de Zona)" : "")
+                        </MudText>
+                        <MudText Typo="Typo.body2"><strong>Dirección:</strong> @(Order.ClientAddress ?? "Dirección no especificada")</MudText>
+                    </MudItem>
+                    @if (!string.IsNullOrWhiteSpace(Order.DeliveryNotes))
+                    {
+                        <MudItem xs="12">
+                            <div class="pa-2 rounded mt-1" style="background: rgba(255,193,7,0.1); border-left: 3px solid #ffc107;">
+                                <MudText Typo="Typo.caption" Class="font-weight-bold text-warning">INSTRUCCIONES DE ENTREGA:</MudText>
+                                <MudText Typo="Typo.body2">@Order.DeliveryNotes</MudText>
+                            </div>
+                        </MudItem>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Order.GeneralNotes))
+                    {
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Notas generales: @Order.GeneralNotes</MudText>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Desglose de Artículos -->
+            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mt-2 d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingBag" Size="Size.Small" Color="Color.Primary" />
+                Artículos del Pedido (@Order.Items.Count)
+            </MudText>
+
+            <MudTable Items="@Order.Items" Dense="true" Elevation="0" Class="border border-solid rounded-lg">
+                <HeaderContent>
+                    <MudTh>Producto</MudTh>
+                    <MudTh Style="text-align: right;">Cantidad</MudTh>
+                    <MudTh Style="text-align: right;">P. Unitario</MudTh>
+                    <MudTh Style="text-align: right;">Total</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-2">
+                            @if (context.IsFulfilled)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                            }
+                            <MudText Typo="Typo.body2" Class="font-weight-medium">@context.ProductName</MudText>
+                        </div>
+                    </MudTd>
+                    <MudTd Style="text-align: right;">@context.Quantity.ToString("G29")</MudTd>
+                    <MudTd Style="text-align: right;">@context.UnitPrice.ToString("C2")</MudTd>
+                    <MudTd Style="text-align: right;" Class="font-weight-bold">@context.TotalPrice.ToString("C2")</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public OrderMonitoringItemDto Order { get; set; } = new();
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+
+    private static Color GetStatusColor(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => Color.Warning,
+        OrderStatus.InFulfillment => Color.Info,
+        OrderStatus.Filled => Color.Secondary,
+        OrderStatus.Confirmed => Color.Success,
+        OrderStatus.Routed => Color.Primary,
+        OrderStatus.EnRoute => Color.Tertiary,
+        OrderStatus.Delivered or OrderStatus.Settled => Color.Success,
+        OrderStatus.Returned or OrderStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string GetStatusIcon(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => Icons.Material.Filled.Schedule,
+        OrderStatus.InFulfillment => Icons.Material.Filled.ShoppingBag,
+        OrderStatus.Filled => Icons.Material.Filled.CheckCircleOutline,
+        OrderStatus.Confirmed => Icons.Material.Filled.FactCheck,
+        OrderStatus.Routed => Icons.Material.Filled.AltRoute,
+        OrderStatus.EnRoute => Icons.Material.Filled.TwoWheeler,
+        OrderStatus.Delivered => Icons.Material.Filled.TaskAlt,
+        OrderStatus.Returned => Icons.Material.Filled.AssignmentReturn,
+        OrderStatus.Settled => Icons.Material.Filled.ChecklistRtl,
+        OrderStatus.Cancelled => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Help
+    };
+
+    private static string GetStatusLabel(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => "Pendiente de Surtido",
+        OrderStatus.InFulfillment => "En Surtido",
+        OrderStatus.Filled => "Surtido (Por Verificar)",
+        OrderStatus.Confirmed => "Confirmado en Caja",
+        OrderStatus.Routed => "Enrutado",
+        OrderStatus.EnRoute => "En Camino",
+        OrderStatus.Delivered => "Entregado",
+        OrderStatus.Returned => "Devuelto / No Entregado",
+        OrderStatus.Settled => "Liquidado",
+        OrderStatus.Cancelled => "Cancelado",
+        _ => status.ToString()
+    };
+}
