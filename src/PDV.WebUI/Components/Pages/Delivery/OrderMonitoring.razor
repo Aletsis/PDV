@@ -9,9 +9,13 @@
 @using PDV.Application.Features.Orders.Queries.GetOrderMonitoring
 @using PDV.WebUI.Components.Shared
 @using PDV.WebUI.Components.Shared.UI
+@using PDV.Application.Common.Interfaces
+@using PDV.Application.Common.Helpers
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICurrentUserService CurrentUserService
 @implements IDisposable
 @attribute [Authorize]
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
@@ -34,22 +38,25 @@
             </div>
         </StatusAlert>
         <Actions>
-            <div style="min-width: 200px;">
-                <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    @foreach (var b in _branches)
-                    {
-                        <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </div>
-            <div style="min-width: 140px;">
-                <MudSelect T="int" Label="Frecuencia" Value="_autoRefreshIntervalSeconds" ValueChanged="OnAutoRefreshChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    <MudSelectItem Value="0">Manual</MudSelectItem>
-                    <MudSelectItem Value="10">Cada 10 seg</MudSelectItem>
-                    <MudSelectItem Value="30">Cada 30 seg</MudSelectItem>
-                    <MudSelectItem Value="60">Cada 1 min</MudSelectItem>
-                </MudSelect>
-            </div>
+            @if (!_isManagerOnly)
+            {
+                <div style="min-width: 200px;">
+                    <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var b in _branches)
+                        {
+                            <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+                <div style="min-width: 140px;">
+                    <MudSelect T="int" Label="Frecuencia" Value="_autoRefreshIntervalSeconds" ValueChanged="OnAutoRefreshChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="0">Manual</MudSelectItem>
+                        <MudSelectItem Value="10">Cada 10 seg</MudSelectItem>
+                        <MudSelectItem Value="30">Cada 30 seg</MudSelectItem>
+                        <MudSelectItem Value="60">Cada 1 min</MudSelectItem>
+                    </MudSelect>
+                </div>
+            }
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="@(() => LoadOrdersAsync(false))" Disabled="@_isLoading">
                 Actualizar
             </MudButton>
@@ -429,6 +436,7 @@
     // Timer de auto-refresco
     private int _autoRefreshIntervalSeconds = 15;
     private Timer? _refreshTimer;
+    private bool _isManagerOnly = false;
 
     private IEnumerable<OrderMonitoringItemDto> _filteredOrders => _orders.Where(o =>
         (_selectedStatusFilter == null || 
@@ -446,11 +454,24 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isManagerOnly = user.IsInRole(RoleHelper.Manager) && !user.IsInRole(RoleHelper.Admin);
+
         var branchesResult = await Mediator.Send(new GetBranchesQuery());
         if (branchesResult != null && branchesResult.Any())
         {
             _branches = branchesResult.ToList();
-            _selectedBranchId = _branches.First().Id;
+            
+            if (_isManagerOnly && CurrentUserService.BranchId.HasValue && CurrentUserService.BranchId.Value != Guid.Empty)
+            {
+                _selectedBranchId = CurrentUserService.BranchId.Value;
+            }
+            else
+            {
+                _selectedBranchId = _branches.First().Id;
+            }
+
             await LoadZonesAsync();
             await LoadOrdersAsync();
             StartTimer();
@@ -459,6 +480,7 @@
 
     private async Task OnBranchChanged(Guid branchId)
     {
+        if (_isManagerOnly) return;
         _selectedBranchId = branchId;
         await LoadZonesAsync();
         await LoadOrdersAsync();

@@ -111,4 +111,25 @@ public class CurrentUserService : ICurrentUserService
             }
         }
     }
+
+    public System.Guid? BranchId
+    {
+        get
+        {
+            try
+            {
+                var authState = _authenticationStateProvider.GetAuthenticationStateAsync().Result;
+                var branchVal = authState.User?.FindFirst("BranchId")?.Value;
+                if (System.Guid.TryParse(branchVal, out var bId))
+                {
+                    return bId;
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
 }

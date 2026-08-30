@@ -13,4 +13,5 @@ public interface ICurrentUserService
     bool IsAuthenticated { get; }
     List<string> Roles { get; }
     string? IpAddress { get; }
+    System.Guid? BranchId { get; }
 }

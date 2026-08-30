@@ -10,7 +10,10 @@ using System.Threading.Tasks;
 
 namespace PDV.Application.Features.Sales.Queries.GetClosedCuts;
 
-public record GetClosedCutsQuery(DateTime? StartDate = null, DateTime? EndDate = null) : IRequest<List<ClosedCutDto>>;
+public record GetClosedCutsQuery(
+    DateTime? StartDate = null,
+    DateTime? EndDate = null,
+    Guid? BranchId = null) : IRequest<List<ClosedCutDto>>;
 
 public class ClosedCutDto
 {
@@ -67,6 +70,11 @@ public class GetClosedCutsQueryHandler : IRequestHandler<GetClosedCutsQuery, Lis
         {
             var end = request.EndDate.Value.Date.AddDays(1);
             shiftsQuery = shiftsQuery.Where(s => s.EndTime < end);
+        }
+
+        if (request.BranchId.HasValue && request.BranchId.Value != Guid.Empty)
+        {
+            shiftsQuery = shiftsQuery.Where(s => s.CashRegister != null && s.CashRegister.BranchId == request.BranchId.Value);
         }
 
         var shifts = await shiftsQuery

@@ -5,7 +5,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace PDV.Application.Features.Sales.Queries.ListSales;
 
-public record ListSalesQuery(DateTime? StartDate = null, DateTime? EndDate = null, bool? IsPaid = null, bool? IsCancelled = null, Guid? CashRegisterId = null) : IRequest<List<SaleDto>>;
+public record ListSalesQuery(
+    DateTime? StartDate = null,
+    DateTime? EndDate = null,
+    bool? IsPaid = null,
+    bool? IsCancelled = null,
+    Guid? CashRegisterId = null,
+    Guid? BranchId = null,
+    bool? IsInvoiced = null) : IRequest<List<SaleDto>>;
 
 public class ListSalesQueryHandler : IRequestHandler<ListSalesQuery, List<SaleDto>>
 {
@@ -50,6 +57,16 @@ public class ListSalesQueryHandler : IRequestHandler<ListSalesQuery, List<SaleDt
             query = query.Where(s => s.CashRegisterId == request.CashRegisterId.Value);
         }
 
+        if (request.BranchId.HasValue && request.BranchId.Value != Guid.Empty)
+        {
+            query = query.Where(s => s.BranchId == request.BranchId.Value);
+        }
+
+        if (request.IsInvoiced.HasValue)
+        {
+            query = query.Where(s => s.IsInvoiced == request.IsInvoiced.Value);
+        }
+
         return await query
             .OrderByDescending(s => s.Date)
             .Select(s => new SaleDto
@@ -66,7 +83,10 @@ public class ListSalesQueryHandler : IRequestHandler<ListSalesQuery, List<SaleDt
                 IsReturned = s.IsReturned,
                 ItemCount = s.Items.Count,
                 Series = s.Series,
-                Folio = s.Folio
+                Folio = s.Folio,
+                BranchId = s.BranchId,
+                IsInvoiced = s.IsInvoiced,
+                InvoiceId = s.InvoiceId
             })
             .ToListAsync(cancellationToken);
     }

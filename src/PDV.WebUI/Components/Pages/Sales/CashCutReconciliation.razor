@@ -14,10 +14,14 @@
 @using PDV.Application.Features.Sync.Queries
 @using PDV.Domain.Enums
 @using PDV.WebUI.Components.Shared.UI
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Common.Interfaces
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICurrentUserService CurrentUserService
 
 @if (isLocalMode)
 {
@@ -86,7 +90,7 @@ else
         <!-- Barra de Filtros -->
         <MudPaper Class="pa-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.015);">
             <MudGrid Spacing="2" Class="align-center">
-                <MudItem xs="12" sm="6" md="3">
+                <MudItem xs="12" sm="6" md="@(_isManagerOnly ? 4 : 3)">
                     <MudDatePicker Date="selectedDate"
                                    DateChanged="OnDateChanged"
                                    Label="Fecha"
@@ -94,22 +98,25 @@ else
                                    Margin="Margin.Dense"
                                    Placeholder="Seleccionar fecha..." />
                 </MudItem>
-                <MudItem xs="12" sm="6" md="3">
-                    <MudSelect T="Guid?"
-                               Value="selectedBranchId"
-                               ValueChanged="OnBranchChanged"
-                               Label="Sucursal"
-                               Variant="Variant.Outlined"
-                               Margin="Margin.Dense"
-                               Clearable="true">
-                        <MudSelectItem T="Guid?" Value="null">Todas las Sucursales</MudSelectItem>
-                        @foreach (var b in branches)
-                        {
-                            <MudSelectItem T="Guid?" Value="@((Guid?)b.Id)">@b.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6" md="3">
+                @if (!_isManagerOnly)
+                {
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudSelect T="Guid?"
+                                   Value="selectedBranchId"
+                                   ValueChanged="OnBranchChanged"
+                                   Label="Sucursal"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Clearable="true">
+                            <MudSelectItem T="Guid?" Value="null">Todas las Sucursales</MudSelectItem>
+                            @foreach (var b in branches)
+                            {
+                                <MudSelectItem T="Guid?" Value="@((Guid?)b.Id)">@b.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+                <MudItem xs="12" sm="6" md="@(_isManagerOnly ? 4 : 3)">
                     <MudSelect T="Guid?"
                                Value="selectedCashRegisterId"
                                ValueChanged="OnCashRegisterChanged"
@@ -124,7 +131,7 @@ else
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6" md="3">
+                <MudItem xs="12" sm="6" md="@(_isManagerOnly ? 4 : 3)">
                     <MudSelect T="ReconciliationFilterStatus"
                                Value="filterStatus"
                                ValueChanged="OnFilterStatusChanged"
@@ -251,9 +258,19 @@ else
     private ReconciliationsSummaryDto summary = new();
     private List<CashRegisterDto> cashRegisters = new();
     private List<BranchDto> branches = new();
+    private bool _isManagerOnly = false;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isManagerOnly = user.IsInRole(RoleHelper.Manager) && !user.IsInRole(RoleHelper.Admin);
+
+        if (_isManagerOnly && CurrentUserService.BranchId.HasValue && CurrentUserService.BranchId.Value != Guid.Empty)
+        {
+            selectedBranchId = CurrentUserService.BranchId.Value;
+        }
+
         isLocalMode = ConnectionMonitor.IsLocalMode;
         if (!isLocalMode)
         {
@@ -333,6 +350,7 @@ else
 
     private async Task OnBranchChanged(Guid? newBranchId)
     {
+        if (_isManagerOnly) return;
         selectedBranchId = newBranchId;
         
         // Si la caja seleccionada no pertenece a la nueva sucursal, la limpiamos

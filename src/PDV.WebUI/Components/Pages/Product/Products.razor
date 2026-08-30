@@ -12,9 +12,11 @@
 @using PDV.Application.Features.Departments.Queries.GetDepartments
 @using PDV.Application.Features.Branches.Queries.GetBranches
 @using PDV.Application.Features.Branches.Dtos
+@using PDV.Application.Common.Helpers
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
 @inject PDV.WebUI.Services.ConnectionMonitor ConnectionMonitor
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @implements IDisposable
@@ -144,7 +146,7 @@
                 </MudSelect>
             </div>
             
-            @if (!isLocalMode)
+            @if (!isLocalMode && !_isManagerOnly)
             {
                 <PdvInteractiveButton UseGradient="true" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
                     Nuevo Producto
@@ -193,7 +195,7 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Storefront" Color="Color.Info" Size="Size.Small" 
                                                OnClick="@(() => OpenBranchStockDialog(context.Item))" Style="background-color: rgba(33, 150, 243, 0.08);" />
                             </MudTooltip>
-                            @if (!isLocalMode)
+                            @if (!isLocalMode && !_isManagerOnly)
                             {
                                 <MudTooltip Text="Editar Producto">
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
@@ -222,6 +224,7 @@
     private List<BranchDto> branches = new();
     private bool isLocalMode = false;
     private bool isLoading = false;
+    private bool _isManagerOnly = false;
 
     // Stats variables
     private int totalProductsCount = 0;
@@ -260,6 +263,10 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isManagerOnly = user.IsInRole(RoleHelper.Manager) && !user.IsInRole(RoleHelper.Admin);
+
         ConnectionMonitor.OnConnectionStatusChanged += OnConnectionStatusChanged;
         await LoadSyncStatus();
         await LoadBranches();
@@ -380,6 +387,12 @@
 
     private async Task OpenCreateDialog()
     {
+        if (_isManagerOnly)
+        {
+            Snackbar.Add("Los supervisores solo tienen permiso de consulta en el catálogo de productos.", Severity.Warning);
+            return;
+        }
+
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
         var dialog = await DialogService.ShowAsync<ProductDialog>("Nuevo Producto", options);
         var result = await dialog.Result;
@@ -430,6 +443,12 @@
 
     private async Task OpenEditDialog(ProductDto product)
     {
+        if (_isManagerOnly)
+        {
+            Snackbar.Add("Los supervisores solo tienen permiso de consulta en el catálogo de productos.", Severity.Warning);
+            return;
+        }
+
         var parameters = new DialogParameters();
         parameters.Add("Model", new ProductDialog.ProductViewModel
         {
@@ -509,6 +528,12 @@
 
     private async Task DeleteProduct(ProductDto product)
     {
+        if (_isManagerOnly)
+        {
+            Snackbar.Add("Los supervisores solo tienen permiso de consulta en el catálogo de productos.", Severity.Warning);
+            return;
+        }
+
         bool? result = await DialogService.ShowMessageBox(
             "Eliminar Producto", 
             $"¿Estás seguro que deseas eliminar {product.Name}?", 

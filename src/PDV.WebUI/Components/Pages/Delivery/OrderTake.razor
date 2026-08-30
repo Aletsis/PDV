@@ -21,6 +21,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject IApplicationDbContext DbContext
+@inject ICurrentUserService CurrentUserService
 @attribute [Authorize(Roles = "Admin,Manager,Telephonist,Cashier")]
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
@@ -37,14 +38,17 @@
                 Tome los pedidos de los clientes por teléfono, agregue especificaciones por producto y envíelos a la cola de surtido.
             </MudText>
         </div>
-        <div style="min-width: 250px;">
-            <MudSelect T="Guid" Label="Sucursal de Preparación" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
-                @foreach (var b in _branches)
-                {
-                    <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
-                }
-            </MudSelect>
-        </div>
+        @if (!_isManagerOnly)
+        {
+            <div style="min-width: 250px;">
+                <MudSelect T="Guid" Label="Sucursal de Preparación" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var b in _branches)
+                    {
+                        <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        }
     </div>
 
     <MudGrid>
@@ -367,6 +371,7 @@
     private string? _deliveryNotes;
     private bool _isSubmitting = false;
     private string _currentUserId = string.Empty;
+    private bool _isManagerOnly = false;
 
     private decimal TotalAmount => _items.Sum(i => i.Total);
 
@@ -375,17 +380,26 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "Telephonist";
+        _isManagerOnly = user.IsInRole(PDV.Application.Common.Helpers.RoleHelper.Manager) && !user.IsInRole(PDV.Application.Common.Helpers.RoleHelper.Admin);
 
         var branchesResult = await Mediator.Send(new GetBranchesQuery());
         if (branchesResult != null && branchesResult.Any())
         {
             _branches = branchesResult.ToList();
-            _selectedBranchId = _branches.First().Id;
+            if (_isManagerOnly && CurrentUserService.BranchId.HasValue && CurrentUserService.BranchId.Value != Guid.Empty)
+            {
+                _selectedBranchId = CurrentUserService.BranchId.Value;
+            }
+            else
+            {
+                _selectedBranchId = _branches.First().Id;
+            }
         }
     }
 
     private void OnBranchChanged(Guid branchId)
     {
+        if (_isManagerOnly) return;
         _selectedBranchId = branchId;
     }
 

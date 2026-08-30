@@ -12,9 +12,13 @@
 @using PDV.Application.Features.Pickers.Commands.SetPickerStatus
 @using PDV.Application.Features.Pickers.Commands.UpdatePickerCapacity
 @using PDV.WebUI.Components.Shared
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Common.Interfaces
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICurrentUserService CurrentUserService
 @attribute [Authorize(Roles = "Admin,Manager")]
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
@@ -36,14 +40,17 @@
             </div>
         </StatusAlert>
         <Actions>
-            <div style="min-width: 220px;">
-                <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    @foreach (var b in _branches)
-                    {
-                        <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </div>
+            @if (!_isManagerOnly)
+            {
+                <div style="min-width: 220px;">
+                    <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var b in _branches)
+                        {
+                            <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+            }
             <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadPickersAsync">
                 Actualizar
             </MudButton>
@@ -270,6 +277,7 @@
     private PickerStatusDto? _selectedPicker;
     private int? _editCapacityValue;
     private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true };
+    private bool _isManagerOnly = false;
 
     private IEnumerable<PickerStatusDto> _filteredPickers => _pickers.Where(p =>
         string.IsNullOrWhiteSpace(_searchString) ||
@@ -279,17 +287,29 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isManagerOnly = user.IsInRole(RoleHelper.Manager) && !user.IsInRole(RoleHelper.Admin);
+
         var branchesResult = await Mediator.Send(new GetBranchesQuery());
         if (branchesResult != null && branchesResult.Any())
         {
             _branches = branchesResult.ToList();
-            _selectedBranchId = _branches.First().Id;
+            if (_isManagerOnly && CurrentUserService.BranchId.HasValue && CurrentUserService.BranchId.Value != Guid.Empty)
+            {
+                _selectedBranchId = CurrentUserService.BranchId.Value;
+            }
+            else
+            {
+                _selectedBranchId = _branches.First().Id;
+            }
             await LoadPickersAsync();
         }
     }
 
     private async Task OnBranchChanged(Guid branchId)
     {
+        if (_isManagerOnly) return;
         _selectedBranchId = branchId;
         await LoadPickersAsync();
     }

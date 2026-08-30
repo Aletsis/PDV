@@ -15,4 +15,7 @@ public class SaleDto
     public int ItemCount { get; set; }
     public string? Series { get; set; }
     public int Folio { get; set; }
+    public Guid BranchId { get; set; }
+    public bool IsInvoiced { get; set; }
+    public string? InvoiceId { get; set; }
 }

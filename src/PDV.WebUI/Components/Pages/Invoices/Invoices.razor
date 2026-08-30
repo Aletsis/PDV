@@ -7,10 +7,15 @@
 @using PDV.Application.Features.Sales.Queries.GetClosedCuts
 @using PDV.Application.Features.Sales.Commands.CreateGlobalInvoice
 @using PDV.Application.Features.Sales.Commands.CreateCreditNote
+@using PDV.Application.Features.Sales.Queries.ListSales
 @using PDV.Application.Features.Sales.Dtos
+@using PDV.Application.Common.Helpers
+@using PDV.Application.Common.Interfaces
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICurrentUserService CurrentUserService
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 <PageTitle>Facturas y Facturación Centralizada</PageTitle>
@@ -260,6 +265,82 @@
                 </MudPaper>
             </PdvStateContainer>
         </MudTabPanel>
+
+        <!-- PESTAÑA 3: FACTURAR NOTAS DE CLIENTE -->
+        <MudTabPanel Text="Facturar Notas de Cliente" Icon="@Icons.Material.Filled.ReceiptLong" OnClick="LoadSalesNotes" ToolTip="Emitir facturas CFDI para notas de venta individuales de clientes">
+            <MudPaper Class="pa-4 mb-4 border-solid border mud-border-secondary" Style="border-radius: 12px; background: rgba(255,255,255,0.01);">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudDatePicker @bind-Date="salesStartDate" Label="Fecha Inicio" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudDatePicker @bind-Date="salesEndDate" Label="Fecha Fin" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="2">
+                        <MudSelect T="bool?" @bind-Value="salesFilterInvoiced" Label="Estatus Factura" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="@((bool?)null)">Todas las Notas</MudSelectItem>
+                            <MudSelectItem Value="@((bool?)false)">Pendientes</MudSelectItem>
+                            <MudSelectItem Value="@((bool?)true)">Facturadas</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="2">
+                        <MudTextField @bind-Value="salesSearchText" Placeholder="Folio o Cliente..." Label="Buscar" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterList" OnClick="LoadSalesNotes" FullWidth="true" Style="height: 40px; text-transform: none; border-radius: 8px; font-weight: bold;">Filtrar Notas</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <PdvStateContainer IsLoading="@isLoadingSalesNotes"
+                                Empty="@(!filteredSalesNotes.Any())"
+                                EmptyTitle="Sin notas de venta"
+                                EmptyMessage="No se encontraron notas de venta en el rango y estatus seleccionado."
+                                EmptyIcon="@Icons.Material.Filled.ReceiptLong"
+                                SkeletonRows="6"
+                                SkeletonColumns="7">
+                <MudPaper Class="border-solid border mud-border-secondary" Style="border-radius: 12px; overflow: hidden;">
+                    <MudDataGrid Items="@filteredSalesNotes" Filterable="true" Dense="true" Elevation="0" Striped="true">
+                        <Columns>
+                            <PropertyColumn Property="x => x.SaleNumber" Title="Folio / Ticket" />
+                            <PropertyColumn Property="x => x.Date" Title="Fecha" Format="dd/MM/yyyy HH:mm" />
+                            <PropertyColumn Property="x => x.ClientName" Title="Cliente" />
+                            <PropertyColumn Property="x => x.PaymentMethod" Title="Método Pago" />
+                            <PropertyColumn Property="x => x.TotalAmount" Title="Total Venta" Format="C2" CellStyle="font-weight: bold; color: var(--mud-palette-primary);" />
+                            <TemplateColumn Title="Estatus">
+                                <CellTemplate>
+                                    @if (context.Item.IsInvoiced)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Facturada</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Pendiente</MudChip>
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Acciones" Style="width: 140px;">
+                                <CellTemplate>
+                                    @if (!context.Item.IsInvoiced && !context.Item.IsCancelled)
+                                    {
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Receipt" OnClick="@(() => OpenInvoiceSaleDialog(context.Item))" Style="text-transform: none; border-radius: 6px; font-weight: bold;">
+                                            Facturar Nota
+                                        </MudButton>
+                                    }
+                                    else if (context.Item.IsInvoiced)
+                                    {
+                                        <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Text">CFDI Generado</MudChip>
+                                    }
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="SaleDto" />
+                        </PagerContent>
+                    </MudDataGrid>
+                </MudPaper>
+            </PdvStateContainer>
+        </MudTabPanel>
     </MudTabs>
 </div>
 
@@ -277,6 +358,8 @@
 @code {
     private List<InvoiceDto> invoices = new();
     private List<ClosedCutDto> cuts = new();
+    private List<SaleDto> salesNotes = new();
+    
     private DateTime? startDate = DateTime.Today;
     private DateTime? endDate = DateTime.Today.AddDays(1);
     private bool? filterGlobal = null;
@@ -284,13 +367,30 @@
     private DateTime? cutsStartDate = DateTime.Today.AddDays(-7);
     private DateTime? cutsEndDate = DateTime.Today.AddDays(1);
 
+    private DateTime? salesStartDate = DateTime.Today.AddDays(-7);
+    private DateTime? salesEndDate = DateTime.Today.AddDays(1);
+    private bool? salesFilterInvoiced = false;
+    private string salesSearchText = string.Empty;
+
     private bool isProcessing = false;
     private bool isLoadingInvoices = false;
     private bool isLoadingCuts = false;
+    private bool isLoadingSalesNotes = false;
+    private bool _isManagerOnly = false;
     private HashSet<Guid> expandedRows = new();
+
+    private IEnumerable<SaleDto> filteredSalesNotes => salesNotes.Where(s =>
+        string.IsNullOrWhiteSpace(salesSearchText) ||
+        s.SaleNumber.Contains(salesSearchText, StringComparison.OrdinalIgnoreCase) ||
+        s.ClientName.Contains(salesSearchText, StringComparison.OrdinalIgnoreCase) ||
+        (s.Series != null && s.Series.Contains(salesSearchText, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isManagerOnly = user.IsInRole(RoleHelper.Manager) && !user.IsInRole(RoleHelper.Admin);
+
         await LoadInvoices();
     }
 
@@ -299,10 +399,12 @@
         isLoadingInvoices = true;
         try
         {
+            Guid? branchFilter = _isManagerOnly ? CurrentUserService.BranchId : null;
             invoices = await Mediator.Send(new ListInvoicesQuery(
                 StartDate: startDate,
                 EndDate: endDate,
-                IsGlobal: filterGlobal));
+                IsGlobal: filterGlobal,
+                BranchId: branchFilter));
         }
         catch (Exception ex)
         {
@@ -319,9 +421,11 @@
         isLoadingCuts = true;
         try
         {
+            Guid? branchFilter = _isManagerOnly ? CurrentUserService.BranchId : null;
             cuts = await Mediator.Send(new GetClosedCutsQuery(
                 StartDate: cutsStartDate,
-                EndDate: cutsEndDate));
+                EndDate: cutsEndDate,
+                BranchId: branchFilter));
         }
         catch (Exception ex)
         {
@@ -330,6 +434,44 @@
         finally
         {
             isLoadingCuts = false;
+        }
+    }
+
+    private async Task LoadSalesNotes()
+    {
+        isLoadingSalesNotes = true;
+        try
+        {
+            Guid? branchFilter = _isManagerOnly ? CurrentUserService.BranchId : null;
+            salesNotes = await Mediator.Send(new ListSalesQuery(
+                StartDate: salesStartDate,
+                EndDate: salesEndDate,
+                IsPaid: true,
+                IsCancelled: false,
+                BranchId: branchFilter,
+                IsInvoiced: salesFilterInvoiced));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar notas de venta: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoadingSalesNotes = false;
+        }
+    }
+
+    private async Task OpenInvoiceSaleDialog(SaleDto sale)
+    {
+        var parameters = new DialogParameters { ["SaleId"] = sale.Id };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<PDV.WebUI.Components.Pages.Sales.InvoiceDetailsDialog>("Facturar Nota de Venta", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadSalesNotes();
+            await LoadInvoices();
         }
     }
 

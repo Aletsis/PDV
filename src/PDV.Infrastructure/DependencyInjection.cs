@@ -86,7 +86,8 @@ public static class DependencyInjection
             options.User.RequireUniqueEmail = false;
         })
         .AddEntityFrameworkStores<AppDbContext>()
-        .AddDefaultTokenProviders();
+        .AddDefaultTokenProviders()
+        .AddClaimsPrincipalFactory<Identity.AppUserClaimsPrincipalFactory>();
 
         // Configurar la ruta de redirección de cookies de autenticación para que coincida con nuestra vista personalizada (/login)
         services.ConfigureApplicationCookie(options =>
