@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Identity
 @using PDV.Domain.Entities
 @using PDV.Domain.Enums
+@using PDV.Application.Common.Interfaces
 @using PDV.Application.Features.Branches.Queries.GetBranches
 @using PDV.Application.Features.Branches.Dtos
 @using PDV.Application.Features.Orders.Dtos
@@ -16,6 +17,8 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IIdentityService IdentityService
+@inject PDV.WebUI.Services.ShiftSessionService ShiftSession
 @attribute [Authorize(Roles = "Admin,Manager,Almacen,Picker,Cashier")]
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
@@ -35,13 +38,22 @@
         </div>
         
         <div class="d-flex align-center flex-wrap gap-3">
-            <!-- Selector de Sucursal -->
-            <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 180px;">
-                @foreach (var b in _branches)
-                {
-                    <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
-                }
-            </MudSelect>
+            <!-- Selector de Sucursal (Solo para rol Admin) -->
+            @if (_isAdmin)
+            {
+                <MudSelect T="Guid" Label="Sucursal" Value="_selectedBranchId" ValueChanged="OnBranchChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 180px;">
+                    @foreach (var b in _branches)
+                    {
+                        <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else if (!string.IsNullOrWhiteSpace(_branchName))
+            {
+                <MudChip T="string" Color="Color.Default" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Store" Size="Size.Medium">
+                    @_branchName
+                </MudChip>
+            }
 
             <!-- Control de Disponibilidad del Surtidor -->
             @if (_myPickerStatus != null)
@@ -118,7 +130,7 @@
                 <MudPaper Elevation="3" Class="pa-4 d-flex flex-column gap-3" Style="height: 100%; min-height: 600px;">
                     <div class="d-flex justify-space-between align-center">
                         <MudText Typo="Typo.h6" Class="font-weight-bold">
-                            Cola de Pedidos (@_orders.Count)
+                            @(_isAdmin || _isManager ? $"Cola de Pedidos ({_orders.Count})" : $"Mis Pedidos Asignados ({_orders.Count})")
                         </MudText>
                     </div>
 
@@ -136,7 +148,16 @@
                     {
                         <div class="d-flex flex-column align-center justify-center py-12 text-center mud-text-secondary">
                             <MudIcon Icon="@Icons.Material.Filled.DoneAll" Size="Size.Large" Color="Color.Success" Class="mb-2" />
-                            <MudText Typo="Typo.subtitle1">No hay pedidos pendientes de surtir</MudText>
+                            @if (_isAdmin || _isManager)
+                            {
+                                <MudText Typo="Typo.subtitle1">No hay pedidos pendientes de surtir</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Todos los pedidos están asignados o no hay pedidos nuevos en cola.</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.subtitle1">No tienes pedidos asignados</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Asegúrate de estar en estado "Disponible" para recibir pedidos automáticamente.</MudText>
+                            }
                         </div>
                     }
                     else
@@ -163,6 +184,12 @@
                                                     {
                                                         <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Style="font-size: 0.7rem; height: 20px;">
                                                             Asignado a ti
+                                                        </MudChip>
+                                                    }
+                                                    else if (string.IsNullOrEmpty(order.FilledById))
+                                                    {
+                                                        <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined" Style="font-size: 0.7rem; height: 20px;">
+                                                            Sin Asignar
                                                         </MudChip>
                                                     }
                                                 </div>
@@ -382,6 +409,7 @@
 @code {
     private List<BranchDto> _branches = new();
     private Guid _selectedBranchId = Guid.Empty;
+    private string _branchName = string.Empty;
     private List<OrderDetailDto> _orders = new();
     private OrderDetailDto? _selectedOrder;
     private PickerStatusDto? _myPickerStatus;
@@ -389,6 +417,8 @@
     private bool _isLoading = false;
     private bool _isSubmitting = false;
     private string _currentUserId = string.Empty;
+    private bool _isAdmin = false;
+    private bool _isManager = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -396,11 +426,54 @@
         var user = authState.User;
         _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.Identity?.Name ?? "Picker";
 
+        _isAdmin = user.IsInRole("Admin") || user.IsInRole("Administrador");
+        _isManager = user.IsInRole("Manager") || user.IsInRole("Gerente") || user.IsInRole("Supervisor");
+
         var branchesResult = await Mediator.Send(new GetBranchesQuery());
         if (branchesResult != null && branchesResult.Any())
         {
             _branches = branchesResult.ToList();
-            _selectedBranchId = _branches.First().Id;
+        }
+
+        if (!_isAdmin)
+        {
+            // Para no administradores, asignar su sucursal de manera fija
+            var userInfo = await IdentityService.GetUserByIdAsync(_currentUserId, default);
+            if (userInfo?.BranchId.HasValue == true && userInfo.BranchId.Value != Guid.Empty)
+            {
+                _selectedBranchId = userInfo.BranchId.Value;
+            }
+            else if (ShiftSession.HasActiveShift && ShiftSession.BranchId.HasValue)
+            {
+                _selectedBranchId = ShiftSession.BranchId.Value;
+            }
+            else if (_branches.Any())
+            {
+                _selectedBranchId = _branches.First().Id;
+            }
+
+            var branch = _branches.FirstOrDefault(b => b.Id == _selectedBranchId);
+            _branchName = branch?.Name ?? "Sucursal";
+        }
+        else
+        {
+            // Para administradores, predeterminar a su sucursal o a la primera de la lista
+            var userInfo = await IdentityService.GetUserByIdAsync(_currentUserId, default);
+            if (userInfo?.BranchId.HasValue == true && userInfo.BranchId.Value != Guid.Empty && _branches.Any(b => b.Id == userInfo.BranchId.Value))
+            {
+                _selectedBranchId = userInfo.BranchId.Value;
+            }
+            else if (_branches.Any())
+            {
+                _selectedBranchId = _branches.First().Id;
+            }
+
+            var branch = _branches.FirstOrDefault(b => b.Id == _selectedBranchId);
+            _branchName = branch?.Name ?? "Sucursal";
+        }
+
+        if (_selectedBranchId != Guid.Empty)
+        {
             await LoadDataAsync();
         }
     }
@@ -408,6 +481,8 @@
     private async Task OnBranchChanged(Guid branchId)
     {
         _selectedBranchId = branchId;
+        var branch = _branches.FirstOrDefault(b => b.Id == _selectedBranchId);
+        _branchName = branch?.Name ?? "Sucursal";
         _selectedOrder = null;
         await LoadDataAsync();
     }
@@ -442,14 +517,17 @@
             _orders = await Mediator.Send(new GetOrdersForFulfillmentQuery
             {
                 BranchId = _selectedBranchId,
-                SearchTerm = _searchTerm
+                SearchTerm = _searchTerm,
+                UserId = _currentUserId,
+                IsAdminOrManager = _isAdmin || _isManager
             });
 
             // Si hay un pedido asignado al surtidor actual, seleccionarlo automáticamente si no hay selección
             if (_selectedOrder == null)
             {
                 _selectedOrder = _orders.FirstOrDefault(o => o.FilledById == _currentUserId && o.Status == OrderStatus.InFulfillment)
-                                ?? _orders.FirstOrDefault(o => o.Status == OrderStatus.InFulfillment);
+                                ?? _orders.FirstOrDefault(o => o.Status == OrderStatus.InFulfillment)
+                                ?? _orders.FirstOrDefault();
             }
             else
             {

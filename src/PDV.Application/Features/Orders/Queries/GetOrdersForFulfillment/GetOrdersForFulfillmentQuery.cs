@@ -16,6 +16,7 @@ public record GetOrdersForFulfillmentQuery : IRequest<List<OrderDetailDto>>
     public Guid BranchId { get; set; }
     public string? SearchTerm { get; set; }
     public string? UserId { get; set; }
+    public bool IsAdminOrManager { get; set; }
 }
 
 public class GetOrdersForFulfillmentQueryHandler : IRequestHandler<GetOrdersForFulfillmentQuery, List<OrderDetailDto>>
@@ -37,6 +38,20 @@ public class GetOrdersForFulfillmentQueryHandler : IRequestHandler<GetOrdersForF
             .Where(o => o.BranchId == request.BranchId &&
                         (o.Status == OrderStatus.Pending || o.Status == OrderStatus.InFulfillment))
             .AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(request.UserId))
+        {
+            if (request.IsAdminOrManager)
+            {
+                // Admin o Manager: Muestra pedidos sin asignar más los asignados a sí mismo
+                query = query.Where(o => string.IsNullOrEmpty(o.FilledById) || o.FilledById == request.UserId);
+            }
+            else
+            {
+                // Surtidor estándar: Muestra únicamente pedidos asignados a su usuario
+                query = query.Where(o => o.FilledById == request.UserId);
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
